@@ -4,6 +4,20 @@ Instructions for AI coding agents working in this repository. Read this file bef
 The product specification in [docs/PRD.md](docs/PRD.md) is the source of truth. If code and PRD
 disagree, stop and ask — do not "fix" the PRD silently.
 
+## 0. WHAT / WHY / HOW
+
+**WHAT** — SPA на React 19 + TypeScript (strict) + Vite 8 + Tailwind 4; Supabase (Postgres, Auth, RLS,
+Edge Functions); тесты Vitest + Playwright; деплой frontend на Vercel.
+
+**WHY** — LifeOS превращает намерения в последовательные действия: цели → этапы → задачи → дневной
+план → прогресс → адаптация плана. AI предлагает, решение принимает человек.
+
+**HOW** — `npm run dev` / `build` / `lint` / `test`; разработка по PRD; изменения схемы только через
+`supabase/migrations`; перед словом «готово» — verification gate.
+
+Рабочие артефакты: `docs/plan.md` (текущая итерация), `docs/progress.md` (журнал), `docs/prompts.md`
+(шаблоны промптов), `docs/vibe-coding-cheatsheet.md` (методика), `.opencode/agents/` (субагенты).
+
 ## 1. What we are building
 
 LifeOS is a personal productivity platform: long-term goals, tasks, a planner, habits, analytics and
@@ -90,7 +104,12 @@ Global skills live in `~/.config/opencode/skills`. Use the ones that match the t
 - `test-driven-development`, `systematic-debugging`, `verification-before-completion` — correctness
 - `brainstorming`, `writing-plans`, `to-spec`, `to-tickets` — shaping work before code
 - `deploy-to-vercel`, `writing-guidelines` — deployment and copy
+- `find-skills` — discover and install new skills from the registry
+- `design-taste-frontend` — art direction for app screens (heavy; use for UI work)
 - `lifeos-workflow` — the project-specific task loop
+
+Subagents for this repo live in `.opencode/agents/` and are invoked with `@`:
+`planner`, `frontend-developer`, `code-reviewer`, `debugger`, `security-auditor`.
 
 ## 9. Current state
 
@@ -98,3 +117,16 @@ Phase 1 foundation is in place: shell, routing, design tokens, domain types, `da
 helpers with tests. Supabase auth, profile and preferences are **not** implemented yet; the app shows
 a setup banner instead of failing. Keep module placeholders honest — they describe a phase, they do
 not pretend to be functionality.
+
+The current iteration is written down in `docs/plan.md`; finished work goes to `docs/progress.md`.
+
+## 10. Session hygiene (from the vibe-coding method)
+
+- One task = one session. Start clean instead of dragging a long, polluted context.
+- Stay inside roughly 30% of the context window; summarise findings into files, not memory.
+- Commit before each prompt so any change is instantly revertible; use a feature branch for experiments.
+- With 2+ parallel agents in the same repo use `git worktree`, not the same working copy.
+- Disable MCP servers you are not using for the current task; they consume context.
+- Quote the specific file section instead of dumping whole files; prefer error text and stack traces
+  over screenshots.
+- After fixing a recurring mistake, add one line to §7 or §5 so the next session cannot repeat it.

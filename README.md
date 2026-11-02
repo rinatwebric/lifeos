@@ -74,16 +74,38 @@ docs/           PRD, архитектура, роадмап
 Глобальные скилы лежат в `~/.config/opencode/skills` и автоматически доступны во всех проектах.
 Для LifeOS дополнительно установлены:
 
-| Скил                               | Зачем                                        |
-| ---------------------------------- | -------------------------------------------- |
-| `vercel-react-best-practices`      | React 19 / производительность / паттерны     |
-| `vercel-composition-patterns`      | Композиция компонентов без лишних абстракций |
-| `web-design-guidelines`            | UI/UX ревью интерфейса                       |
-| `deploy-to-vercel`                 | Деплой frontend на Vercel                    |
-| `writing-guidelines`               | Тексты интерфейса и документации             |
-| `supabase`                         | Auth, RLS, клиент, edge functions            |
-| `supabase-postgres-best-practices` | Схема, индексы, RLS-политики, миграции       |
-| `lifeos-workflow` (проектный)      | Порядок работы над задачами LifeOS           |
+| Скил                               | Зачем                                               |
+| ---------------------------------- | --------------------------------------------------- |
+| `vercel-react-best-practices`      | React 19 / производительность / паттерны            |
+| `vercel-composition-patterns`      | Композиция компонентов без лишних абстракций        |
+| `web-design-guidelines`            | UI/UX ревью интерфейса                              |
+| `deploy-to-vercel`                 | Деплой frontend на Vercel                           |
+| `writing-guidelines`               | Тексты интерфейса и документации                    |
+| `supabase`                         | Auth, RLS, клиент, edge functions                   |
+| `supabase-postgres-best-practices` | Схема, индексы, RLS-политики, миграции              |
+| `find-skills`                      | Поиск и установка новых скилов из реестра skills.sh |
+| `design-taste-frontend`            | Арт-дирекшн и анти-«AI-slop» для экранов приложения |
+| `lifeos-workflow` (проектный)      | Порядок работы над задачами LifeOS                  |
+
+Установка новых скилов: `npx skills add <owner/repo> --agent opencode --global`
+(попадают в `~/.agents/skills`, opencode читает этот путь наравне с `~/.config/opencode/skills`).
+
+## Агенты и MCP
+
+- Субагенты проекта (`.opencode/agents/`): `planner`, `frontend-developer`, `code-reviewer`,
+  `debugger`, `security-auditor`. Вызов — через `@` в opencode.
+- `opencode.json` подключает MCP `context7` (актуальная документация библиотек). `playwright` MCP
+  добавлен, но выключен — включайте на время браузерных проверок (`"enabled": true`).
+- MCP расходует контекст: держите включённым только то, что используете в текущей задаче.
+
+## Workflow-документы
+
+| Файл                             | Назначение                                       |
+| -------------------------------- | ------------------------------------------------ |
+| `docs/plan.md`                   | План текущей итерации: шаги, файлы, проверки     |
+| `docs/progress.md`               | Журнал: что сделано, чем проверено, что осталось |
+| `docs/prompts.md`                | Шаблоны промптов: фича, план, дебаг, ревью       |
+| `docs/vibe-coding-cheatsheet.md` | Методика вайбкодинга и как она применена здесь   |
 
 ## Безопасность
 
