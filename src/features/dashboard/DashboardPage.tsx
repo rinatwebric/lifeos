@@ -90,7 +90,8 @@ export function DashboardPage() {
             <CalendarDays className="size-4 text-muted" aria-hidden="true" />
           </div>
           <p className="rounded-lg border border-dashed border-line px-4 py-8 text-center text-sm text-muted">
-            Nothing scheduled. Tasks you plan for today will be listed here with priority and status.
+            Nothing scheduled. Tasks you plan for today will be listed here with priority and
+            status.
           </p>
           <Link
             to="/tasks"

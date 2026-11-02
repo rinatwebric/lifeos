@@ -36,7 +36,9 @@ interface GoalProgressSource {
  */
 export function calculateGoalProgress(goal: GoalProgressSource): number | null {
   if (goal.progressMode === "milestones") {
-    const completed = goal.milestones.filter((milestone) => milestone.status === "completed").length;
+    const completed = goal.milestones.filter(
+      (milestone) => milestone.status === "completed",
+    ).length;
     const derived = calculateMilestoneProgress(completed, goal.milestones.length);
 
     if (derived !== null) {

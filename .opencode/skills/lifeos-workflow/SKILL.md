@@ -41,11 +41,11 @@ Report what changed, what you verified, and what is still missing.
 
 ## Where things live
 
-| Concern | Location |
-| --- | --- |
-| Routes and providers | `src/app` |
-| Layout and primitives | `src/components` |
-| Product modules | `src/features/<module>` |
-| Pure helpers | `src/lib` |
-| Domain types | `src/types/domain.ts` |
-| Spec and decisions | `docs/PRD.md`, `docs/ARCHITECTURE.md`, `docs/ROADMAP.md` |
+| Concern               | Location                                                 |
+| --------------------- | -------------------------------------------------------- |
+| Routes and providers  | `src/app`                                                |
+| Layout and primitives | `src/components`                                         |
+| Product modules       | `src/features/<module>`                                  |
+| Pure helpers          | `src/lib`                                                |
+| Domain types          | `src/types/domain.ts`                                    |
+| Spec and decisions    | `docs/PRD.md`, `docs/ARCHITECTURE.md`, `docs/ROADMAP.md` |

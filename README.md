@@ -32,25 +32,25 @@ npm run dev
 
 ### Переменные окружения
 
-| Переменная | Где взять | Примечание |
-| --- | --- | --- |
-| `VITE_SUPABASE_URL` | Supabase → Project Settings → API | Публичный URL проекта |
+| Переменная               | Где взять                         | Примечание                                        |
+| ------------------------ | --------------------------------- | ------------------------------------------------- |
+| `VITE_SUPABASE_URL`      | Supabase → Project Settings → API | Публичный URL проекта                             |
 | `VITE_SUPABASE_ANON_KEY` | Supabase → Project Settings → API | Публичный anon key, безопасен только вместе с RLS |
 
 `service_role` key и ключи AI-провайдеров **никогда** не попадают во frontend.
 
 ## Скрипты
 
-| Команда | Что делает |
-| --- | --- |
-| `npm run dev` | Vite dev server |
-| `npm run build` | Type-check (`tsc -b`) + production build |
-| `npm run preview` | Просмотр production сборки |
-| `npm run typecheck` | Только проверка типов |
-| `npm run lint` / `lint:fix` | ESLint (flat config) |
-| `npm run format` / `format:check` | Prettier |
-| `npm test` / `test:watch` | Vitest (unit) |
-| `npm run test:e2e` | Playwright (нужен `npx playwright install`) |
+| Команда                           | Что делает                                  |
+| --------------------------------- | ------------------------------------------- |
+| `npm run dev`                     | Vite dev server                             |
+| `npm run build`                   | Type-check (`tsc -b`) + production build    |
+| `npm run preview`                 | Просмотр production сборки                  |
+| `npm run typecheck`               | Только проверка типов                       |
+| `npm run lint` / `lint:fix`       | ESLint (flat config)                        |
+| `npm run format` / `format:check` | Prettier                                    |
+| `npm test` / `test:watch`         | Vitest (unit)                               |
+| `npm run test:e2e`                | Playwright (нужен `npx playwright install`) |
 
 ## Структура
 
@@ -74,16 +74,16 @@ docs/           PRD, архитектура, роадмап
 Глобальные скилы лежат в `~/.config/opencode/skills` и автоматически доступны во всех проектах.
 Для LifeOS дополнительно установлены:
 
-| Скил | Зачем |
-| --- | --- |
-| `vercel-react-best-practices` | React 19 / производительность / паттерны |
-| `vercel-composition-patterns` | Композиция компонентов без лишних абстракций |
-| `web-design-guidelines` | UI/UX ревью интерфейса |
-| `deploy-to-vercel` | Деплой frontend на Vercel |
-| `writing-guidelines` | Тексты интерфейса и документации |
-| `supabase` | Auth, RLS, клиент, edge functions |
-| `supabase-postgres-best-practices` | Схема, индексы, RLS-политики, миграции |
-| `lifeos-workflow` (проектный) | Порядок работы над задачами LifeOS |
+| Скил                               | Зачем                                        |
+| ---------------------------------- | -------------------------------------------- |
+| `vercel-react-best-practices`      | React 19 / производительность / паттерны     |
+| `vercel-composition-patterns`      | Композиция компонентов без лишних абстракций |
+| `web-design-guidelines`            | UI/UX ревью интерфейса                       |
+| `deploy-to-vercel`                 | Деплой frontend на Vercel                    |
+| `writing-guidelines`               | Тексты интерфейса и документации             |
+| `supabase`                         | Auth, RLS, клиент, edge functions            |
+| `supabase-postgres-best-practices` | Схема, индексы, RLS-политики, миграции       |
+| `lifeos-workflow` (проектный)      | Порядок работы над задачами LifeOS           |
 
 ## Безопасность
 

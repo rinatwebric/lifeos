@@ -6,7 +6,9 @@ import { PageHeader } from "@/components/ui/PageHeader";
 const browserTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 const browserLanguage = typeof navigator === "undefined" ? "en" : navigator.language;
 const prefersDark =
-  typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches;
+  typeof window !== "undefined" && typeof window.matchMedia === "function"
+    ? window.matchMedia("(prefers-color-scheme: dark)").matches
+    : false;
 
 const rows = [
   { icon: Globe2, label: "Time zone", value: browserTimeZone },
@@ -42,7 +44,8 @@ export function SettingsPage() {
         <SettingsIcon className="mt-0.5 size-4 shrink-0 text-muted" aria-hidden="true" />
         <p className="text-xs text-muted">
           Editable settings (full name, avatar, wake-up and sleep time, working and study hours,
-          notification preferences, EN/RU/KY localization) arrive with the profile module in Phase 1.
+          notification preferences, EN/RU/KY localization) arrive with the profile module in Phase
+          1.
         </p>
       </div>
     </div>
