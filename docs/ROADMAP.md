@@ -1,0 +1,77 @@
+# Roadmap LifeOS
+
+Чек-лист отражает фактическое состояние, а не намерения. Порядок и состав этапов — из PRD §17.
+
+## Phase 1 — Foundation ✅ (базовая часть)
+
+- [x] Vite + React 19 + TypeScript strict
+- [x] Tailwind CSS 4 + дизайн-токены (light/dark)
+- [x] React Router + layout (sidebar / mobile nav) + адаптивность
+- [x] Доменные типы и константы статусов/приоритетов
+- [x] `lib/dates` (IANA time zone) и `lib/progress` + unit-тесты
+- [x] ESLint flat config, Prettier, Vitest, Playwright config
+- [x] `.env.example`, инструкция запуска, AGENTS.md
+- [ ] Supabase project + `.env.local`
+- [ ] Регистрация / вход / выход / восстановление пароля
+- [ ] Профиль (`profiles`) и `user_preferences`
+- [ ] Защищённые роуты и редиректы
+
+**Результат:** пользователь регистрируется и входит в LifeOS.
+
+## Phase 2 — Goals & Tasks
+
+- [ ] Миграции: `goals`, `milestones`, `tasks`, `recurrence_rules`, `time_blocks` + RLS + CHECK
+- [ ] CRUD целей, статусы, архивирование, подтверждение удаления
+- [ ] Этапы цели, позиции, пересчёт прогресса (ручной / по этапам)
+- [ ] CRUD задач, приоритеты, статусы, связи с целью и этапом
+- [ ] Повторяющиеся задачи как отдельные экземпляры
+- [ ] Dashboard на реальных данных (empty/loading/error states)
+- [ ] История изменений цели
+
+**Результат:** пользователь создаёт цели и работает с задачами.
+
+## Phase 3 — Planner
+
+- [ ] Day view и Week view
+- [ ] Настройки доступного времени (сон, работа, учёба, отдых)
+- [ ] Time blocks и проверка конфликтов
+- [ ] Алгоритм распределения задач + объяснение выбора слота
+- [ ] Предпросмотр плана: принять / отклонить / изменить вручную
+
+**Результат:** пользователь формирует реалистичный план.
+
+## Phase 4 — AI Assistant
+
+- [ ] AI service layer в Edge Function (провайдер-независимый)
+- [ ] Tool layer: `get_user_goals`, `get_user_tasks`, `get_weekly_progress`, `get_user_preferences`, `suggest_*`, `analyze_productivity`
+- [ ] Structured output + JSON Schema валидация
+- [ ] `ai_conversations`, `ai_messages`, `ai_proposals`
+- [ ] Apply/reject предложений с серверной проверкой каждого действия
+- [ ] Разбиение цели на этапы, weekly review, анализ невыполненных задач
+
+**Результат:** AI помогает управлять системой, не меняя её без согласия.
+
+## Phase 5 — Habits & Analytics
+
+- [ ] Привычки, логи, streaks, completion rate
+- [ ] Различение «пропущено» и «не запланировано»
+- [ ] Графики (Recharts) по задачам, целям, привычкам
+- [ ] Weekly review
+
+**Результат:** расширенная система личного развития.
+
+## Phase 6 — Testing & Deployment
+
+- [ ] RLS и доступ к чужим данным (негативные тесты)
+- [ ] Playwright: 12 обязательных сценариев из PRD §19
+- [ ] Мобильная проверка основных сценариев
+- [ ] Deploy: Vercel + Supabase, env в обоих окружениях
+- [ ] Документация контрактов
+
+## Definition of Done (для каждой задачи)
+
+1. Функция реализована по PRD.
+2. `npm run build`, `npm run lint`, `npm test` проходят.
+3. Проверены права доступа (RLS / принадлежность записи).
+4. UI имеет loading / empty / error / success состояния.
+5. Обновлены типы и документация, если изменились контракты.
