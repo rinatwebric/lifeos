@@ -8,30 +8,61 @@
 **Цель:** пользователь может зарегистрироваться, войти, выйти и попасть на Dashboard со своим профилем;
 все данные закрыты RLS.
 
-### Неоднозначности, требующие решения
+### Решения по неоднозначностям (приняты)
 
-1. Подтверждение email включено в проекте Supabase или нет? От этого зависит экран «проверьте почту».
-2. Нужен ли onboarding-визард (часовой пояс + время сна/пробуждения) сразу после регистрации,
-   или эти поля редактируются в Settings? В PRD Scenario A визард подразумевается.
+1. Email confirmation: поддерживаем оба пути по факту ответа Supabase, а не по константе.
+   После `signUp` смотрим на `data.session`: `session !== null` — сразу редирект на `/`
+   (confirmation OFF); `session === null` — экран check-email с кнопкой resend, подсказкой
+   про спам и ссылкой «вернуться ко входу». Возврат по ссылке из письма работает через
+   `detectSessionInUrl`. Кейс «email уже зарегистрирован» — без утечки факта существования аккаунта.
+2. Onboarding: один шаг, не многошаговый визард. После первого входа — диалог «Настроим твой день»
+   (timezone + wake/sleep) с кнопкой Skip, после сохранения или Skip — Dashboard. Условие показа —
+   `profiles.onboarded_at IS NULL`, диалог не блокирует роуты (подсказка, не гейт). Форма одна,
+   переиспользуется в Settings. Дефолты: `timezone` из браузера при `signUp`
+   (`options.data.timezone`), fallback `'UTC'`; `wake 07:00`, `sleep 23:00`. Строку
+   `user_preferences` создаёт триггер (insert), визард/клиент делают только update.
 
-### Шаги
+### Порядок единиц (не менять, каждая = один коммит)
 
-1. **Миграция `0001_profiles.sql`** — таблица `profiles` (id → auth.users, full_name, avatar_url,
-   timezone, language, theme, created_at, updated_at), триггер `handle_new_user`, RLS-политики
-   select/update только для своей строки.
-2. **Миграция `0002_user_preferences.sql`** — `user_preferences` (wake_up_time, sleep_time,
-   working_hours, study_hours, preferred_work_periods, notification_preferences), уникальность по
-   `user_id`, RLS по `user_id`.
-3. **Типы** — `src/types/domain.ts`: `Profile`, `UserPreferences`; `src/types/database.ts` (Database type).
-4. **Auth-сервис** — `src/features/auth/api.ts`: `signUp`, `signIn`, `signOut`, `resetPassword`,
-   `getSession`, `onAuthStateChange`.
-5. **Провайдер сессии** — `src/features/auth/AuthProvider.tsx` + `useAuth()`; подписка на смену сессии,
-   инвалидация TanStack Query при выходе.
-6. **Экраны** — `/sign-in`, `/sign-up`, `/reset-password` (React Hook Form + Zod), loading/error/success.
-7. **Защищённые роуты** — `RequireAuth` / `RedirectIfAuthed`; при отсутствии сессии редирект на `/sign-in`.
-8. **Settings** — редактирование профиля и предпочтений (часовой пояс по умолчанию из браузера,
-   тема light/dark через класс на `<html>`).
-9. **Тесты** — RTL на валидацию форм; unit на маппинг ошибок Supabase; e2e: регистрация → вход → выход.
+1. **Миграции + типы.** Файлы: `supabase/migrations/0001_profiles.sql`,
+   `supabase/migrations/0002_user_preferences.sql`, `src/types/domain.ts`,
+   `src/types/database.ts`. Проверка: `npm run typecheck && npm run lint && npm test`.
+   Готово: SQL показан целиком и подтверждён, только потом применяется; после применения
+   проверен signup с появлением строк в обеих таблицах — и только потом единица 2.
+   - Одна функция `handle_new_user`: `SECURITY DEFINER`, `SET search_path = ''`
+     (требует явного ревью по AGENTS.md §5), вставляет `profiles` + `user_preferences`
+     с `ON CONFLICT DO NOTHING`. `timezone` из `new.raw_user_meta_data->>'timezone'`, fallback `'UTC'`.
+     Противоречий нет: триггер делает insert, клиент — только update.
+   - Общая функция `set_updated_at()` + `BEFORE UPDATE` триггеры на обе таблицы.
+   - Ограничения явно: `theme IN ('light','dark')`, `language IN ('en','ru','ky')`,
+     jsonb-поля `NOT NULL DEFAULT '{}'::jsonb` + `CHECK (jsonb_typeof(col) = 'object')`,
+     `UNIQUE(user_id)` на `user_preferences`. CHECK без списка значений не принимается.
+   - `profiles.onboarded_at TIMESTAMPTZ NULL`; условие диалога — `onboarded_at IS NULL`.
+   - RLS: `profiles`: `id = auth.uid()`; `user_preferences`: `user_id = auth.uid()`.
+   - Типы: `database.ts` — snake_case схема Supabase, `domain.ts` — camelCase приложение,
+     маппинг на границе сервиса. Позже `database.ts` заменить на `supabase gen types`.
+2. **Auth-сервис.** Файлы: `src/features/auth/api.ts`
+   (`signUp`, `signIn`, `signOut`, `resetPassword` с `redirectTo`, `updatePassword`,
+   `resendConfirmation`, `getSession`, `onAuthStateChange`), `src/features/auth/errors.ts`,
+   `src/features/auth/api.test.ts`. Проверка: `npm run typecheck && npm run lint && npm test`.
+3. **Провайдер сессии.** Файлы: `src/features/auth/AuthProvider.tsx` (+ `useAuth()`),
+   `src/app/providers.tsx`, `src/features/auth/AuthProvider.test.tsx`.
+   Порядок: `QueryClientProvider → AuthProvider`. Кеш чистить на `SIGNED_OUT` и при смене
+   `user.id`. Наружу `status: 'loading' | 'authenticated' | 'anonymous'`; `RequireAuth`
+   не редиректит пока `loading` (без мигания, deep link сохраняется). Проверка та же.
+4. **Экраны.** Файлы: `src/features/auth/schemas.ts`, `src/features/auth/SignInPage.tsx`,
+   `src/features/auth/SignUpPage.tsx`, `src/features/auth/ResetPasswordPage.tsx`
+   (два режима: запрос письма + установка нового пароля). Проверка та же.
+   Готово: RHF + Zod, loading/error/success, оба пути confirmation, resend + back-link.
+5. **Защищённые роуты + Settings.** Файлы: `src/app/router.tsx`
+   (auth-экраны вне `AppLayout`, `AppLayout` обёрнут в `RequireAuth`),
+   `src/features/auth/RequireAuth.tsx`, `src/features/settings/OnboardingDialog.tsx`
+   (живёт в settings, не в auth), `src/features/settings/PreferencesForm.tsx` (общая форма),
+   `src/features/settings/api.ts`, `src/features/settings/SettingsPage.tsx`.
+   Проверка та же. Готово: без сессии → `/sign-in`; диалог только при `onboarded_at IS NULL`.
+6. **Тесты + журнал.** Файлы: `src/features/auth/RequireAuth.test.tsx`, RTL-тесты форм,
+   `e2e/auth.spec.ts`, `docs/progress.md`. Проверка:
+   `npm run typecheck && npm run lint && npm test && npm run build`.
 
 ### Проверка
 
