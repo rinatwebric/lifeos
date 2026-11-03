@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import type { Session } from "@supabase/supabase-js";
 
 import { exchangeCodeFromUrl, getSession, onAuthStateChange } from "./api";
+import { isSupabaseConfigured } from "@/lib/env";
 
 export type AuthStatus = "loading" | "authenticated" | "anonymous";
 
@@ -45,6 +46,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [initialized, setInitialized] = useState(false);
 
   useEffect(() => {
+    // Without Supabase config the client throws on any access: render the
+    // anonymous state instead of crashing (banner explains the setup).
+    // One-shot init guard, not a render cascade — hence the rule exception.
+    if (!isSupabaseConfigured) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setInitialized(true);
+      return;
+    }
+
     let cancelled = false;
     // Last seen user id; `undefined` = nothing seen yet. SIGNED_OUT and
     // account switches clear the query cache; the very first emission only
@@ -70,15 +80,36 @@ export function AuthProvider({ children }: AuthProviderProps) {
         // PKCE `?code=` links (recovery/OAuth): exchange once, then read the
         // session. Exchange failures (stale code) must not block getSession.
         await exchangeCodeFromUrl().catch(() => null);
-        applySession(await getSession());
+        // An auth event may have fired while the async init was in flight;
+        // its result is fresher than getSession(), so ignore the stale init.
+        if (lastUserId !== undefined) {
+          return;
+        }
+        const initial = await getSession();
+        if (lastUserId !== undefined) {
+          return;
+        }
+        applySession(initial);
       } catch {
-        applySession(null);
+        if (lastUserId === undefined) {
+          applySession(null);
+        }
       }
     };
 
     void init();
 
-    const { unsubscribe } = onAuthStateChange((_event, next) => applySession(next));
+    let unsubscribe: () => void;
+    try {
+      ({ unsubscribe } = onAuthStateChange((_event, next) => applySession(next)));
+    } catch {
+      if (!cancelled) {
+        setInitialized(true);
+      }
+      return () => {
+        cancelled = true;
+      };
+    }
 
     return () => {
       cancelled = true;

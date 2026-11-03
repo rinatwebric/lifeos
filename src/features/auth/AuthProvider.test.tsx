@@ -14,6 +14,10 @@ vi.mock("./api", () => ({
   onAuthStateChange: vi.fn(),
 }));
 
+// Deterministic in CI and on machines with a filled `.env.local`: these tests
+// cover the configured branch (the unconfigured branch has its own test file).
+vi.mock("@/lib/env", () => ({ isSupabaseConfigured: true }));
+
 const mockedExchange = vi.mocked(exchangeCodeFromUrl);
 const mockedGetSession = vi.mocked(getSession);
 const mockedOnAuthStateChange = vi.mocked(onAuthStateChange);
