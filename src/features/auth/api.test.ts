@@ -36,7 +36,10 @@ describe("signUp", () => {
   it("reports needsConfirmation=false when confirmation is OFF (session returned)", async () => {
     const signUpMock = vi
       .fn()
-      .mockResolvedValue({ data: { user: { id: "u1" }, session: { access_token: "t" } }, error: null });
+      .mockResolvedValue({
+        data: { user: { id: "u1" }, session: { access_token: "t" } },
+        error: null,
+      });
     stubClient({ signUp: signUpMock });
 
     const result = await signUp({ email: "a@example.com", password: "secret123" });
@@ -150,9 +153,7 @@ describe("recovery flow", () => {
   });
 
   it("updatePassword sets the new password on the recovery session", async () => {
-    const updateMock = vi
-      .fn()
-      .mockResolvedValue({ data: { user: { id: "u1" } }, error: null });
+    const updateMock = vi.fn().mockResolvedValue({ data: { user: { id: "u1" } }, error: null });
     stubClient({ updateUser: updateMock });
 
     const result = await updatePassword("new-secret-123");
@@ -175,7 +176,8 @@ describe("recovery flow", () => {
   });
 });
 
-describe("resendConfirmation / getSession / onAuthStateChange", () => {  it("resends signup confirmation with redirect", async () => {
+describe("resendConfirmation / getSession / onAuthStateChange", () => {
+  it("resends with an explicit redirect", async () => {
     const resendMock = vi.fn().mockResolvedValue({ data: {}, error: null });
     stubClient({ resend: resendMock });
 
@@ -185,6 +187,19 @@ describe("resendConfirmation / getSession / onAuthStateChange", () => {  it("res
       type: "signup",
       email: "a@example.com",
       options: { emailRedirectTo: "https://app.example.com/welcome" },
+    });
+  });
+
+  it("defaults the confirmation redirect to <origin>/ (not the Site URL)", async () => {
+    const resendMock = vi.fn().mockResolvedValue({ data: {}, error: null });
+    stubClient({ resend: resendMock });
+
+    await resendConfirmation("a@example.com");
+
+    expect(resendMock).toHaveBeenCalledWith({
+      type: "signup",
+      email: "a@example.com",
+      options: { emailRedirectTo: `${window.location.origin}/` },
     });
   });
 

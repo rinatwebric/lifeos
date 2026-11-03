@@ -120,15 +120,19 @@ export async function updatePassword(newPassword: string): Promise<{ user: User 
 }
 
 /** Resends the signup confirmation email (check-email screen). */
+export function defaultConfirmRedirect(): string {
+  return `${window.location.origin}/`;
+}
+
 export async function resendConfirmation(
   email: string,
-  emailRedirectTo?: string,
+  emailRedirectTo: string = defaultConfirmRedirect(),
 ): Promise<void> {
   const client = getSupabaseClient();
   const { error } = await client.auth.resend({
     type: "signup",
     email,
-    options: emailRedirectTo ? { emailRedirectTo } : undefined,
+    options: { emailRedirectTo },
   });
 
   if (error) {

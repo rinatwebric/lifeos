@@ -66,7 +66,7 @@ describe("CheckEmailPage", () => {
     expect(resendMock).toHaveBeenCalledWith({
       type: "signup",
       email: "ada@example.com",
-      options: undefined,
+      options: { emailRedirectTo: `${window.location.origin}/` },
     });
 
     const cooldownButton = screen.getByRole("button", {

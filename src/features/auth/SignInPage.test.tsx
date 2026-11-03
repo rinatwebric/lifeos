@@ -129,7 +129,7 @@ describe("SignInPage", () => {
     expect(resendMock).toHaveBeenCalledWith({
       type: "signup",
       email: "ada@example.com",
-      options: undefined,
+      options: { emailRedirectTo: `${window.location.origin}/` },
     });
   });
 

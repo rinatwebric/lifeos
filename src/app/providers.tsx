@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState, type ReactNode } from "react";
 
+import { ThemeProvider } from "./theme";
 import { AuthProvider } from "@/features/auth/AuthProvider";
 
 interface AppProvidersProps {
@@ -25,10 +26,13 @@ export function AppProviders({ children }: AppProvidersProps) {
   );
 
   // Order matters: AuthProvider sits inside QueryClientProvider because it
-  // calls queryClient.clear() on sign-out and account switch.
+  // calls queryClient.clear() on sign-out and account switch; ThemeProvider
+  // sits inside both because it reads the session and the profile query.
   return (
     <QueryClientProvider client={queryClient}>
-      <AuthProvider>{children}</AuthProvider>
+      <AuthProvider>
+        <ThemeProvider>{children}</ThemeProvider>
+      </AuthProvider>
     </QueryClientProvider>
   );
 }

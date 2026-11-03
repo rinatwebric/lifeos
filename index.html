@@ -13,6 +13,13 @@
   </head>
   <body class="h-full">
     <div id="root" class="h-full"></div>
+    <script>
+      try {
+        var t = localStorage.getItem("lifeos-theme");
+        if (t === "dark" || (!t && matchMedia("(prefers-color-scheme: dark)").matches))
+          document.documentElement.classList.add("dark");
+      } catch (e) {}
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

@@ -17,6 +17,11 @@ vi.mock("@/lib/env", () => ({
 // stays independent of Supabase (real provider is covered in AuthProvider.test).
 vi.mock("@/features/auth/AuthProvider", () => ({
   AuthProvider: ({ children }: { children: ReactNode }) => <>{children}</>,
+}));
+
+// Auth state lives in ./useAuth since unit 5; guards and ThemeProvider read it
+// from there, so the shell stub must cover that module too.
+vi.mock("@/features/auth/useAuth", () => ({
   useAuth: () => ({ status: "anonymous" as const, user: null, session: null }),
 }));
 

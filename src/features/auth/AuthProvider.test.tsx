@@ -4,7 +4,8 @@ import { render, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { StrictMode } from "react";
 
-import { AuthProvider, useAuth, type AuthContextValue } from "./AuthProvider";
+import { AuthProvider } from "./AuthProvider";
+import { useAuth, type AuthContextValue } from "./useAuth";
 import { exchangeCodeFromUrl, getSession, onAuthStateChange } from "./api";
 
 // Unit boundary: the provider talks to ./api, never to Supabase directly.

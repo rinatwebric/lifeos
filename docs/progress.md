@@ -205,3 +205,66 @@
 - Публичный репозиторий: https://github.com/rinatwebric/lifeos (ветка `main`,
   8 коммитов перенесены как есть, без сквоша). `.env.local` в репозитории отсутствует
   (проверено 404 через contents API), секретные ключи только локально.
+
+## 2026-11-03 — Итерация 1.2, единица 5: роуты, защита, Settings, onboarding закрыта
+
+**Сделано**
+
+- Шаг 0: `resendConfirmation` получил дефолт `emailRedirectTo` внутри сервиса
+  (`defaultConfirmRedirect()` -> `<origin>/`, письмо больше не уходит на дефолтный
+  Site URL `localhost:3000`); плюс тест дефолта. Ожидания `options: undefined`
+  в `SignInPage.test.tsx` / `CheckEmailPage.test.tsx` обновлены.
+- `src/features/auth/useAuth.ts` (new): `AuthContext` + `useAuth()` + типы вынесены
+  из `AuthProvider.tsx` (убран `react-refresh/only-export-components` warn у провайдера).
+- `src/features/auth/RequireAuth.tsx` (new): `RequireAuth` (loading — заглушка без
+  редиректа, anonymous — `<Navigate to="/sign-in" state={{ from: location }} replace />`)
+  и `RedirectIfAuthed` (authenticated — `/`, loading — заглушка). При
+  `!isSupabaseConfigured` оба рендерят children (шелл с баннером вместо мёртвого редиректа).
+- `src/app/router.tsx`: auth-роуты (`/sign-in`, `/sign-up`, `/check-email`) вне `AppLayout`
+  под `AuthLayout` + `RedirectIfAuthed`; `/reset-password` без `RedirectIfAuthed`
+  (recovery-ссылка устанавливает сессию — иначе редирект на `/` съедал бы форму):
+  `ResetPasswordRoute` выбирает `update` при `authenticated`, `request` при `anonymous`
+  (key по статусу, ремаунт после обмена кода). `AppLayout` обёрнут в `RequireAuth`;
+  существующие роуты сохранены.
+- `SignInPage`: после входа возврат на `state.from.pathname`, иначе `/` (deep link жив).
+- `src/features/settings/api.ts` (new): `getProfile`/`updateProfile`/`getPreferences`/
+  `updatePreferences`/`markOnboarded` + `profileQueryKey`/`preferencesQueryKey`.
+  Identity только из `auth.getUser()` (проверенный JWT), RLS — второй слой;
+  маппинг snake_case -> camelCase через `src/types/database.ts`; клиент не делает insert.
+- `src/features/settings/schemas.ts` (new): `preferencesFormSchema` (timezone + HH:MM,
+  wake != sleep) и `profileFormSchema` (fullName/language/theme) + инфер-типы.
+- `src/features/settings/PreferencesForm.tsx` (new): общая форма day setup
+  (timezone -> `profiles`, wake/sleep -> `user_preferences`), два update через
+  `Promise.allSettled`, раздельные ошибки по таблицам, инвалидация только
+  исполненных ключей (не `clear()`), RHF + Zod, aria.
+- `src/features/settings/OnboardingDialog.tsx` (new): один шаг, подсказка (не гейт).
+  Монтируется из `AppLayout` только при `onboarded_at IS NULL`. Save (через форму)
+  и Skip оба пишут `onboarded_at`; Escape = Skip; фокус-трапа нет.
+- `src/features/settings/SettingsPage.tsx` (rewrite): email read-only из сессии,
+  профиль (full name, language en/ru/ky, theme) + `<PreferencesForm/>` для
+  timezone/wake/sleep. Working/study hours — не в этой итерации (Phase 3).
+  Состояния loading/error/success по PRD 9.4, retry при ошибке загрузки.
+- `src/app/theme.tsx` (new): `applyTheme` (класс `dark` на `<html>` + localStorage),
+  `ThemeProvider` синхронизирует `profiles.theme` при входе. `index.html`: inline-скрипт
+  до бандла (без вспышки), `providers.tsx`: `QueryClient -> Auth -> Theme`.
+  Язык только хранится (`profiles.language`), интерфейс пока английский.
+- В БД ничего не применялось (миграции единицы 1 достаточно). Новых зависимостей нет.
+
+**Проверено**
+
+- `npm run typecheck` — ok
+- `npm run lint` — 0 errors (warns `react-refresh/only-export-components` на COPY-константы
+  рядом с компонентами — тот же допустимый паттерн, что в единицах 3–4)
+- `npm test` — 100/100 (75 старых + 25 новых: resend-дефолт, 6 guards, 8 settings api
+  с маппингом строк, 5 onboarding/AppLayout, 5 settings page)
+- `npm run build` — ok
+- Точечно: loading не редиректит; anonymous редиректит с `from`; authed видит layout;
+  onboarding при `onboarded_at=null`, исчезает после Skip/Escape/Save;
+  сохранение инвалидирует `['profile']`/`['preferences']`; частичная ошибка
+  показывает, какая таблица не сохранилась; `dark` применяется на `<html>`.
+
+**Осталось**
+
+- Единица 6 по `docs/plan.md`: `e2e/auth.spec.ts` (Playwright, нужен
+  `npx playwright install`), финальный журнал. Ручная проверка: два аккаунта
+  не видят данные друг друга (RLS), выход очищает кеш, пояс сохраняется.

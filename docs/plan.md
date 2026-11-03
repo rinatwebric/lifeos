@@ -67,8 +67,9 @@
    (auth-экраны вне `AppLayout`, `AppLayout` обёрнут в `RequireAuth`),
    `src/features/auth/RequireAuth.tsx`, `src/features/settings/OnboardingDialog.tsx`
    (живёт в settings, не в auth), `src/features/settings/PreferencesForm.tsx` (общая форма),
-   `src/features/settings/api.ts`, `src/features/settings/SettingsPage.tsx`.
+   `src/features/settings/api.ts`, `src/features/settings/SettingsPage.tsx` + theme.
    Проверка та же. Готово: без сессии → `/sign-in`; диалог только при `onboarded_at IS NULL`.
+    Статус: единица 5 закрыта. Роуты + RequireAuth/RedirectIfAuthed (loading без редиректа, anonymous -> /sign-in с from, authed -> /), useAuth в отдельном файле, resendConfirmation с дефолтом emailRedirectTo=<origin>/, Settings (профиль + day setup: два update с раздельными ошибками, инвалидация ключей), тема (profiles.theme + localStorage + inline-скрипт в index.html), OnboardingDialog (Save/Skip пишут onboarded_at, Escape=Skip, без фокус-трапа). Тесты 100/100 (75 старых + 25 новых: guards, settings api, onboarding, settings page).
 6. **Тесты + журнал.** Файлы: `src/features/auth/RequireAuth.test.tsx`, RTL-тесты форм,
    `e2e/auth.spec.ts`, `docs/progress.md`. Проверка:
    `npm run typecheck && npm run lint && npm test && npm run build`.

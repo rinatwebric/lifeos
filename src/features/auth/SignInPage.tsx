@@ -31,6 +31,7 @@ export const SIGN_IN_COPY = {
 interface SignInLocationState {
   passwordReset?: boolean;
   email?: string;
+  from?: { pathname?: string };
 }
 
 /** Email + password sign-in. Unconfirmed emails get a resend hint (no dead end). */
@@ -59,7 +60,8 @@ export function SignInPage() {
 
     try {
       await signIn(values);
-      await navigate("/", { replace: true });
+      const fromPath = state?.from?.pathname ?? "/";
+      await navigate(fromPath, { replace: true });
     } catch (error) {
       const authError = error instanceof AuthServiceError ? error : toAuthError(error);
 

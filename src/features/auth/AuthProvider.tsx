@@ -1,29 +1,10 @@
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import type { Session } from "@supabase/supabase-js";
 
 import { exchangeCodeFromUrl, getSession, onAuthStateChange } from "./api";
+import { AuthContext, type AuthContextValue } from "./useAuth";
 import { isSupabaseConfigured } from "@/lib/env";
-
-export type AuthStatus = "loading" | "authenticated" | "anonymous";
-
-export interface AuthContextValue {
-  status: AuthStatus;
-  user: Session["user"] | null;
-  session: Session | null;
-}
-
-const AuthContext = createContext<AuthContextValue | null>(null);
-
-export function useAuth(): AuthContextValue {
-  const value = useContext(AuthContext);
-
-  if (!value) {
-    throw new Error("useAuth must be used within AuthProvider");
-  }
-
-  return value;
-}
 
 interface AuthProviderProps {
   children: ReactNode;
