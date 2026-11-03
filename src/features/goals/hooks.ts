@@ -102,6 +102,8 @@ export function useCreateMilestone() {
     onSuccess: (_data: Milestone, variables: CreateMilestoneInput) => {
       void queryClient.invalidateQueries({ queryKey: goals.milestones(variables.goalId) });
       void queryClient.invalidateQueries({ queryKey: goals.detail(variables.goalId) });
+      void queryClient.invalidateQueries({ queryKey: GOAL_LIST_PREFIX });
+      void queryClient.invalidateQueries({ queryKey: goals.allMilestones });
     },
   });
 }
@@ -168,6 +170,8 @@ export function useUpdateMilestone() {
     onSettled: (_data: Milestone | undefined, _error: Error | null, variables) => {
       void queryClient.invalidateQueries({ queryKey: goals.milestones(variables.goalId) });
       void queryClient.invalidateQueries({ queryKey: goals.detail(variables.goalId) });
+      void queryClient.invalidateQueries({ queryKey: GOAL_LIST_PREFIX });
+      void queryClient.invalidateQueries({ queryKey: goals.allMilestones });
     },
   });
 }
@@ -185,6 +189,8 @@ export function useDeleteMilestone() {
     onSuccess: (_data: void, variables: DeleteMilestoneVariables) => {
       void queryClient.invalidateQueries({ queryKey: goals.milestones(variables.goalId) });
       void queryClient.invalidateQueries({ queryKey: goals.detail(variables.goalId) });
+      void queryClient.invalidateQueries({ queryKey: GOAL_LIST_PREFIX });
+      void queryClient.invalidateQueries({ queryKey: goals.allMilestones });
     },
   });
 }
@@ -203,6 +209,8 @@ export function useReorderMilestones() {
     onSuccess: (_data: Milestone[], variables: ReorderMilestonesVariables) => {
       void queryClient.invalidateQueries({ queryKey: goals.milestones(variables.goalId) });
       void queryClient.invalidateQueries({ queryKey: goals.detail(variables.goalId) });
+      void queryClient.invalidateQueries({ queryKey: GOAL_LIST_PREFIX });
+      void queryClient.invalidateQueries({ queryKey: goals.allMilestones });
     },
   });
 }

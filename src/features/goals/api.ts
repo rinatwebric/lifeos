@@ -30,23 +30,24 @@ export interface GoalFilters {
 }
 
 /**
- * Identity always comes from the verified JWT (`auth.getUser()`), never from
+ * Identity comes from the local session (`auth.getSession()`), never from
  * a caller-provided `user_id`. RLS (`user_id = auth.uid()`) is the second
- * layer. No function here accepts a `user_id` argument.
+ * layer. No function here accepts a `user_id` argument. An expired token
+ * still fails at PostgREST with 401, mapped to `forbidden` below.
  */
 async function requireUserId(): Promise<string> {
   const client = getSupabaseClient();
-  const { data, error } = await client.auth.getUser();
+  const { data, error } = await client.auth.getSession();
 
   if (error) {
     throw toGoalError(error);
   }
 
-  if (!data.user) {
+  if (!data.session?.user) {
     throw new GoalServiceError("forbidden", GOAL_ERROR_MESSAGES.forbidden);
   }
 
-  return data.user.id;
+  return data.session.user.id;
 }
 
 function nowIso(): string {
@@ -183,8 +184,21 @@ export async function updateGoal(id: string, patch: UpdateGoalInput): Promise<Go
       payload.progress_mode = patch.progressMode;
     }
     if (patch.status !== undefined) {
+      const { data: current, error: currentError } = await client
+        .from("goals")
+        .select("status")
+        .eq("id", id)
+        .eq("user_id", userId)
+        .single();
+      if (currentError) {
+        throw toGoalError(currentError);
+      }
       payload.status = patch.status;
-      payload.completed_at = patch.status === "completed" ? nowIso() : null;
+      // Never rewrite `completed_at` when the status did not change:
+      // re-saving a `completed` goal must keep the original timestamp.
+      if ((current as GoalsRow).status !== patch.status) {
+        payload.completed_at = patch.status === "completed" ? nowIso() : null;
+      }
     }
 
     if (Object.keys(payload).length === 0) {

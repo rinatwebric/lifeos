@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import type { GoalFilters } from "@/features/goals/api";
+import { humanize } from "@/lib/strings";
 import {
   GOAL_CATEGORIES,
   GOAL_STATUSES,
@@ -11,7 +12,6 @@ import {
   type GoalStatus,
   type Priority,
 } from "@/types/domain";
-import { humanize } from "@/components/ui/Badge";
 
 interface GoalsFiltersProps {
   filters: GoalFilters;

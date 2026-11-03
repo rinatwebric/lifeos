@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm, type Resolver } from "react-hook-form";
 
 import { Button } from "@/components/ui/Button";
@@ -14,13 +14,13 @@ import {
   updateGoalSchema,
   type CreateGoalInput,
 } from "@/features/goals/schema";
+import { humanize } from "@/lib/strings";
 import {
   GOAL_CATEGORIES,
   GOAL_STATUSES,
   PRIORITIES,
   type Goal,
 } from "@/types/domain";
-import { humanize } from "@/components/ui/Badge";
 
 interface GoalFormDialogProps {
   open: boolean;
@@ -76,6 +76,7 @@ export function GoalFormDialog({ open, onClose, goal }: GoalFormDialogProps) {
     handleSubmit,
     watch,
     setValue,
+    reset,
     formState: { errors },
   } = useForm<GoalFormValues>({
     resolver: zodResolver(
@@ -83,6 +84,16 @@ export function GoalFormDialog({ open, onClose, goal }: GoalFormDialogProps) {
     ) as Resolver<GoalFormValues>,
     defaultValues: defaultValuesFor(goal),
   });
+
+  // RHF reads `defaultValues` only on first mount, but this dialog stays
+  // mounted while `goal`/`open` change. Re-sync on every open so Edit shows
+  // the selected goal and a fresh create never reuses the previous values.
+  useEffect(() => {
+    if (open) {
+      reset(defaultValuesFor(goal));
+      setServerError(null);
+    }
+  }, [open, goal, reset]);
 
   const progressMode = watch("progressMode");
   const saving = createGoal.isPending || updateGoal.isPending;

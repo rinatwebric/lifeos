@@ -59,6 +59,15 @@ describe("goal schemas", () => {
     expect(result.success).toBe(false);
   });
 
+  it("rejects a nonexistent calendar date with the date message", () => {
+    const result = createGoalSchema.safeParse({ ...validGoal, startDate: "2026-02-30" });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0].path).toEqual(["startDate"]);
+      expect(result.error.issues[0].message).toBe("Use YYYY-MM-DD.");
+    }
+  });
+
   it("accepts a milestone payload", () => {
     const result = createMilestoneSchema.safeParse({
       goalId: "123e4567-e89b-12d3-a456-426614174000",

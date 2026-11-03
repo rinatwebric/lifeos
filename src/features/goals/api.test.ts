@@ -129,11 +129,12 @@ function mockBuilder(thenResult: unknown, singleResult?: unknown): BuilderMocks 
 }
 
 function stubClient(authUserId: string | null, fromEntry: ReturnType<typeof vi.fn>) {
-  const getUser = vi
-    .fn()
-    .mockResolvedValue({ data: { user: authUserId ? { id: authUserId } : null }, error: null });
+  const getSession = vi.fn().mockResolvedValue({
+    data: { session: authUserId ? { user: { id: authUserId } } : null },
+    error: null,
+  });
   mockedGetClient.mockReturnValue({
-    auth: { getUser },
+    auth: { getSession },
     from: fromEntry,
   } as unknown as SupabaseClient);
 }

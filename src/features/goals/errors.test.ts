@@ -52,4 +52,29 @@ describe("toGoalError", () => {
     expect(toGoalError(null).code).toBe("unknown");
     expect(GOAL_ERROR_MESSAGES.unknown).toBe("Something went wrong. Please try again.");
   });
+
+  it("never leaks raw Postgres text in message; keeps it in details", () => {
+    const raw = 'duplicate key value violates unique constraint "goals_title_key"';
+    const error = toGoalError({ message: raw });
+    expect(error.code).toBe("conflict");
+    expect(error.message).toBe(GOAL_ERROR_MESSAGES.conflict);
+    expect(error.details).toBe(raw);
+  });
+
+  it("maps 22007/22008 and bad date syntax to validation", () => {
+    for (const raw of [
+      { code: "22007", message: "invalid_datetime_format" },
+      { code: "22008", message: "datetime_field_overflow" },
+      { message: "invalid input syntax for type date: \"2026-02-30\"" },
+    ]) {
+      const error = toGoalError(raw);
+      expect(error.code).toBe("validation");
+      expect(error.message).toBe(GOAL_ERROR_MESSAGES.validation);
+      expect(error.details).toBe(
+        typeof (raw as { message?: unknown }).message === "string"
+          ? ((raw as { message: string }).message)
+          : undefined,
+      );
+    }
+  });
 });

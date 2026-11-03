@@ -11,9 +11,10 @@ interface DialogProps {
 
 /**
  * Native `<dialog>` wrapper. `showModal()` gives Esc handling and a top-layer
- * backdrop for free; a window keydown listener covers jsdom (no native
- * cancel event there) and backdrop clicks close via `target === dialog`.
- * Focus returns to the element that opened the dialog.
+ * backdrop for free; a window keydown listener covers only environments
+ * without native `showModal` (jsdom) — otherwise Esc would call `onClose`
+ * twice (native `close` event + keydown). Backdrop clicks close via
+ * `target === dialog`. Focus returns to the element that opened the dialog.
  */
 export function Dialog({ open, onClose, title, description, children, wide }: DialogProps) {
   const dialogRef = useRef<HTMLDialogElement | null>(null);
@@ -32,8 +33,26 @@ export function Dialog({ open, onClose, title, description, children, wide }: Di
     const dialog = dialogRef.current;
     const previouslyFocused = document.activeElement as HTMLElement | null;
 
-    if (dialog && !dialog.open && typeof dialog.showModal === "function") {
-      dialog.showModal();
+    const nativeSupported = typeof dialog?.showModal === "function";
+    if (dialog && !dialog.open) {
+      if (nativeSupported) {
+        dialog.showModal();
+      } else {
+        // No native modal (jsdom): expose the dialog to the a11y tree so
+        // `getByRole("dialog")` works and the Esc polyfill below can close it.
+        dialog.setAttribute("open", "");
+      }
+    }
+
+    // Native `showModal` already fires `close` on Esc — a manual keydown
+    // listener would double-invoke `onClose`. Only polyfill Esc where the
+    // native API is missing (e.g. jsdom).
+    if (nativeSupported) {
+      return () => {
+        if (previouslyFocused && typeof previouslyFocused.focus === "function") {
+          previouslyFocused.focus();
+        }
+      };
     }
 
     const handleKeyDown = (event: KeyboardEvent): void => {

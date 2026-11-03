@@ -290,20 +290,29 @@ describe("GoalsPage", () => {
   });
 
   it("closes the delete dialog on Escape without mutating", async () => {
-    const { deleteMutateAsync } = stubDefaults();
-    stubGoals([GOAL]);
-    const user = userEvent.setup();
-    render(<GoalsPage />);
+    // jsdom ships a native `showModal`, but has no native Esc handling:
+    // simulate an environment without it so the polyfill keydown path runs.
+    const proto = HTMLDialogElement.prototype as unknown as Record<string, unknown>;
+    const originalShowModal = proto["showModal"];
+    proto["showModal"] = undefined;
+    try {
+      const { deleteMutateAsync } = stubDefaults();
+      stubGoals([GOAL]);
+      const user = userEvent.setup();
+      render(<GoalsPage />);
 
-    await user.click(screen.getByRole("button", { name: "Delete Learn piano" }));
-    expect(screen.getByRole("dialog")).toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "Delete Learn piano" }));
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
 
-    await user.keyboard("{Escape}");
+      await user.keyboard("{Escape}");
 
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    expect(deleteMutateAsync).not.toHaveBeenCalled();
-    // Focus returns to the trigger that opened the dialog.
-    expect(document.activeElement).toHaveAccessibleName("Delete Learn piano");
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(deleteMutateAsync).not.toHaveBeenCalled();
+      // Focus returns to the trigger that opened the dialog.
+      expect(document.activeElement).toHaveAccessibleName("Delete Learn piano");
+    } finally {
+      proto["showModal"] = originalShowModal;
+    }
   });
 
   it("shows a no-match state with Clear filters that resets the query", async () => {
@@ -328,5 +337,40 @@ describe("GoalsPage", () => {
     render(<GoalsPage />);
 
     expect(screen.getByRole("status", { name: "Loading goals" })).toBeInTheDocument();
+  });
+
+  it("prefills the edit form with the selected goal", async () => {
+    stubGoals([GOAL]);
+    const user = userEvent.setup();
+    render(<GoalsPage />);
+
+    await user.click(screen.getByRole("button", { name: "Edit" }));
+
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByLabelText("Title", { exact: false })).toHaveValue(
+      "Learn piano",
+    );
+    expect(within(dialog).getByLabelText("Start date", { exact: false })).toHaveValue(
+      "2026-11-01",
+    );
+    expect(within(dialog).getByLabelText("Target date", { exact: false })).toHaveValue(
+      "2026-12-01",
+    );
+    expect(within(dialog).getByLabelText("Progress (%)", { exact: false })).toHaveValue(20);
+  });
+
+  it("clears the form after a successful create", async () => {
+    stubDefaults();
+    const user = userEvent.setup();
+    render(<GoalsPage />);
+
+    await user.click(screen.getByRole("button", { name: "New goal" }));
+    await user.type(screen.getByLabelText("Title", { exact: false }), "Run a marathon");
+    await user.click(screen.getByRole("button", { name: "Create goal" }));
+    expect(await screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "New goal" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByLabelText("Title", { exact: false })).toHaveValue("");
   });
 });

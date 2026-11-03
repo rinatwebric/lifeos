@@ -53,12 +53,12 @@ export function GoalsPage() {
     return grouped;
   }, [milestonesQuery.data]);
 
-  const progressFor = (goal: Goal): number | null =>
+  const progressFor = (goal: Goal): number =>
     calculateGoalProgress({
       progressMode: goal.progressMode,
       progress: goal.progress,
       milestones: (slicesByGoal.get(goal.id) ?? []).map((status) => ({ status })),
-    });
+    }) ?? goal.progress;
 
   const goals = goalsQuery.data ?? [];
   const filtering = hasActiveFilters(filters);

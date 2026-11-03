@@ -15,12 +15,14 @@ export type GoalErrorCode =
 export class GoalServiceError extends Error {
   readonly code: GoalErrorCode;
   readonly status?: number;
+  readonly details?: string;
 
-  constructor(code: GoalErrorCode, message: string, status?: number) {
+  constructor(code: GoalErrorCode, message: string, status?: number, details?: string) {
     super(message);
     this.name = "GoalServiceError";
     this.code = code;
     this.status = status;
+    this.details = details;
   }
 }
 
@@ -60,12 +62,15 @@ function readGoalErrorLike(error: unknown): GoalErrorLike | null {
 /**
  * Converts any Supabase/PostgREST failure into a `GoalServiceError`.
  * Matches on structured `code`/`status` first, message text only as fallback.
+ * The user-facing `message` is always the localized copy; the raw Postgres
+ * text goes to `details` for logs only and never reaches the UI.
  *
  * Covered codes:
  * - `23514` CHECK violation -> validation
  * - `23503` FK violation -> conflict
  * - `42501` RLS/permission -> forbidden
  * - `PGRST116` zero rows from `.single()` -> not_found
+ * - `22007`/`22008` datetime errors + `invalid input syntax for type date` -> validation
  * - `TypeError` / fetch failures -> network
  */
 export function toGoalError(error: unknown): GoalServiceError {
@@ -74,7 +79,13 @@ export function toGoalError(error: unknown): GoalServiceError {
   }
 
   if (error instanceof TypeError) {
-    return new GoalServiceError("network", GOAL_ERROR_MESSAGES.network);
+    const raw = error.message || "";
+    return new GoalServiceError(
+      "network",
+      GOAL_ERROR_MESSAGES.network,
+      undefined,
+      raw || undefined,
+    );
   }
 
   const like = readGoalErrorLike(error);
@@ -88,6 +99,13 @@ export function toGoalError(error: unknown): GoalServiceError {
     code === "23514" ||
     text.includes("violates check constraint") ||
     text.includes("check constraint")
+  ) {
+    mapped = "validation";
+  } else if (
+    code === "22007" ||
+    code === "22008" ||
+    text.includes("invalid input syntax for type date") ||
+    text.includes("invalid input")
   ) {
     mapped = "validation";
   } else if (
@@ -120,10 +138,10 @@ export function toGoalError(error: unknown): GoalServiceError {
     mapped = "network";
   } else if (status === 409 || text.includes("duplicate")) {
     mapped = "conflict";
-  } else if (status === 400 || text.includes("invalid input")) {
+  } else if (status === 400) {
     mapped = "validation";
   }
 
-  const fallback = message || GOAL_ERROR_MESSAGES[mapped];
-  return new GoalServiceError(mapped, fallback, status);
+  const details = message || undefined;
+  return new GoalServiceError(mapped, GOAL_ERROR_MESSAGES[mapped], status, details);
 }

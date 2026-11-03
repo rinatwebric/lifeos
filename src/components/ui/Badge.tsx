@@ -16,12 +16,6 @@ const TONE_CLASSES: Record<BadgeTone, string> = {
   outline: "border border-line text-muted",
 };
 
-/** Humanizes `personal_development` → `Personal development`. */
-export function humanize(value: string): string {
-  const words = value.replace(/_/g, " ").toLowerCase();
-  return words.charAt(0).toUpperCase() + words.slice(1);
-}
-
 export function Badge({ children, tone = "neutral", className }: BadgeProps) {
   return (
     <span

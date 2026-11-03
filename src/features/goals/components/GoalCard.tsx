@@ -1,15 +1,16 @@
 import { Archive, Pencil, Trash2 } from "lucide-react";
 
-import { Badge, humanize } from "@/components/ui/Badge";
+import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { ProgressBar } from "@/components/ui/ProgressBar";
 import { useUpdateGoal } from "@/features/goals/hooks";
+import { humanize } from "@/lib/strings";
 import type { Goal, GoalStatus } from "@/types/domain";
 
 interface GoalCardProps {
   goal: Goal;
-  progress: number | null;
+  progress: number;
   onEdit: (goal: Goal) => void;
   onDelete: (goal: Goal) => void;
 }
@@ -56,7 +57,7 @@ export function GoalCard({ goal, progress, onEdit, onDelete }: GoalCardProps) {
       <div className="space-y-1">
         <ProgressBar value={progress} label={`Progress for ${goal.title}`} />
         <p className="text-xs text-muted">
-          {progress === null ? "No milestones yet." : `${progress}% complete`}
+          {`${progress}% complete`}
           {goal.progressMode === "milestones" ? " · from milestones" : " · manual"}
         </p>
       </div>

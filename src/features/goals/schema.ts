@@ -9,7 +9,6 @@ import {
 } from "@/types/domain";
 
 const DATE_KEY_MESSAGE = "Use YYYY-MM-DD.";
-const DATE_KEY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 const titleField = z
   .string()
@@ -24,7 +23,7 @@ const descriptionField = z
   .nullable()
   .optional();
 
-const dateKeyField = z.string().regex(DATE_KEY_PATTERN, DATE_KEY_MESSAGE);
+const dateKeyField = z.iso.date({ error: DATE_KEY_MESSAGE });
 
 const optionalDateKeyField = dateKeyField.nullable().optional();
 
