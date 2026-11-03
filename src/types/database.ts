@@ -1,4 +1,17 @@
-import type { Profile, UserPreferences } from "./domain";
+import type {
+  Goal,
+  GoalCategory,
+  GoalStatus,
+  Milestone,
+  MilestoneStatus,
+  Priority,
+  Profile,
+  ProgressMode,
+  RecurrenceRule,
+  Task,
+  TaskStatus,
+  UserPreferences,
+} from "./domain";
 
 /**
  * Snake_case mirror of the Supabase schema (migrations 0001_profiles,
@@ -58,6 +71,144 @@ export function mapUserPreferencesRowToUserPreferences(
     studyHours: row.study_hours,
     preferredWorkPeriods: row.preferred_work_periods,
     notificationPreferences: row.notification_preferences,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+/** Mirrors migration 0003_goals_milestones (goals). */
+export interface GoalsRow {
+  id: string;
+  user_id: string;
+  title: string;
+  description: string | null;
+  category: GoalCategory;
+  priority: Priority;
+  status: GoalStatus;
+  start_date: string;
+  target_date: string | null;
+  progress: number;
+  progress_mode: ProgressMode;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Mirrors migration 0003_goals_milestones (milestones). */
+export interface MilestonesRow {
+  id: string;
+  user_id: string;
+  goal_id: string;
+  title: string;
+  description: string | null;
+  position: number;
+  status: MilestoneStatus;
+  target_date: string | null;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export function mapGoalRowToGoal(row: GoalsRow): Goal {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    title: row.title,
+    description: row.description,
+    category: row.category,
+    priority: row.priority,
+    status: row.status,
+    startDate: row.start_date,
+    targetDate: row.target_date,
+    progress: row.progress,
+    progressMode: row.progress_mode,
+    completedAt: row.completed_at,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+export function mapMilestoneRowToMilestone(row: MilestonesRow): Milestone {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    goalId: row.goal_id,
+    title: row.title,
+    description: row.description,
+    position: row.position,
+    status: row.status,
+    targetDate: row.target_date,
+    completedAt: row.completed_at,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+/** Mirrors migration 0004_tasks_recurrence (recurrence_rules). */
+export interface RecurrenceRulesRow {
+  id: string;
+  user_id: string;
+  frequency: RecurrenceRule["frequency"];
+  weekdays: number[];
+  interval_value: number;
+  start_date: string;
+  end_date: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Mirrors migration 0004_tasks_recurrence (tasks). */
+export interface TasksRow {
+  id: string;
+  user_id: string;
+  goal_id: string | null;
+  milestone_id: string | null;
+  title: string;
+  description: string | null;
+  priority: Priority;
+  status: TaskStatus;
+  due_date: string | null;
+  scheduled_start: string | null;
+  scheduled_end: string | null;
+  estimated_duration_minutes: number | null;
+  completed_at: string | null;
+  recurrence_rule_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export function mapRecurrenceRuleRowToRecurrenceRule(row: RecurrenceRulesRow): RecurrenceRule {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    frequency: row.frequency,
+    weekdays: row.weekdays,
+    intervalValue: row.interval_value,
+    startDate: row.start_date,
+    endDate: row.end_date,
+    isActive: row.is_active,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+export function mapTaskRowToTask(row: TasksRow): Task {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    goalId: row.goal_id,
+    milestoneId: row.milestone_id,
+    title: row.title,
+    description: row.description,
+    priority: row.priority,
+    status: row.status,
+    dueDate: row.due_date,
+    scheduledStart: row.scheduled_start,
+    scheduledEnd: row.scheduled_end,
+    estimatedDurationMinutes: row.estimated_duration_minutes,
+    completedAt: row.completed_at,
+    recurrenceRuleId: row.recurrence_rule_id,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
