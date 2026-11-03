@@ -134,3 +134,40 @@ export const CLOSED_TASK_STATUSES: readonly TaskStatus[] = ["completed", "cancel
 export function isTaskClosed(status: TaskStatus): boolean {
   return CLOSED_TASK_STATUSES.includes(status);
 }
+
+export const PROFILE_LANGUAGES = ["en", "ru", "ky"] as const;
+export type ProfileLanguage = (typeof PROFILE_LANGUAGES)[number];
+
+export const PROFILE_THEMES = ["light", "dark"] as const;
+export type ProfileTheme = (typeof PROFILE_THEMES)[number];
+
+/**
+ * Application view of `public.profiles` (camelCase). The row id IS the auth
+ * user id, so unlike other entities there is no separate `userId` field.
+ * Mirrors migration 0001_profiles.
+ */
+export interface Profile {
+  id: string;
+  fullName: string | null;
+  avatarUrl: string | null;
+  timezone: string;
+  language: ProfileLanguage;
+  theme: ProfileTheme;
+  onboardedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * Application view of `public.user_preferences` (camelCase).
+ * Mirrors migration 0002_user_preferences. The row is created by the
+ * `handle_new_user` trigger; the client only ever updates it.
+ */
+export interface UserPreferences extends BaseEntity {
+  wakeUpTime: string;
+  sleepTime: string;
+  workingHours: Record<string, unknown>;
+  studyHours: Record<string, unknown>;
+  preferredWorkPeriods: Record<string, unknown>;
+  notificationPreferences: Record<string, unknown>;
+}

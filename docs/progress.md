@@ -64,3 +64,38 @@
 
 - Единица 2: auth-сервис (типы `Profile`/`UserPreferences` + `database.ts` — в коммите единицы 2).
 - Единицы 3–6 по `docs/plan.md`. Следующая задача — новым чатом.
+
+## 2026-11-03 — Итерация 1.2, единица 2: auth-сервис закрыта
+
+**Сделано**
+
+- `src/features/auth/api.ts`: `signUp` (metadata `timezone` + `full_name` для триггера
+  `handle_new_user`, `needsConfirmation = session === null`), `signIn`, `signOut`,
+  `resetPassword(email, redirectTo?)`, `updatePassword` (recovery-флоу),
+  `resendConfirmation`, `getSession`, `onAuthStateChange` (возвращает `unsubscribe`).
+- `src/features/auth/errors.ts`: `AuthServiceError` + `toAuthError` (матчинг по
+  `code`/`status`, fallback по тексту; `user_already_exists` — generic-копия без утечки
+  факта регистрации) + `AUTH_ERROR_MESSAGES` (единый источник копий под локализацию).
+- `src/features/auth/api.test.ts`: 17 тестов на моке `getSupabaseClient` — обе ветки
+  confirmation, metadata триггера, recovery-флоу, маппинг ошибок.
+- `src/types/database.ts` (new): snake_case-зеркало миграций 0001/0002 + мапперы
+  `mapProfileRowToProfile` / `mapUserPreferencesRowToUserPreferences` в camelCase.
+- `src/types/domain.ts`: `Profile` (id = auth user id, без отдельного `userId`),
+  `UserPreferences` (extends `BaseEntity`), `PROFILE_LANGUAGES`/`PROFILE_THEMES`.
+- Смежный фикс (гейт AGENTS.md §3): `src/app/App.test.tsx` мокает `@/lib/env` как
+  unconfigured — тест баннера зависел от локального `.env.local` (заполнен в единице 1)
+  и падал при настроенном окружении; прод-код не тронут.
+- В БД ничего не применялось (миграции уже закрыты в единице 1).
+
+**Проверено**
+
+- `npm run typecheck` — ok
+- `npm run lint` — ok
+- `npm test` — 34/34 (17 старых + 17 новых auth)
+- Падение `App.test.tsx` до фикса подтверждено как предсуществующее и окруженческое:
+  дашборд рендерился, баннер отсутствовал, т.к. `.env.local` заполнен; файлы единицы 2
+  на `isSupabaseConfigured` не влияют.
+
+**Осталось**
+
+- Единицы 3–6 по `docs/plan.md` (провайдер сессии → экраны → роуты/Settings → тесты+журнал).
