@@ -100,6 +100,21 @@ SQL Unit 1 финализирован: `tasks.goal_id ON DELETE SET NULL`,
    (PRD §3.4: не отдельный статус, авто-удаление/отмена запрещено).
    Готово: контракт покрыт тестами; проверка принадлежности записей (§18 Tasks).
    Проверка: `npm run typecheck && npm run lint && npm test`.
+   **Сервисное правило (Unit 5, задокументировано — БД не трогать):** если в
+   `createTask`/`updateTask` заданы оба `goal_id` и `milestone_id`, milestone
+   обязан принадлежать этому goal — проверка чтением milestone в сервисе
+   (`assertMilestoneBelongsToGoal`) до записи, ошибка `validation` с человеческим
+   текстом. В БД такого констрейнта нет и не будет (миграции frozen): кросс-тенант
+   закрыт RLS `EXISTS`-гардами 0004, а принадлежность внутри тенанта — правило
+   сервиса. `countTasksForGoal` канонически живёт в `tasks/api.ts` (single
+   source); `goals/api.ts` реэкспортирует его. Мутации задач инвалидируют
+   `["tasks","list"]` (+ деталку) и, при привязке к цели, ключ
+   `[...goals.detail(goalId), "task-count"]`. Сортировка по умолчанию:
+   `due_date` asc nulls last, затем приоритет desc по явной карте
+   `critical > high > medium > low` (не алфавит), затем `created_at` desc.
+   Ошибки: общий маппинг вынесен в `src/lib/dbErrors.ts`
+   (`DbServiceError` + `toDbError`); `goals/errors.ts` и `tasks/errors.ts` —
+   тонкие обёртки под прежними именами.
 6. **Tasks UI: список, фильтры, связи, жизненный цикл.**
    Файлы: `src/features/tasks/TasksPage.tsx` (замена плейсхолдера), `TaskForm.tsx`
    (goal/milestone-селекты, даты, длительность), `TaskRow.tsx` (complete-кнопка),

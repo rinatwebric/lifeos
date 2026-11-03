@@ -1,147 +1,39 @@
 /**
- * Single place where raw Supabase/PostgREST failures for goals and
- * milestones become typed, localizable error codes. UI layers match on
- * `code`, never on message substrings (same contract as auth/errors.ts).
+ * Goals/milestones errors. The PostgREST mapping lives in `@/lib/dbErrors`;
+ * this module only re-exports it under the historic goals names so existing
+ * imports (`GoalServiceError`, `GOAL_ERROR_MESSAGES`, `toGoalError`) and the
+ * 46 goals tests keep working untouched.
  */
+import {
+  DbServiceError,
+  DB_ERROR_MESSAGES,
+  toDbError,
+  type DbErrorCode,
+} from "@/lib/dbErrors";
 
-export type GoalErrorCode =
-  | "validation"
-  | "not_found"
-  | "forbidden"
-  | "conflict"
-  | "network"
-  | "unknown";
+export type GoalErrorCode = DbErrorCode;
 
-export class GoalServiceError extends Error {
-  readonly code: GoalErrorCode;
-  readonly status?: number;
-  readonly details?: string;
-
+export class GoalServiceError extends DbServiceError {
   constructor(code: GoalErrorCode, message: string, status?: number, details?: string) {
-    super(message);
+    super(code, message, status, details);
     this.name = "GoalServiceError";
-    this.code = code;
-    this.status = status;
-    this.details = details;
   }
 }
 
 /** English fallback copy; the single source for future localization. */
-export const GOAL_ERROR_MESSAGES: Record<GoalErrorCode, string> = {
-  validation: "Some values are invalid. Please check the form and try again.",
-  not_found: "Not found. It may have been deleted.",
-  forbidden: "You do not have access. Please sign in again.",
-  conflict: "This conflicts with existing data. Please reload and try again.",
-  network: "Network error. Check your connection and try again.",
-  unknown: "Something went wrong. Please try again.",
-};
-
-interface GoalErrorLike {
-  message?: unknown;
-  status?: unknown;
-  code?: unknown;
-}
-
-function readGoalErrorLike(error: unknown): GoalErrorLike | null {
-  if (typeof error !== "object" || error === null) {
-    return null;
-  }
-
-  const candidate = error as Record<string, unknown>;
-  if (typeof candidate["message"] !== "string" && candidate["message"] !== undefined) {
-    return null;
-  }
-
-  return {
-    message: candidate["message"],
-    status: candidate["status"],
-    code: candidate["code"],
-  };
-}
+export const GOAL_ERROR_MESSAGES: Record<GoalErrorCode, string> = DB_ERROR_MESSAGES;
 
 /**
  * Converts any Supabase/PostgREST failure into a `GoalServiceError`.
- * Matches on structured `code`/`status` first, message text only as fallback.
- * The user-facing `message` is always the localized copy; the raw Postgres
- * text goes to `details` for logs only and never reaches the UI.
- *
- * Covered codes:
- * - `23514` CHECK violation -> validation
- * - `23503` FK violation -> conflict
- * - `42501` RLS/permission -> forbidden
- * - `PGRST116` zero rows from `.single()` -> not_found
- * - `22007`/`22008` datetime errors + `invalid input syntax for type date` -> validation
- * - `TypeError` / fetch failures -> network
+ * Same contract as before the extraction: `instanceof GoalServiceError`
+ * passes through untouched, everything else is mapped once in `toDbError`
+ * and rewrapped to preserve the goals class name.
  */
 export function toGoalError(error: unknown): GoalServiceError {
   if (error instanceof GoalServiceError) {
     return error;
   }
 
-  if (error instanceof TypeError) {
-    const raw = error.message || "";
-    return new GoalServiceError(
-      "network",
-      GOAL_ERROR_MESSAGES.network,
-      undefined,
-      raw || undefined,
-    );
-  }
-
-  const like = readGoalErrorLike(error);
-  const message = typeof like?.message === "string" ? like.message : "";
-  const status = typeof like?.status === "number" ? like.status : undefined;
-  const code = typeof like?.code === "string" ? like.code : "";
-  const text = `${code} ${message}`.toLowerCase();
-
-  let mapped: GoalErrorCode = "unknown";
-  if (
-    code === "23514" ||
-    text.includes("violates check constraint") ||
-    text.includes("check constraint")
-  ) {
-    mapped = "validation";
-  } else if (
-    code === "22007" ||
-    code === "22008" ||
-    text.includes("invalid input syntax for type date") ||
-    text.includes("invalid input")
-  ) {
-    mapped = "validation";
-  } else if (
-    code === "23503" ||
-    text.includes("violates foreign key constraint") ||
-    text.includes("foreign key constraint")
-  ) {
-    mapped = "conflict";
-  } else if (
-    code === "42501" ||
-    text.includes("row-level security") ||
-    text.includes("permission denied") ||
-    status === 401 ||
-    status === 403
-  ) {
-    mapped = "forbidden";
-  } else if (
-    code === "PGRST116" ||
-    text.includes("pgrst116") ||
-    text.includes("0 rows") ||
-    text.includes("no rows") ||
-    text.includes("not found") ||
-    status === 404
-  ) {
-    mapped = "not_found";
-  } else if (
-    error instanceof Error &&
-    (text.includes("failed to fetch") || text.includes("network"))
-  ) {
-    mapped = "network";
-  } else if (status === 409 || text.includes("duplicate")) {
-    mapped = "conflict";
-  } else if (status === 400) {
-    mapped = "validation";
-  }
-
-  const details = message || undefined;
-  return new GoalServiceError(mapped, GOAL_ERROR_MESSAGES[mapped], status, details);
+  const mapped = toDbError(error);
+  return new GoalServiceError(mapped.code, mapped.message, mapped.status, mapped.details);
 }

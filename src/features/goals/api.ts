@@ -470,24 +470,7 @@ export async function listAllMilestones(): Promise<MilestoneProgressSlice[]> {
 /**
  * Number of tasks still pointing at the goal. Shown in the delete dialog:
  * "N tasks will stay but lose the link to this goal" (SET NULL, never CASCADE).
+ * Canonical implementation lives in tasks/api (single source); re-exported
+ * here so existing goals imports keep working.
  */
-export async function countTasksForGoal(goalId: string): Promise<number> {
-  try {
-    const userId = await requireUserId();
-    const client = getSupabaseClient();
-
-    const { count, error } = await client
-      .from("tasks")
-      .select("id", { count: "exact", head: true })
-      .eq("goal_id", goalId)
-      .eq("user_id", userId);
-
-    if (error) {
-      throw toGoalError(error);
-    }
-
-    return count ?? 0;
-  } catch (error) {
-    throw toGoalError(error);
-  }
-}
+export { countTasksForGoal } from "@/features/tasks/api";

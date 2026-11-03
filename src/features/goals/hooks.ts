@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import type { Goal, Milestone } from "@/types/domain";
+import { tasks } from "@/features/tasks/queryKeys";
 
 import {
   countTasksForGoal,
@@ -79,8 +80,9 @@ export function useDeleteGoal() {
       void queryClient.invalidateQueries({ queryKey: GOAL_LIST_PREFIX });
       void queryClient.removeQueries({ queryKey: goals.detail(id) });
       void queryClient.removeQueries({ queryKey: goals.milestones(id) });
-      // TODO(Unit 5): invalidate the tasks list for this goal once the tasks
-      // query keys exist (tasks search by goal_id).
+      // Deleting a goal unlinks its tasks (SET NULL), so every tasks list
+      // variant is stale — refresh them alongside the goals keys.
+      void queryClient.invalidateQueries({ queryKey: tasks.lists });
       void queryClient.invalidateQueries({ queryKey: goals.all });
     },
   });
