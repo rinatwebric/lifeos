@@ -75,7 +75,50 @@ describe("signUp", () => {
     expect(signUpMock).toHaveBeenCalledWith({
       email: "a@example.com",
       password: "secret123",
-      options: { data: { timezone: "Asia/Bishkek", full_name: "Ada" } },
+      options: {
+        emailRedirectTo: `${window.location.origin}/`,
+        data: { timezone: "Asia/Bishkek", full_name: "Ada" },
+      },
+    });
+  });
+
+  it("defaults the confirmation redirect to <origin>/ (not the Site URL)", async () => {
+    const signUpMock = vi
+      .fn()
+      .mockResolvedValue({ data: { user: { id: "u1" }, session: null }, error: null });
+    stubClient({ signUp: signUpMock });
+
+    await signUp({ email: "a@example.com", password: "secret123" });
+
+    expect(signUpMock).toHaveBeenCalledWith({
+      email: "a@example.com",
+      password: "secret123",
+      options: {
+        emailRedirectTo: `${window.location.origin}/`,
+        data: { timezone: expect.any(String) },
+      },
+    });
+  });
+
+  it("forwards an explicit emailRedirectTo", async () => {
+    const signUpMock = vi
+      .fn()
+      .mockResolvedValue({ data: { user: { id: "u1" }, session: null }, error: null });
+    stubClient({ signUp: signUpMock });
+
+    await signUp({
+      email: "a@example.com",
+      password: "secret123",
+      emailRedirectTo: "https://app.example.com/welcome",
+    });
+
+    expect(signUpMock).toHaveBeenCalledWith({
+      email: "a@example.com",
+      password: "secret123",
+      options: {
+        emailRedirectTo: "https://app.example.com/welcome",
+        data: { timezone: expect.any(String) },
+      },
     });
   });
 

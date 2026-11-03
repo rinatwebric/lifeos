@@ -118,6 +118,7 @@ describe("SignUpPage", () => {
       email: "ada@example.com",
       password: "secret123",
       options: {
+        emailRedirectTo: `${window.location.origin}/`,
         data: { timezone: expect.any(String), full_name: "Ada" },
       },
     });

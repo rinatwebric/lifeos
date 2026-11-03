@@ -9,6 +9,11 @@ export interface SignUpInput {
   password: string;
   fullName?: string;
   timezone?: string;
+  /**
+   * Where the confirmation email links back to (must be allow-listed in the
+   * Supabase dashboard). Defaults to `<origin>/` so callers cannot forget it.
+   */
+  emailRedirectTo?: string;
 }
 
 export interface SignUpResult {
@@ -44,6 +49,7 @@ export async function signUp(input: SignUpInput): Promise<SignUpResult> {
     email: input.email,
     password: input.password,
     options: {
+      emailRedirectTo: input.emailRedirectTo ?? defaultConfirmRedirect(),
       data: {
         timezone: resolveTimezone(input.timezone),
         ...(input.fullName ? { full_name: input.fullName } : {}),
