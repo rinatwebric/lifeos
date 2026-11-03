@@ -47,6 +47,7 @@ function taskRow(overrides: Partial<TasksRow> & { id: string }): TasksRow {
 
 interface BuilderMocks {
   eq: ReturnType<typeof vi.fn>;
+  in: ReturnType<typeof vi.fn>;
   ilike: ReturnType<typeof vi.fn>;
   gte: ReturnType<typeof vi.fn>;
   lte: ReturnType<typeof vi.fn>;
@@ -63,6 +64,7 @@ interface BuilderMocks {
 function mockBuilder(thenResult: unknown, singleResult?: unknown): BuilderMocks {
   const builder = {} as Record<string, ReturnType<typeof vi.fn>>;
   const eq = vi.fn();
+  const inFn = vi.fn();
   const ilike = vi.fn();
   const gte = vi.fn();
   const lte = vi.fn();
@@ -74,10 +76,11 @@ function mockBuilder(thenResult: unknown, singleResult?: unknown): BuilderMocks 
   const deleteFn = vi.fn();
   const single = vi.fn();
 
-  Object.assign(builder, { eq, ilike, gte, lte, order, limit, select, insert, update, single });
+  Object.assign(builder, { eq, in: inFn, ilike, gte, lte, order, limit, select, insert, update, single });
   builder["delete"] = deleteFn;
 
   eq.mockReturnValue(builder);
+  inFn.mockReturnValue(builder);
   ilike.mockReturnValue(builder);
   gte.mockReturnValue(builder);
   lte.mockReturnValue(builder);
@@ -98,6 +101,7 @@ function mockBuilder(thenResult: unknown, singleResult?: unknown): BuilderMocks 
 
   return {
     eq,
+    in: inFn,
     ilike,
     gte,
     lte,
@@ -223,6 +227,24 @@ describe("tasks api", () => {
     expect(ilike).toHaveBeenCalledWith("title", "%report%");
     expect(gte).toHaveBeenCalledWith("due_date", "2026-11-01");
     expect(lte).toHaveBeenCalledWith("due_date", "2026-11-30");
+  });
+
+  it("filters by multiple statuses with .in", async () => {
+    const { builder, in: inFn } = mockBuilder({ data: [], error: null });
+    stubClient("u1", vi.fn().mockReturnValue(builder));
+
+    await listTasks({ statuses: ["todo", "in_progress"] });
+
+    expect(inFn).toHaveBeenCalledWith("status", ["todo", "in_progress"]);
+  });
+
+  it("skips .in for an empty statuses array", async () => {
+    const { builder, in: inFn } = mockBuilder({ data: [], error: null });
+    stubClient("u1", vi.fn().mockReturnValue(builder));
+
+    await listTasks({ statuses: [] });
+
+    expect(inFn).not.toHaveBeenCalled();
   });
 
   it("trims the search and skips ilike for a blank query", async () => {

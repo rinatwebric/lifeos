@@ -33,8 +33,10 @@ interface GoalProgressSource {
 /**
  * Milestone-based progress wins when the goal uses that mode and has milestones.
  * Otherwise the manual value is used, clamped to the 0–100 range.
+ * Always returns a number: with zero milestones it falls back to the clamped
+ * manual value, so callers never need `?? goal.progress`.
  */
-export function calculateGoalProgress(goal: GoalProgressSource): number | null {
+export function calculateGoalProgress(goal: GoalProgressSource): number {
   if (goal.progressMode === "milestones") {
     const completed = goal.milestones.filter(
       (milestone) => milestone.status === "completed",

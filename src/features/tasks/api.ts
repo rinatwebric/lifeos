@@ -11,6 +11,7 @@ import type { CreateTaskInput, UpdateTaskInput } from "./schema";
 
 export interface TaskFilters {
   status?: TaskStatus;
+  statuses?: TaskStatus[];
   priority?: Priority;
   goalId?: string;
   milestoneId?: string;
@@ -111,6 +112,9 @@ export async function listTasks(filters?: TaskFilters): Promise<Task[]> {
 
     if (filters?.status) {
       query = query.eq("status", filters.status);
+    }
+    if (filters?.statuses && filters.statuses.length > 0) {
+      query = query.in("status", filters.statuses);
     }
     if (filters?.priority) {
       query = query.eq("priority", filters.priority);

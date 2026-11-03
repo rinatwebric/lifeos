@@ -6,7 +6,7 @@ import { getProfile, profileQueryKey } from "@/features/settings/api";
 import { listTasks } from "@/features/tasks/api";
 import { tasks } from "@/features/tasks/queryKeys";
 import { isTaskClosed } from "@/types/domain";
-import type { Goal, Task } from "@/types/domain";
+import type { Goal, MilestoneStatus, Task } from "@/types/domain";
 import { isTaskDueToday, isTaskOverdue, toDateKey } from "@/lib/dates";
 import { calculateCompletionRate, calculateGoalProgress } from "@/lib/progress";
 
@@ -21,11 +21,14 @@ export interface DashboardGoalItem {
 export interface MilestoneStats {
   total: number;
   completed: number;
+  statuses: MilestoneStatus[];
 }
 
 /**
  * Groups milestone `{ goalId, status }` slices by goal. One pass over the
  * single `listAllMilestones` payload — never one query per goal.
+ * `statuses` preserves the per-goal status list so `buildActiveGoalItems`
+ * reuses the map instead of re-filtering the raw slices.
  */
 export function summarizeMilestones(
   slices: Pick<MilestoneProgressSlice, "goalId" | "status">[],
@@ -33,8 +36,13 @@ export function summarizeMilestones(
   const grouped = new Map<string, MilestoneStats>();
 
   for (const slice of slices) {
-    const stats = grouped.get(slice.goalId) ?? { total: 0, completed: 0 };
+    const stats = grouped.get(slice.goalId) ?? {
+      total: 0,
+      completed: 0,
+      statuses: [] as MilestoneStatus[],
+    };
     stats.total += 1;
+    stats.statuses.push(slice.status);
     if (slice.status === "completed") {
       stats.completed += 1;
     }
@@ -46,8 +54,9 @@ export function summarizeMilestones(
 
 /**
  * Pairs each active goal with its derived progress and remaining milestones.
- * `calculateGoalProgress` falls back to the stored manual value for goals
- * without milestones, so progress is always a number here.
+ * `calculateGoalProgress` always returns a number (manual fallback when there
+ * are no milestones), so no `?? goal.progress` is needed. Statuses come from
+ * the `summarizeMilestones` map — no per-goal `.filter` over the raw slices.
  */
 export function buildActiveGoalItems(
   activeGoals: Goal[],
@@ -56,16 +65,16 @@ export function buildActiveGoalItems(
   const statsByGoal = summarizeMilestones(slices);
 
   return activeGoals.map((goal) => {
-    const stats = statsByGoal.get(goal.id) ?? { total: 0, completed: 0 };
-    const statuses = slices
-      .filter((slice) => slice.goalId === goal.id)
-      .map((slice) => ({ status: slice.status }));
-    const progress =
-      calculateGoalProgress({
-        progressMode: goal.progressMode,
-        progress: goal.progress,
-        milestones: statuses,
-      }) ?? goal.progress;
+    const stats = statsByGoal.get(goal.id) ?? {
+      total: 0,
+      completed: 0,
+      statuses: [] as MilestoneStatus[],
+    };
+    const progress = calculateGoalProgress({
+      progressMode: goal.progressMode,
+      progress: goal.progress,
+      milestones: stats.statuses.map((status) => ({ status })),
+    });
 
     return {
       goal,
@@ -117,15 +126,44 @@ export function buildInsights(counts: InsightCounts): string[] {
  * Tasks due on `todayKey`. `isTaskDueToday` covers open tasks; closed tasks
  * due today are kept explicitly so the daily progress counts completed work
  * (`isTaskDueToday` returns false for closed statuses by design).
+ * `cancelled` never participates — neither in the day list nor in the
+ * progress denominator.
  */
 export function selectTodayTasks(allTasks: Task[], now: Date, timeZone: string): Task[] {
   const todayKey = toDateKey(now, timeZone);
 
-  return allTasks.filter(
-    (task) =>
+  return allTasks.filter((task) => {
+    if (task.status === "cancelled") {
+      return false;
+    }
+    return (
       isTaskDueToday(task, now, timeZone) ||
-      (task.dueDate === todayKey && task.dueDate !== null && isTaskClosed(task.status)),
-  );
+      (task.dueDate === todayKey && task.dueDate !== null && isTaskClosed(task.status))
+    );
+  });
+}
+
+export interface DailyProgress {
+  completed: number;
+  total: number;
+  rate: number | null;
+}
+
+/**
+ * Pure daily-progress aggregation over the raw task list. `total` counts
+ * today's tasks without `cancelled`, `completed` counts `completed` among
+ * them, `rate` is `calculateCompletionRate(completed, total)` (`null` when
+ * nothing planned, e.g. only `cancelled` tasks due today).
+ */
+export function selectDailyProgress(
+  allTasks: Task[],
+  now: Date,
+  timeZone: string,
+): DailyProgress {
+  const today = selectTodayTasks(allTasks, now, timeZone);
+  const completed = today.filter((task) => task.status === "completed").length;
+  const total = today.length;
+  return { completed, total, rate: calculateCompletionRate(completed, total) };
 }
 
 export function selectOverdueTasks(allTasks: Task[], now: Date, timeZone: string): Task[] {
@@ -139,7 +177,7 @@ export function selectOverdueTasks(allTasks: Task[], now: Date, timeZone: string
  * - profile → time zone + welcome name
  * - `listTasks({ dueAfter, dueBefore })` → today's tasks + daily progress
  * - `listGoals({ status: "active" })` + `listAllMilestones` → active goals
- * - `listTasks({ status: "todo" })` + `isTaskOverdue` → overdue count
+ * - `listTasks({ statuses: ["todo", "in_progress"] })` + `isTaskOverdue` → overdue count
  */
 export function useDashboardData(now: Date = new Date()) {
   const profileQuery = useQuery({
@@ -157,8 +195,8 @@ export function useDashboardData(now: Date = new Date()) {
     queryFn: () => listTasks({ dueAfter: todayKey, dueBefore: todayKey }),
   });
   const overdueQuery = useQuery({
-    queryKey: tasks.list({ status: "todo" }),
-    queryFn: () => listTasks({ status: "todo" }),
+    queryKey: tasks.list({ statuses: ["todo", "in_progress"] }),
+    queryFn: () => listTasks({ statuses: ["todo", "in_progress"] }),
   });
   const goalsQuery = useQuery({
     queryKey: goals.list({ status: "active" }),
@@ -170,9 +208,10 @@ export function useDashboardData(now: Date = new Date()) {
   });
 
   const todayTasks = selectTodayTasks(todayQuery.data ?? [], now, timeZone);
-  const completedToday = todayTasks.filter((task) => task.status === "completed").length;
-  const totalToday = todayTasks.length;
-  const dailyProgress = calculateCompletionRate(completedToday, totalToday);
+  const daily = selectDailyProgress(todayQuery.data ?? [], now, timeZone);
+  const completedToday = daily.completed;
+  const totalToday = daily.total;
+  const dailyProgress = daily.rate;
 
   const overdueTasks = selectOverdueTasks(overdueQuery.data ?? [], now, timeZone);
 

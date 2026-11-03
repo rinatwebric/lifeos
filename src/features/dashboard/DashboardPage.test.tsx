@@ -125,7 +125,7 @@ function stubDashboard(stub: DashboardStub = {}): { setStatusMutate: ReturnType<
   const setStatusMutate = vi.fn();
   vi.mocked(getProfile).mockResolvedValue(stub.profile ?? makeProfile());
   vi.mocked(listTasks).mockImplementation((filters) => {
-    if (filters?.status === "todo") {
+    if (filters?.statuses !== undefined || filters?.status !== undefined) {
       return Promise.resolve(stub.todoTasks ?? []);
     }
     if (filters?.dueAfter !== undefined || filters?.dueBefore !== undefined) {
@@ -337,7 +337,7 @@ describe("DashboardPage", () => {
   it("retries today's tasks after a failure", async () => {
     stubDashboard({ todayTasks: [], todoTasks: [], goals: [], slices: [] });
     vi.mocked(listTasks).mockImplementation((filters) => {
-      if (filters?.status === "todo") {
+      if (filters?.statuses !== undefined || filters?.status !== undefined) {
         return Promise.resolve([]);
       }
       return Promise.reject(new Error("tasks down"));
@@ -378,5 +378,52 @@ describe("DashboardPage", () => {
     expect(await screen.findByText("Urgent work")).toBeInTheDocument();
     expect(screen.getByText("High priority")).toBeInTheDocument();
     expect(screen.queryByText("Medium priority")).not.toBeInTheDocument();
+  });
+
+  it("counts an overdue in_progress task in insights", async () => {
+    const today = todayKey();
+    stubDashboard({
+      todayTasks: [],
+      todoTasks: [
+        makeTask({
+          id: "t-prog",
+          title: "Ongoing work",
+          status: "in_progress",
+          dueDate: shiftDateKey(today, -1),
+        }),
+      ],
+      goals: [makeGoal()],
+      slices: [makeSlice({ status: "completed" })],
+    });
+    renderDashboard();
+
+    expect(await screen.findByText("1 task is overdue")).toBeInTheDocument();
+  });
+
+  it("hides cancelled tasks from Today's tasks and keeps 100% progress", async () => {
+    const today = todayKey();
+    stubDashboard({
+      todayTasks: [
+        makeTask({ id: "t-done", title: "Done work", status: "completed", dueDate: today }),
+        makeTask({
+          id: "t-cancelled",
+          title: "Cancelled work",
+          status: "cancelled",
+          dueDate: today,
+        }),
+      ],
+      todoTasks: [],
+      goals: [],
+      slices: [],
+    });
+    renderDashboard();
+
+    expect(await screen.findByText("Done work")).toBeInTheDocument();
+    expect(screen.queryByText("Cancelled work")).not.toBeInTheDocument();
+    expect(await screen.findAllByText("Completed 1 of 1 tasks today")).toHaveLength(2);
+    expect(screen.getByRole("progressbar", { name: "Today's progress" })).toHaveAttribute(
+      "aria-valuenow",
+      "100",
+    );
   });
 });
