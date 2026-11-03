@@ -21,6 +21,11 @@ create table public.recurrence_rules (
   -- Weekday convention: 0 = Sunday .. 6 = Saturday (matches JS getDay).
   weekdays integer[] not null default '{}'
     check (weekdays <@ '{0,1,2,3,4,5,6}'),
+  -- A 'weekdays' rule with an empty set would silently generate zero instances;
+  -- reject it loudly instead of debugging the app layer later.
+  check (frequency <> 'weekdays' or coalesce(array_length(weekdays, 1), 0) > 0),
+  -- '{0,NULL}' slips through <@ (NULL comparison is not false); ban NULLs outright.
+  check (array_position(weekdays, null) is null),
   -- Every N days (daily) or every N weeks (weekdays / weekly).
   interval_value integer not null default 1
     check (interval_value >= 1),
@@ -60,7 +65,8 @@ create index idx_tasks_user_id on public.tasks (user_id);
 create index idx_tasks_goal_id on public.tasks (goal_id);
 create index idx_tasks_milestone_id on public.tasks (milestone_id);
 create index idx_tasks_user_status on public.tasks (user_id, status);
-create index idx_tasks_due_date on public.tasks (due_date);
+create index idx_tasks_user_due on public.tasks (user_id, due_date);
+create index idx_tasks_user_scheduled on public.tasks (user_id, scheduled_start);
 create index idx_tasks_recurrence_rule_id on public.tasks (recurrence_rule_id);
 
 -- One instance per rule per day. Partial so hand-created tasks
@@ -96,12 +102,38 @@ create policy "recurrence_rules_delete_own"
 create policy "tasks_select_own"
   on public.tasks for select to authenticated using (user_id = auth.uid());
 
+-- Cross-tenant links are rejected here, not just unroutable: without the EXISTS
+-- guards below, user A could attach their task to user B's goal. SELECT would
+-- still be blocked by RLS, but analytics / Phase 4 joins would follow a forged
+-- link, so ownership of each referenced row is verified explicitly.
+-- (Composite-FK alternative considered and rejected: needs PG 15+ for SET NULL
+-- on multi-column FKs and extra UNIQUE indexes; RLS variant is 6 lines.)
+
 create policy "tasks_insert_own"
-  on public.tasks for insert to authenticated with check (user_id = auth.uid());
+  on public.tasks for insert to authenticated with check (
+    user_id = auth.uid()
+    and (goal_id is null or exists (
+      select 1 from public.goals g where g.id = goal_id and g.user_id = auth.uid()))
+    and (milestone_id is null or exists (
+      select 1 from public.milestones m where m.id = milestone_id and m.user_id = auth.uid()))
+    and (recurrence_rule_id is null or exists (
+      select 1 from public.recurrence_rules r
+      where r.id = recurrence_rule_id and r.user_id = auth.uid()))
+  );
 
 create policy "tasks_delete_own"
   on public.tasks for delete to authenticated using (user_id = auth.uid());
 
 create policy "tasks_update_own"
   on public.tasks for update to authenticated
-  using (user_id = auth.uid()) with check (user_id = auth.uid());
+  using (user_id = auth.uid())
+  with check (
+    user_id = auth.uid()
+    and (goal_id is null or exists (
+      select 1 from public.goals g where g.id = goal_id and g.user_id = auth.uid()))
+    and (milestone_id is null or exists (
+      select 1 from public.milestones m where m.id = milestone_id and m.user_id = auth.uid()))
+    and (recurrence_rule_id is null or exists (
+      select 1 from public.recurrence_rules r
+      where r.id = recurrence_rule_id and r.user_id = auth.uid()))
+  );

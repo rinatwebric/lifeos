@@ -84,12 +84,22 @@ create policy "goals_delete_own"
 create policy "milestones_select_own"
   on public.milestones for select to authenticated using (user_id = auth.uid());
 
+-- Milestones always belong to a goal of the same user: the EXISTS guard rejects
+-- cross-tenant goal_id links (see the longer note on tasks policies in 0004).
+
 create policy "milestones_insert_own"
-  on public.milestones for insert to authenticated with check (user_id = auth.uid());
+  on public.milestones for insert to authenticated with check (
+    user_id = auth.uid()
+    and exists (select 1 from public.goals g where g.id = goal_id and g.user_id = auth.uid())
+  );
 
 create policy "milestones_update_own"
   on public.milestones for update to authenticated
-  using (user_id = auth.uid()) with check (user_id = auth.uid());
+  using (user_id = auth.uid())
+  with check (
+    user_id = auth.uid()
+    and exists (select 1 from public.goals g where g.id = goal_id and g.user_id = auth.uid())
+  );
 
 create policy "milestones_delete_own"
   on public.milestones for delete to authenticated using (user_id = auth.uid());

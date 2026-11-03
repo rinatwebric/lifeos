@@ -54,7 +54,9 @@ SQL Unit 1 финализирован: `tasks.goal_id ON DELETE SET NULL`,
    `due_date`, `scheduled_start`), RLS 4 политики (`user_id = auth.uid()`).
    FK: `milestones.goal_id ON DELETE CASCADE`, `tasks.goal_id ON DELETE SET NULL`,
    `tasks.milestone_id ON DELETE SET NULL`, `tasks.recurrence_rule_id ON DELETE SET NULL`;
-   каскада на `tasks` нет ни в каком виде. Частичный
+   каскада на `tasks` нет ни в каком виде. Кросс-тенантные ссылки закрыты в самих
+   политиках (`EXISTS` на владение связанной строкой, решение 2026-11-04 п.1;
+   композитные FK отвергнуты — лишний риск по версии PG). Частичный
    `UNIQUE (recurrence_rule_id, due_date)` для идемпотентной докатки.
    Готово: SQL показан целиком в стиле 0001/0002; `database.ts` обновлён
    в том же изменении (AGENTS.md §6); UI визуально не изменился.
