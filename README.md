@@ -6,9 +6,11 @@
 
 ## Статус
 
-**Phase 1 — Foundation.** Готовы: структура проекта, роутинг, layout с адаптивной навигацией,
-дизайн-токены, доменные типы, утилиты прогресса и time-zone-aware overdue с unit-тестами.
-Следующий шаг: подключение Supabase Auth + профиль пользователя (см. [docs/ROADMAP.md](docs/ROADMAP.md)).
+**Phase 1 — Foundation — done** (итерация 1.2 закрыта 2026-11-03): структура проекта,
+роутинг, layout, дизайн-токены, доменные типы, утилиты дат/прогресса, Supabase Auth
+(регистрация/вход/выход/восстановление/подтверждение email), профиль и `user_preferences`,
+защищённые роуты, onboarding-диалог, unit-тесты (Vitest) + e2e (Playwright).
+Следующий шаг: Phase 2 — Goals & Tasks (см. [docs/ROADMAP.md](docs/ROADMAP.md)).
 
 Полное техническое задание — [docs/PRD.md](docs/PRD.md).
 Архитектурные решения — [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
@@ -41,14 +43,35 @@ npm run dev
 
 ### Supabase Auth: Redirect URLs
 
-Восстановление пароля по умолчанию ведёт на `<origin>/reset-password`
-(см. `defaultRecoveryRedirect()` в `src/features/auth/api.ts`). Этот URL обязан быть
-в allow-list, иначе письмо уведёт на project Site URL (по умолчанию `localhost:3000`):
+Регистрация и повторная отправка письма возвращают пользователя на `<origin>/`
+(дефолт `emailRedirectTo` в `signUp`/`resendConfirmation`), восстановление пароля —
+на `<origin>/reset-password`. Все эти URL обязаны быть в allow-list, иначе письмо
+уведёт на project Site URL (по умолчанию `localhost:3000`):
 
 Supabase Dashboard → Authentication → URL Configuration → Redirect URLs → добавить:
 
-- `http://localhost:5173/reset-password` (локальная разработка)
-- `https://<ваш-домен>/reset-password` (production)
+- `http://localhost:5173/` и `http://localhost:5173/reset-password` (локальная разработка)
+- `http://127.0.0.1:5173/` и `http://127.0.0.1:5173/reset-password` (Playwright ходит через `127.0.0.1`)
+- `https://<ваш-домен>/` и `https://<ваш-домен>/reset-password` (production)
+
+## Как проверить локально
+
+```bash
+Copy-Item .env.example .env.local   # заполнить VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY
+Copy-Item .env.e2e.example .env.e2e # заполнить E2E_EMAIL / E2E_PASSWORD (подтверждённый пользователь)
+npm run dev                          # http://localhost:5173
+npm run typecheck; npm run lint; npm test
+npx playwright install chromium      # один раз для e2e
+npm run test:e2e
+node scripts/verify-rls.mjs         # ручная проверка RLS, только anon key
+```
+
+- `service_role` нигде не нужен и не используется — ни в приложении, ни в тестах, ни в скриптах.
+- Без `E2E_EMAIL` / `E2E_PASSWORD` e2e-файл скипается целиком, поэтому CI без секретов не падает.
+- Каждый e2e-тест работает в чистом контексте браузера: сессии между сценариями не протекают.
+- `sign-up` e2e-тест отправляет настоящее письмо подтверждения (Supabase считает такие
+  отправки поштучно, на проекте лимит срабатывает быстро) — запускайте полную suites
+  не чаще раза в час и удаляйте тестовых пользователей через Dashboard → Users.
 
 ## Скрипты
 

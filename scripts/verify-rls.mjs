@@ -101,10 +101,7 @@ console.log("anonymous (no JWT):");
 const anonProfiles = await rest("profiles?select=id");
 check("select profiles returns 0 rows", Array.isArray(anonProfiles) && anonProfiles.length === 0);
 const anonPrefs = await rest("user_preferences?select=id");
-check(
-  "select user_preferences returns 0 rows",
-  Array.isArray(anonPrefs) && anonPrefs.length === 0,
-);
+check("select user_preferences returns 0 rows", Array.isArray(anonPrefs) && anonPrefs.length === 0);
 
 // 2. Sign in as user A (password grant, same flow as the UI).
 const authResponse = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
@@ -178,5 +175,7 @@ check(
     restored[0].sleep_time === before.sleep_time,
 );
 
-console.log(failures === 0 ? "RLS verification: ALL CHECKS PASSED" : `RLS verification: ${failures} FAILED`);
+console.log(
+  failures === 0 ? "RLS verification: ALL CHECKS PASSED" : `RLS verification: ${failures} FAILED`,
+);
 process.exit(failures === 0 ? 0 : 1);

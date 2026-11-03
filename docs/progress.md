@@ -3,6 +3,71 @@
 Состояние проекта живёт в файлах и Git, а не в памяти модели. Каждая запись — дата, что сделано,
 чем проверено, что осталось.
 
+## 2026-11-03 — Итерация 1.2, единица 6: e2e, RLS, закрытие итерации
+
+**Сделано**
+
+- Баг регистрации (`d3f0e70`, задача 1 отдельным коммитом): `signUp` теперь передаёт
+  `emailRedirectTo` с дефолтом `${window.location.origin}/` (как `resetPassword` и
+  `resendConfirmation`) — письмо больше не уходит на дефолтный Site URL. Плюс
+  `SignUpInput.emailRedirectTo` для явного оверрайда. Тесты: дефолт, оверрайд,
+  обновлены ожидания в `SignUpPage.test.tsx`. Заодно закоммичены `.gitignore`
+  (игнор `.env.*` + исключение `.env.e2e.example`) и `.env.e2e.example`.
+- Sign out в Settings (не было UI для выхода вообще): новая карточка с кнопкой,
+  вызывает `signOut()`; редирект на `/sign-in` делает сам `RequireAuth` по смене
+  статуса (навигационный вызов не нужен). 2 unit-теста (успех + ошибка). Тестов 104/104.
+- `e2e/auth.spec.ts` (new, 5 сценариев, каждый в чистом контексте): anon `/` → `/sign-in`;
+  вход тестовым пользователем → Dashboard `/`; `/settings` wake/sleep → reload →
+  значения сохранились; sign out → `/sign-in`, повторный `/` недоступен; `/sign-up`
+  с новым адресом на реальном домене → «Check your email» (письмо не открываем).
+  Без `E2E_*` — `test.skip` всем файлом, CI без секретов зелёный.
+- `e2e/helpers.ts` (new): общий `signIn` (ждёт URL `/` — fail fast при 429),
+  `dismissOnboarding` (диалог монтируется после profile query — ждёт до 8 с, иначе no-op).
+- `e2e/smoke.spec.ts` переписан под гарды (старый утверждал анонимный дашборд —
+  теперь это редирект по дизайну): вход → дашборд → переход в Goals.
+- `playwright.config.ts`: загрузка `.env.e2e` встроенным `node:fs` (без новых
+  зависимостей, `process.env` в приоритете), dev-сервер на `127.0.0.1` (vite-`localhost`
+  упирался в IPv6 и webServer висел 120 с), `workers: 1` — параллельные входы одним
+  аккаунтом триггерят Auth rate limit.
+- `scripts/verify-rls.mjs` (new, ручной запуск, не в `npm test`): только anon key,
+  11 проверок — anon видит 0 строк, A читает/пишет только своё, чужой id: select 0
+  строк + update 0 строк, round-trip своих wake/sleep с restore. Результат: ALL PASSED.
+- Найденные по ходу дела факты (все учтены в коде/тестах): диалог onboarding
+  обгоняет `dismiss` (лечится ожиданием); сообщение «Day setup saved.» мигает и
+  пропадает при ремаунте после refetch — в e2e завершение ждём по PATCH-ответам
+  `profiles`/`user_preferences`, а не по тосту; `input[type=time]` нормализует к
+  `HH:MM:SS` — ассёрты под это.
+- Доки: `docs/plan.md` — итерация 1.2 закрыта; `docs/ROADMAP.md` — Phase 1 отмечен
+  выполненным (только реально сделанное); `README` — статус Phase 1 done, раздел
+  «Как проверить локально», Redirect URLs дополнены `/` и `127.0.0.1`.
+
+**Проверено**
+
+- `npm run typecheck` — ok
+- `npm run lint` — 0 errors (11 известных `react-refresh/only-export-components` warns)
+- `npm test` — 104/104 (100 старых + 4 новых: 2 signUp-дефолт + 2 sign-out)
+- `npm run build` — ok (плюс `npx playwright install chromium` один раз)
+- `npm run test:e2e` — 6/6 (5 auth + 1 smoke), chromium, один воркер
+- RLS: `scripts/verify-rls.mjs` — 11/11 PASS; в БД ровно 4 политики
+  (`profiles_*_own`: `id = auth.uid()`, `user_preferences_*_own`: `user_id = auth.uid()`,
+  только `authenticated`) — изоляция на уровне БД, не клиентского кода
+- Второй аккаунт B не создавался (нет auth-admin инструментария, `service_role`
+  запрещён): чужой id в скрипте эквивалентен строке B, т.к. все политики —
+  `... = auth.uid()`. Прямая проверка «B не видит A» — осталось вручную через
+  Dashboard → Users → Add user при желании.
+
+**Осталось**
+
+- Удалить 3 unconfirmed тестовых пользователя через Dashboard → Users:
+  `e2e.signup.1793724205778@`, `e2e.signup.1793724335040@`, `e2e.signup.1793731022764@`
+  (все `@gmail.com`; Failed-пробы юзеров не создали).
+- В project URL Configuration убедиться, что добавлены `/` и `127.0.0.1`-варианты
+  (список — в README); иначе письма подтверждения/восстановления уходят на Site URL.
+- Проектный email-лимит (`over_email_send_rate_limit`) срабатывает уже после пары
+  отправок: полный e2e-прогон — не чаще раза в ~2 часа; перед расширением e2e
+  в Phase 2 настроить custom SMTP, иначе 429 будет нормой.
+- Дальше — Phase 2 (Goals & Tasks) по `docs/plan.md` новым чатом.
+
 ## 2026-11-03 — Phase 1 Foundation + рабочая среда
 
 **Сделано**
@@ -105,9 +170,9 @@
 **Сделано**
 
 - `src/features/auth/AuthProvider.tsx` (new): `status: 'loading' | 'authenticated' | 'anonymous'`
-  + `user` + `session` через `useAuth()`. Кеш чистится на `SIGNED_OUT` и при смене `user.id`
-  (первая эмиссия только инициализирует, `INITIAL_SESSION` повтор — no-op). Порядок в
-  `src/app/providers.tsx`: `QueryClientProvider → AuthProvider`.
+  - `user` + `session` через `useAuth()`. Кеш чистится на `SIGNED_OUT` и при смене `user.id`
+    (первая эмиссия только инициализирует, `INITIAL_SESSION` повтор — no-op). Порядок в
+    `src/app/providers.tsx`: `QueryClientProvider → AuthProvider`.
 - `src/features/auth/AuthProvider.test.tsx` (new, 6 тестов): loading→anonymous/authenticated,
   SIGNED_OUT → `clear()` + `getSession` больше не вызывается, смена user → `clear()`,
   повтор той же сессии — без `clear()`, StrictMode: 2 подписки → первая отписана, unmount —

@@ -22,14 +22,16 @@
    (`options.data.timezone`), fallback `'UTC'`; `wake 07:00`, `sleep 23:00`. Строку
    `user_preferences` создаёт триггер (insert), визард/клиент делают только update.
 
-### Статус (2026-11-03)
+### Статус (2026-11-03) — итерация 1.2 ЗАКРЫТА
 
-- Единица 1 — done (`70c8811`; миграции `0001_profiles@20261102200628`,
-  `0002_user_preferences@20261102200637` применены и записаны в `supabase_migrations`;
-  расхождение с файлами — только ведущий пробел в одной строке DDL, принято как no-op).
-  Типы `Profile`/`UserPreferences` + `database.ts` перенесены в коммит единицы 2.
+- Единицы 1–5 закрыты (коммиты `70c8811`, `23da785`, `2646201`, `27dbfd4`, `fc89f96`;
+  плюс `07b02d3` — правки ревью единицы 3 и `d3f0e70` — дефолт `emailRedirectTo` в `signUp`).
+- Единица 6 закрыта (коммит `d3029a2`): `e2e/auth.spec.ts` (5 live-сценариев),
+  `e2e/helpers.ts`, `playwright.config.ts` (загрузка `.env.e2e`, хост `127.0.0.1`,
+  1 worker), Sign out в Settings, `scripts/verify-rls.mjs`, `smoke.spec.ts` переписан
+  под гарды. Детали — в `docs/progress.md`.
 - Факт: email confirmation=ON — экраны реализуют обе ветки по `data.session`.
-- Дальше — новым чатом (единица 2), контекст этой сессии не тащить.
+- Дальше — итерация Phase 2 (Goals & Tasks) новым чатом, контекст этой сессии не тащить.
 
 ### Порядок единиц (не менять, каждая = один коммит)
 
@@ -69,10 +71,11 @@
    (живёт в settings, не в auth), `src/features/settings/PreferencesForm.tsx` (общая форма),
    `src/features/settings/api.ts`, `src/features/settings/SettingsPage.tsx` + theme.
    Проверка та же. Готово: без сессии → `/sign-in`; диалог только при `onboarded_at IS NULL`.
-    Статус: единица 5 закрыта. Роуты + RequireAuth/RedirectIfAuthed (loading без редиректа, anonymous -> /sign-in с from, authed -> /), useAuth в отдельном файле, resendConfirmation с дефолтом emailRedirectTo=<origin>/, Settings (профиль + day setup: два update с раздельными ошибками, инвалидация ключей), тема (profiles.theme + localStorage + inline-скрипт в index.html), OnboardingDialog (Save/Skip пишут onboarded_at, Escape=Skip, без фокус-трапа). Тесты 100/100 (75 старых + 25 новых: guards, settings api, onboarding, settings page).
+   Статус: единица 5 закрыта. Роуты + RequireAuth/RedirectIfAuthed (loading без редиректа, anonymous -> /sign-in с from, authed -> /), useAuth в отдельном файле, resendConfirmation с дефолтом emailRedirectTo=<origin>/, Settings (профиль + day setup: два update с раздельными ошибками, инвалидация ключей), тема (profiles.theme + localStorage + inline-скрипт в index.html), OnboardingDialog (Save/Skip пишут onboarded_at, Escape=Skip, без фокус-трапа). Тесты 100/100 (75 старых + 25 новых: guards, settings api, onboarding, settings page).
 6. **Тесты + журнал.** Файлы: `src/features/auth/RequireAuth.test.tsx`, RTL-тесты форм,
    `e2e/auth.spec.ts`, `docs/progress.md`. Проверка:
    `npm run typecheck && npm run lint && npm test && npm run build`.
+   Статус: закрыта (`d3029a2`).
 
 ### Проверка
 

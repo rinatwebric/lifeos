@@ -2,7 +2,7 @@
 
 Чек-лист отражает фактическое состояние, а не намерения. Порядок и состав этапов — из PRD §17.
 
-## Phase 1 — Foundation ✅ (базовая часть)
+## Phase 1 — Foundation ✅
 
 - [x] Vite + React 19 + TypeScript strict
 - [x] Tailwind CSS 4 + дизайн-токены (light/dark)
@@ -11,10 +11,11 @@
 - [x] `lib/dates` (IANA time zone) и `lib/progress` + unit-тесты
 - [x] ESLint flat config, Prettier, Vitest, Playwright config
 - [x] `.env.example`, инструкция запуска, AGENTS.md
-- [ ] Supabase project + `.env.local`
-- [ ] Регистрация / вход / выход / восстановление пароля
-- [ ] Профиль (`profiles`) и `user_preferences`
-- [ ] Защищённые роуты и редиректы
+- [x] Supabase project + `.env.local`
+- [x] Регистрация / вход / выход / восстановление пароля (+ подтверждение email, обе ветки по `data.session`)
+- [x] Профиль (`profiles`) и `user_preferences` (миграции 0001/0002, RLS, триггер `handle_new_user`)
+- [x] Защищённые роуты и редиректы (`RequireAuth`/`RedirectIfAuthed`, onboarding-диалог, Sign out)
+- [x] e2e: 6 сценариев live-auth + ручная проверка RLS (`scripts/verify-rls.mjs`)
 
 **Результат:** пользователь регистрируется и входит в LifeOS.
 
