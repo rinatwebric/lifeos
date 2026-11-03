@@ -1,6 +1,6 @@
 import { Pencil, Trash2 } from "lucide-react";
 import { useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -9,6 +9,7 @@ import { ProgressBar } from "@/components/ui/ProgressBar";
 import { DeleteGoalDialog } from "@/features/goals/components/DeleteGoalDialog";
 import { GoalFormDialog } from "@/features/goals/components/GoalFormDialog";
 import { MilestoneList } from "@/features/goals/components/MilestoneList";
+import { GoalServiceError } from "@/features/goals/errors";
 import { useGoal, useMilestones } from "@/features/goals/hooks";
 import { calculateGoalProgress } from "@/lib/progress";
 import { humanize } from "@/lib/strings";
@@ -31,6 +32,7 @@ function formatDateRange(goal: Goal): string {
 
 export function GoalDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const goalQuery = useGoal(id);
   const milestonesQuery = useMilestones(id);
 
@@ -59,6 +61,28 @@ export function GoalDetailPage() {
 
   const goal = goalQuery.data ?? null;
   if (goalQuery.isError || !goal) {
+    // A missing/deleted goal is a calm empty state; any other failure is a
+    // retryable error. Mocks without an `error` object fall back to not_found
+    // so the unknown-id case keeps rendering the back link.
+    const code =
+      goalQuery.error instanceof GoalServiceError ? goalQuery.error.code : "not_found";
+    if (code !== "not_found") {
+      return (
+        <div className="space-y-6">
+          <Link to="/goals" className="text-sm text-muted hover:underline">
+            ← All goals
+          </Link>
+          <div role="alert" className="rounded-lg border border-line bg-surface p-4">
+            <p className="text-sm text-content">Could not load goal. Please try again.</p>
+            <div className="mt-3">
+              <Button variant="secondary" size="sm" onClick={() => void goalQuery.refetch()}>
+                Retry
+              </Button>
+            </div>
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="space-y-6">
         <Link to="/goals" className="text-sm text-muted hover:underline">
@@ -83,12 +107,13 @@ export function GoalDetailPage() {
   }
 
   const milestones = milestonesQuery.data ?? [];
-  const progress =
-    calculateGoalProgress({
-      progressMode: goal.progressMode,
-      progress: goal.progress,
-      milestones: milestones.map((milestone) => ({ status: milestone.status })),
-    }) ?? goal.progress;
+  // `calculateGoalProgress` never returns null for goals: with zero milestones
+  // it falls back to the clamped manual value, so no `?? goal.progress` here.
+  const progress = calculateGoalProgress({
+    progressMode: goal.progressMode,
+    progress: goal.progress,
+    milestones: milestones.map((milestone) => ({ status: milestone.status })),
+  });
 
   return (
     <div className="space-y-6">
@@ -181,6 +206,7 @@ export function GoalDetailPage() {
         open={deletingGoal}
         onClose={() => setDeletingGoal(false)}
         goal={goal}
+        onDeleted={() => navigate("/goals")}
       />
     </div>
   );

@@ -9,6 +9,8 @@ interface DeleteGoalDialogProps {
   open: boolean;
   onClose: () => void;
   goal: Goal | null;
+  /** Called after a successful delete so callers can leave the detail page. */
+  onDeleted?: () => void;
 }
 
 function taskLine(count: number): string {
@@ -18,7 +20,7 @@ function taskLine(count: number): string {
   return `${count} tasks will stay but lose the link to this goal. This cannot be undone.`;
 }
 
-export function DeleteGoalDialog({ open, onClose, goal }: DeleteGoalDialogProps) {
+export function DeleteGoalDialog({ open, onClose, goal, onDeleted }: DeleteGoalDialogProps) {
   const taskCount = useTaskCountForGoal(open ? goal?.id : undefined);
   const deleteGoal = useDeleteGoal();
   const [serverError, setServerError] = useState<string | null>(null);
@@ -31,6 +33,7 @@ export function DeleteGoalDialog({ open, onClose, goal }: DeleteGoalDialogProps)
     try {
       await deleteGoal.mutateAsync(goal.id);
       onClose();
+      onDeleted?.();
     } catch (error) {
       setServerError(error instanceof Error ? error.message : "Could not delete the goal.");
     }

@@ -88,7 +88,10 @@ export function MilestoneList({ goalId, milestones }: MilestoneListProps) {
             aria-label="Add a milestone"
             placeholder="Add a milestone"
             value={newTitle}
-            onChange={(event) => setNewTitle(event.target.value)}
+            onChange={(event) => {
+              setNewTitle(event.target.value);
+              setAddError(null);
+            }}
           />
           <Button type="submit" loading={createMilestone.isPending} className="shrink-0">
             <Plus className="size-4" aria-hidden="true" />
@@ -193,7 +196,10 @@ export function MilestoneList({ goalId, milestones }: MilestoneListProps) {
           aria-label="Add a milestone"
           placeholder="Add a milestone"
           value={newTitle}
-          onChange={(event) => setNewTitle(event.target.value)}
+          onChange={(event) => {
+            setNewTitle(event.target.value);
+            setAddError(null);
+          }}
         />
         <Button type="submit" loading={createMilestone.isPending} className="shrink-0">
           <Plus className="size-4" aria-hidden="true" />
