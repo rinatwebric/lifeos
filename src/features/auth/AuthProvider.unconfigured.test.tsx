@@ -16,6 +16,8 @@ describe("AuthProvider without Supabase config", () => {
   it("renders the setup banner instead of crashing", async () => {
     render(<App />);
 
-    expect(await screen.findByRole("status")).toHaveTextContent(/Supabase is not connected/i);
+    // The dashboard renders its own loading statuses underneath, so the
+    // banner is pinned by its copy instead of the bare `status` role.
+    expect(await screen.findByText(/Supabase is not connected/i)).toBeInTheDocument();
   });
 });

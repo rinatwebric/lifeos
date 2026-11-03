@@ -37,6 +37,8 @@ describe("App shell", () => {
   it("explains the missing Supabase configuration instead of failing", () => {
     render(<App />);
 
-    expect(screen.getByRole("status")).toHaveTextContent(/Supabase is not connected/i);
+    // The dashboard renders its own loading statuses underneath, so the
+    // banner is pinned by its copy instead of the bare `status` role.
+    expect(screen.getByText(/Supabase is not connected/i)).toBeInTheDocument();
   });
 });
