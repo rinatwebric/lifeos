@@ -37,3 +37,30 @@
 - Supabase project + `.env.local` (нужны ключи пользователя).
 - Итерация 1.2: миграции `profiles` / `user_preferences`, auth-экраны, защищённые роуты — см. `docs/plan.md`.
 - Playwright: `npx playwright install` перед e2e.
+
+## 2026-11-03 — Итерация 1.2, единица 1: миграции закрыта
+
+**Сделано**
+
+- Файлы `supabase/migrations/0001_profiles.sql` + `0002_user_preferences.sql` созданы и закоммичены
+  до применения (`70c8811`); применены через Supabase MCP и записаны в `supabase_migrations`:
+  `0001_profiles@20261102200628`, `0002_user_preferences@20261102200637`.
+- П.6 принят как есть: расхождение применённого SQL с файлами — только ведущий пробел в одной
+  строке DDL (no-op), объекты в БД соответствуют файлам, пересоздание миграции не нужно.
+- `.env.local` заполнен из MCP (URL + anon key, git-ignored); Supabase MCP (`opencode.json`) настроен.
+- Факт: email confirmation=ON (`email_confirmed_at=null`, сессии после signUp нет) — экраны
+  реализуют обе ветки по `data.session`.
+
+**Проверено (доказательства из БД, не слова)**
+
+- Колонки обеих таблиц, `relrowsecurity=true`, ровно 4 политики (select+update своих строк),
+  3 триггера, CHECK language/theme/jsonb, обе функции `security definer` + `search_path=""`.
+- signUp-тест (`timezone=Asia/Bishkek` в metadata): строки появились в `profiles` (timezone +
+  full_name из metadata) и `user_preferences` (дефолты 07:00/23:00/`{}`).
+- Тестовый пользователь `it12.verify.20261102@gmail.com` удалён, каскад проверен (0/0/0);
+  в итерацию 2 ничего не перешло. `@example.com` Auth отклоняет — для e2e брать реальный домен.
+
+**Осталось**
+
+- Единица 2: auth-сервис (типы `Profile`/`UserPreferences` + `database.ts` — в коммите единицы 2).
+- Единицы 3–6 по `docs/plan.md`. Следующая задача — новым чатом.
