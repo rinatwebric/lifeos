@@ -4,8 +4,11 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getPreferences, getProfile, updatePreferences, updateProfile } from "./api";
+import { signOut } from "@/features/auth/api";
 import type { Profile, UserPreferences } from "@/types/domain";
 import { SETTINGS_COPY, SettingsPage } from "./SettingsPage";
+
+vi.mock("@/features/auth/api", () => ({ signOut: vi.fn() }));
 
 vi.mock("./api", () => ({
   getProfile: vi.fn(),
@@ -31,6 +34,8 @@ const mockedGetProfile = vi.mocked(getProfile);
 const mockedGetPreferences = vi.mocked(getPreferences);
 const mockedUpdateProfile = vi.mocked(updateProfile);
 const mockedUpdatePreferences = vi.mocked(updatePreferences);
+
+const mockedSignOut = vi.mocked(signOut);
 
 const PROFILE: Profile = {
   id: "u1",
@@ -75,6 +80,7 @@ function renderSettings() {
 beforeEach(() => {
   vi.clearAllMocks();
   document.documentElement.classList.remove("dark");
+  mockedSignOut.mockResolvedValue(undefined);
   mockedGetProfile.mockResolvedValue({ ...PROFILE });
   mockedGetPreferences.mockResolvedValue({ ...PREFERENCES });
   mockedUpdateProfile.mockImplementation(async (input) => ({ ...PROFILE, ...input }) as never);
@@ -168,5 +174,26 @@ describe("SettingsPage", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(/Could not save profile/);
     // The preferences write still landed and its key was invalidated.
     expect(mockedUpdatePreferences).toHaveBeenCalled();
+  });
+
+  it("signs out from settings", async () => {
+    const user = userEvent.setup();
+    renderSettings();
+
+    await screen.findByLabelText("Wake-up time");
+    await user.click(screen.getByRole("button", { name: SETTINGS_COPY.signOut }));
+
+    await waitFor(() => expect(mockedSignOut).toHaveBeenCalledTimes(1));
+  });
+
+  it("reports a sign-out failure instead of failing silently", async () => {
+    const user = userEvent.setup();
+    mockedSignOut.mockRejectedValueOnce(new Error("network down"));
+    renderSettings();
+
+    await screen.findByLabelText("Wake-up time");
+    await user.click(screen.getByRole("button", { name: SETTINGS_COPY.signOut }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(SETTINGS_COPY.signOutFailed);
   });
 });

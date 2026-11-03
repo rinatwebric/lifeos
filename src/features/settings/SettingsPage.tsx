@@ -13,6 +13,7 @@ import {
 import { profileFormSchema, type ProfileFormValues } from "./schemas";
 import { applyTheme } from "@/app/theme";
 import { useAuth } from "@/features/auth/useAuth";
+import { signOut } from "@/features/auth/api";
 import { zodResolver } from "@/features/auth/resolver";
 import { Card } from "@/components/ui/Card";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -36,6 +37,11 @@ export const SETTINGS_COPY = {
   loadError: "Could not load settings.",
   retry: "Retry",
   notConfigured: "Supabase is not connected, so settings are unavailable.",
+  signOutTitle: "Sign out",
+  signOutHint: "Ends the session on this device. You can sign in again any time.",
+  signOut: "Sign out",
+  signingOut: "Signing out…",
+  signOutFailed: "Could not sign out. Please try again.",
 } as const;
 
 const LANGUAGE_OPTIONS = [
@@ -162,7 +168,60 @@ export function SettingsPage() {
           idPrefix="settings"
         />
       </Card>
+
+      <SignOutCard />
     </div>
+  );
+}
+
+/**
+ * Ends the session on this device. No navigation call needed: `signOut`
+ * flips the auth status to anonymous and `RequireAuth` redirects to
+ * `/sign-in` by itself.
+ */
+function SignOutCard() {
+  const [signingOut, setSigningOut] = useState(false);
+  const [signOutError, setSignOutError] = useState<string | null>(null);
+
+  const onSignOut = async (): Promise<void> => {
+    if (signingOut) {
+      return;
+    }
+
+    setSigningOut(true);
+    setSignOutError(null);
+
+    try {
+      await signOut();
+    } catch {
+      setSignOutError(SETTINGS_COPY.signOutFailed);
+    } finally {
+      setSigningOut(false);
+    }
+  };
+
+  return (
+    <Card className="space-y-3 p-5">
+      <div className="space-y-1">
+        <h2 className="text-sm font-medium text-content">{SETTINGS_COPY.signOutTitle}</h2>
+        <p className="text-xs text-muted">{SETTINGS_COPY.signOutHint}</p>
+      </div>
+
+      {signOutError ? (
+        <p role="alert" className="text-xs text-red-600 dark:text-red-400">
+          {signOutError}
+        </p>
+      ) : null}
+
+      <button
+        type="button"
+        onClick={() => void onSignOut()}
+        disabled={signingOut}
+        className="w-full rounded-lg border border-line bg-surface px-4 py-2 text-sm font-medium text-content transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        {signingOut ? SETTINGS_COPY.signingOut : SETTINGS_COPY.signOut}
+      </button>
+    </Card>
   );
 }
 
