@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import type { GoalFilters } from "@/features/goals/api";
 import { humanize } from "@/lib/strings";
+import { useDebouncedValue } from "@/lib/useDebouncedValue";
 import {
   GOAL_CATEGORIES,
   GOAL_STATUSES,
@@ -18,7 +19,6 @@ interface GoalsFiltersProps {
   onChange: (filters: GoalFilters) => void;
 }
 
-const SEARCH_DEBOUNCE_MS = 300;
 const SEARCH_INPUT_ID = "goals-filter-search";
 
 function toOptional(value: string): string | undefined {
@@ -27,24 +27,21 @@ function toOptional(value: string): string | undefined {
 
 export function GoalsFilters({ filters, onChange }: GoalsFiltersProps) {
   const [search, setSearch] = useState(filters.search ?? "");
-  // Select changes flow through `filters` immediately, so the debounced
-  // search push must merge with the latest selects — never a stale closure.
-  const filtersRef = useRef(filters);
-  useEffect(() => {
-    filtersRef.current = filters;
-  });
+  const debouncedSearch = useDebouncedValue(search, 300);
 
+  // Selects flow through `filters` immediately; the search push merges with
+  // the latest selects — never a stale closure.
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      const trimmed = search.trim();
-      const next = trimmed === "" ? undefined : trimmed;
-      if ((filtersRef.current.search ?? undefined) !== next) {
-        onChange({ ...filtersRef.current, search: next });
-      }
-    }, SEARCH_DEBOUNCE_MS);
-
-    return () => window.clearTimeout(timer);
-  }, [search, onChange]);
+    const trimmed = debouncedSearch.trim();
+    const next = trimmed === "" ? undefined : trimmed;
+    if ((filters.search ?? undefined) !== next) {
+      onChange({ ...filters, search: next });
+    }
+    // `filters`/`onChange` intentionally excluded: pushing on every parent
+    // render would loop through `setFilters`. The guard above compares
+    // against the latest committed search, so a stale push is a no-op anyway.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSearch]);
 
   // Follow external resets (e.g. "Clear filters") without clobbering typing:
   // a render-phase adjustment, not an effect, so no cascading render.

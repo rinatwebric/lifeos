@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { isTaskDueToday, isTaskOverdue, toDateKey } from "@/lib/dates";
+import {
+  isTaskDueToday,
+  isTaskOverdue,
+  isoToLocalDateTime,
+  localDateTimeToIso,
+  toDateKey,
+} from "@/lib/dates";
 import type { Task } from "@/types/domain";
 
 function makeTask(overrides: Partial<Task> = {}): Task {
@@ -79,5 +85,45 @@ describe("isTaskDueToday", () => {
     expect(isTaskDueToday(makeTask({ dueDate: "2026-02-10" }), now, "UTC")).toBe(true);
     expect(isTaskDueToday(makeTask({ dueDate: "2026-02-09" }), now, "UTC")).toBe(false);
     expect(isTaskDueToday(makeTask({ dueDate: null }), now, "UTC")).toBe(false);
+  });
+});
+
+describe("localDateTimeToIso / isoToLocalDateTime", () => {
+  it("converts a Bishkek wall time to UTC, crossing midnight backwards", () => {
+    // 00:30 in Asia/Bishkek (UTC+6) is still the previous day in UTC.
+    expect(localDateTimeToIso("2026-02-10T00:30", "Asia/Bishkek")).toBe(
+      "2026-02-09T18:30:00.000Z",
+    );
+  });
+
+  it("converts a New York wall time to UTC, crossing midnight forwards", () => {
+    // 00:30 in America/New_York (UTC-5 in February) is later the same day in UTC.
+    expect(localDateTimeToIso("2026-02-10T00:30", "America/New_York")).toBe(
+      "2026-02-10T05:30:00.000Z",
+    );
+  });
+
+  it("resolves the correct offset outside UTC, including DST", () => {
+    // Europe/Berlin is UTC+2 in July.
+    expect(localDateTimeToIso("2026-07-10T12:00", "Europe/Berlin")).toBe(
+      "2026-07-10T10:00:00.000Z",
+    );
+    expect(isoToLocalDateTime("2026-07-10T10:00:00.000Z", "Europe/Berlin")).toBe(
+      "2026-07-10T12:00",
+    );
+  });
+
+  it("round-trips minute-precision values through a non-UTC zone", () => {
+    expect(isoToLocalDateTime("2026-02-09T18:30:00.000Z", "Asia/Bishkek")).toBe(
+      "2026-02-10T00:30",
+    );
+    const local = "2026-11-04T23:45";
+    expect(isoToLocalDateTime(localDateTimeToIso(local, "UTC"), "UTC")).toBe(local);
+  });
+
+  it("throws on malformed input instead of shifting silently", () => {
+    expect(() => localDateTimeToIso("not-a-date", "UTC")).toThrow();
+    expect(() => localDateTimeToIso("2026-13-01T10:00", "UTC")).toThrow();
+    expect(() => isoToLocalDateTime("not-a-date", "UTC")).toThrow();
   });
 });

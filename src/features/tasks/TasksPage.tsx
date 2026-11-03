@@ -1,16 +1,171 @@
-import { ListChecks } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { ListChecks, Plus } from "lucide-react";
+import { useMemo, useState } from "react";
 
-import { PhasePlaceholder } from "@/components/ui/PhasePlaceholder";
+import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { useGoals } from "@/features/goals/hooks";
+import { getProfile, profileQueryKey } from "@/features/settings/api";
+import { DeleteTaskDialog } from "@/features/tasks/components/DeleteTaskDialog";
+import { RescheduleTaskDialog } from "@/features/tasks/components/RescheduleTaskDialog";
+import { TaskFormDialog } from "@/features/tasks/components/TaskFormDialog";
+import { TaskRow } from "@/features/tasks/components/TaskRow";
+import { TasksFilters } from "@/features/tasks/components/TasksFilters";
+import { useTasks } from "@/features/tasks/hooks";
+import type { TaskFilters } from "@/features/tasks/api";
+import type { Task } from "@/types/domain";
+
+function hasActiveFilters(filters: TaskFilters): boolean {
+  return Boolean(filters.status ?? filters.priority ?? filters.goalId ?? filters.search);
+}
+
+function taskCountLabel(count: number): string {
+  return `${count} ${count === 1 ? "task" : "tasks"}`;
+}
+
+function TaskRowSkeleton() {
+  return (
+    <li className="px-4 py-3" aria-hidden="true">
+      <div className="animate-pulse space-y-2">
+        <div className="h-4 w-2/3 rounded bg-surface-muted" />
+        <div className="flex gap-2">
+          <div className="h-5 w-20 rounded-full bg-surface-muted" />
+          <div className="h-4 w-24 rounded bg-surface-muted" />
+        </div>
+      </div>
+    </li>
+  );
+}
 
 export function TasksPage() {
+  const [filters, setFilters] = useState<TaskFilters>({});
+  const [creating, setCreating] = useState(false);
+  const [editing, setEditing] = useState<Task | null>(null);
+  const [rescheduling, setRescheduling] = useState<Task | null>(null);
+  const [deleting, setDeleting] = useState<Task | null>(null);
+
+  const tasksQuery = useTasks(filters);
+  const goalsQuery = useGoals();
+  // The profile key is reused as-is (no third key): overdue is derived from
+  // the due date in the profile's time zone, never stored.
+  const profileQuery = useQuery({
+    queryKey: profileQueryKey,
+    queryFn: getProfile,
+    staleTime: 60_000,
+  });
+  const timeZone = profileQuery.data?.timezone ?? "UTC";
+
+  const goalTitleById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const goal of goalsQuery.data ?? []) {
+      map.set(goal.id, goal.title);
+    }
+    return map;
+  }, [goalsQuery.data]);
+
+  const tasks = tasksQuery.data ?? [];
+  const filtering = hasActiveFilters(filters);
+
   return (
-    <PhasePlaceholder
-      title="Tasks"
-      description="Daily execution: what to do, when, and how it connects to your goals."
-      icon={ListChecks}
-      phase="Phase 2 — Goals & Tasks"
-      detail="Task CRUD, priorities, statuses, goal and milestone links, recurrence instances and filtering. Overdue detection is already time-zone aware."
-      footer="Overdue is a derived state (due date earlier than today in your time zone), never a stored status."
-    />
+    <div className="space-y-6">
+      <PageHeader
+        title="Tasks"
+        description="Daily execution: what to do, when, and how it connects to your goals."
+        actions={
+          <Button onClick={() => setCreating(true)}>
+            <Plus className="size-4" aria-hidden="true" />
+            New task
+          </Button>
+        }
+      />
+
+      <TasksFilters filters={filters} goals={goalsQuery.data ?? []} onChange={setFilters} />
+
+      <p className="text-sm text-muted" aria-live="polite">
+        {tasksQuery.isLoading ? "Loading tasks…" : taskCountLabel(tasks.length)}
+      </p>
+
+      {tasksQuery.isLoading ? (
+        <div role="status" aria-label="Loading tasks">
+          <span className="sr-only">Loading tasks…</span>
+          <Card className="p-0">
+            <ul className="divide-y divide-line">
+              <TaskRowSkeleton />
+              <TaskRowSkeleton />
+              <TaskRowSkeleton />
+            </ul>
+          </Card>
+        </div>
+      ) : tasksQuery.isError ? (
+        <div role="alert" className="rounded-lg border border-line bg-surface p-4">
+          <p className="text-sm text-content">Could not load tasks. Please try again.</p>
+          <div className="mt-3">
+            <Button variant="secondary" size="sm" onClick={() => void tasksQuery.refetch()}>
+              Retry
+            </Button>
+          </div>
+        </div>
+      ) : tasks.length === 0 && !filtering ? (
+        <EmptyState
+          icon={ListChecks}
+          title="No tasks yet"
+          description="Capture your first task to turn today's intentions into done."
+          action={
+            <Button onClick={() => setCreating(true)}>
+              <Plus className="size-4" aria-hidden="true" />
+              Create your first task
+            </Button>
+          }
+        />
+      ) : tasks.length === 0 ? (
+        <EmptyState
+          icon={ListChecks}
+          title="No tasks match these filters"
+          description="Try adjusting the filters, or clear them to see all tasks."
+          action={
+            <Button variant="secondary" onClick={() => setFilters({})}>
+              Clear filters
+            </Button>
+          }
+        />
+      ) : (
+        <Card className="p-0">
+          <ul className="divide-y divide-line">
+            {tasks.map((task) => (
+              <TaskRow
+                key={task.id}
+                task={task}
+                timeZone={timeZone}
+                goalTitle={task.goalId ? (goalTitleById.get(task.goalId) ?? null) : null}
+                onEdit={setEditing}
+                onReschedule={setRescheduling}
+                onDelete={setDeleting}
+              />
+            ))}
+          </ul>
+        </Card>
+      )}
+
+      <TaskFormDialog
+        open={creating}
+        onClose={() => setCreating(false)}
+        task={null}
+        timeZone={timeZone}
+      />
+      <TaskFormDialog
+        open={editing !== null}
+        onClose={() => setEditing(null)}
+        task={editing}
+        timeZone={timeZone}
+      />
+      <RescheduleTaskDialog
+        open={rescheduling !== null}
+        onClose={() => setRescheduling(null)}
+        task={rescheduling}
+      />
+      <DeleteTaskDialog open={deleting !== null} onClose={() => setDeleting(null)} task={deleting} />
+    </div>
   );
 }
