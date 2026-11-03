@@ -143,6 +143,63 @@
 
 - Единицы 4–6 по `docs/plan.md` (экраны → роуты/Settings → тесты+журнал).
 
+## 2026-11-03 — Итерация 1.2, единица 4: экраны авторизации закрыта (+ правки из ревью единицы 3)
+
+**Сделано**
+
+- Ревью-правки единицы 3 (коммит `07b02d3`): `AuthProvider` больше не падает без
+  `.env.local` — в начале эффекта `if (!isSupabaseConfigured) { setInitialized(true); return; }`
+  (+ try/catch вокруг подписки `onAuthStateChange`); результат `await getSession()` не
+  применяется, если `lastUserId !== undefined` (событие свежее stale init).
+  `AuthProvider.unconfigured.test.tsx` (new): мокает только `@/lib/env` как unconfigured,
+  рендерит `<App />` с реальным провайдером, ждёт `role="status"` «Supabase is not connected».
+  Смежный фикс: `AuthProvider.test.tsx` мокает `@/lib/env` как configured — иначе тесты
+  провайдера зависели бы от локального `.env.local` (та же причина, что фикс `App.test.tsx`
+  в единице 2; прод-код не тронут).
+- Единица 4, новые файлы: `schemas.ts` (Zod: signIn / signUp / requestReset /
+  setNewPassword + инфер-типы), `resolver.ts` (минимальный RHF↔Zod бридж без
+  `@hookform/resolvers` — новых зависимостей нет), `AuthControls.tsx` (общие `AuthField`
+  с `aria-invalid`/`aria-describedby` и ошибкой в `role="alert"`, `AuthSubmit` с
+  `disabled` во время запроса, `AuthAlert` для error/success), `AuthLayout.tsx`
+  (центровка + бренд, без сайдбара/мобильной навигации; auth-роуты вне `AppLayout`),
+  `SignInPage.tsx`, `SignUpPage.tsx`, `ResetPasswordPage.tsx` (режимы `request` /
+  `update` через `initialMode`), `CheckEmailPage.tsx`.
+- Тексты — в `*_COPY`-константах рядом со страницами (английский, без хардкода в глубине),
+  ошибки берутся по `AuthServiceError.code` через `AUTH_ERROR_MESSAGES`, не по message.
+- SignIn: ссылки на регистрацию/сброс, отдельная подсказка + resend при
+  `email_not_confirmed`, уведомление об успехе сброса из `location.state`,
+  `autoComplete email/current-password`, двойная отправка заблокирована `isSubmitting`.
+- SignUp: передаёт `fullName` + `timezone` (api уже умеет); `needsConfirmation` true →
+  `/check-email` с email в `location.state`, false → `/`; прямой заход на `/check-email`
+  без state → редирект на `/sign-up`.
+- CheckEmail: resend с cooldown 60 с (`RESEND_COOLDOWN_SECONDS`, для тестов — проп
+  `cooldownSeconds` с тем же дефолтом); одинаковый success-текст для существующего и
+  несуществующего адреса, `rate_limited` — отдельное сообщение, ссылка «ко входу».
+- Reset: режим 1 — generic success; режим 2 — новый пароль + подтверждение, после
+  `updatePassword` → `signOut` → `/sign-in` с флагом; `session_missing` → понятное
+  сообщение + возврат к форме запроса письма.
+- Роутинг не тронут (`router.tsx` без изменений): страницы рендерятся и тестируются
+  изолированно в `MemoryRouter`; подключение — единица 5. В БД ничего не применялось.
+- Тесты (только моки Supabase-клиента, без моков `./api`): `schemas.test.ts` (границы),
+  RTL на каждую страницу (валидация, ошибка по code, pending/disabled, обе ветки
+  confirmation, cooldown, expired-ссылка, редирект без state).
+
+**Проверено**
+
+- `npm run typecheck` — ok
+- `npm run lint` — 0 errors (warn `react-refresh/only-export-components` на `*_COPY`
+  рядом с компонентами — тот же допустимый паттерн, что `useAuth` в единице 3)
+- `npm test` — 75/75 (44 старых + 31 новый: 4 schemas + 27 страницы/layout)
+- `npm run build` — ok
+- `npx prettier --check` по новым файлам — ok (`api.ts`/`api.test.ts` не трогал:
+  их форматирование расходится с prettier ещё с прошлых коммитов)
+
+**Осталось**
+
+- Единицы 5–6 по `docs/plan.md`: защищённые роуты (`RequireAuth`, auth-экраны вне
+  `AppLayout`, подключение `AuthLayout` + страниц в `router.tsx`), `OnboardingDialog` /
+  `PreferencesForm` / `SettingsPage`, RTL-тесты форм, `e2e/auth.spec.ts`, журнал.
+
 ## 2026-11-03 — Репозиторий на GitHub
 
 - Публичный репозиторий: https://github.com/rinatwebric/lifeos (ветка `main`,
