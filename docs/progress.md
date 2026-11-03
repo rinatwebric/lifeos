@@ -333,3 +333,52 @@
 - Единица 6 по `docs/plan.md`: `e2e/auth.spec.ts` (Playwright, нужен
   `npx playwright install`), финальный журнал. Ручная проверка: два аккаунта
   не видят данные друг друга (RLS), выход очищает кеш, пояс сохраняется.
+
+## 2026-11-04 — Итерация 2, единица 1: схема Phase 2 применена и проверена
+
+**Сделано**
+
+- Решения 2026-11-04 (6/6, в `docs/plan.md`): удаление цели — A (`SET NULL` + диалог
+  с числом задач, каскада на `tasks` нет); статусы этапов — `pending | completed`;
+  повторения — eager 30 дней + докатка при логине + `UNIQUE (recurrence_rule_id,
+  due_date)`; `progress_mode` — тоггл без потери ручного значения; Dashboard —
+  блок «Insights» без «AI»; история цели — минимум сейчас, `goal_events` — долг
+  в ROADMAP (осознанное расхождение с PRD §3.3).
+- Коммит `7086298`: `0003_goals_milestones` + `0004_tasks_recurrence` (тексты),
+  `database.ts` (Row-типы + мапперы), `src/lib/recurrence.ts` + 6 unit-тестов
+  (чистое разложение правила в даты; `isTaskOverdue` уже был в `dates.ts`).
+- Коммит `3741dbc` (3 правки после ревью SQL): кросс-тенантные `EXISTS`-гарды
+  в `WITH CHECK` политик insert/update (`milestones`: владение `goal_id`;
+  `tasks`: владение `goal_id`/`milestone_id`/`recurrence_rule_id`;
+  композитные FK отвергнуты — лишний риск по версии PG); `weekdays`:
+  запрет пустого массива при `frequency='weekdays'` + запрет NULL-элементов;
+  индексы задач — `(user_id, due_date)` и `(user_id, scheduled_start)` вместо
+  одиночного `due_date`. Плюс 3 записи в `ARCHITECTURE.md` §2 (порядок этапов,
+  `completed_at`, RLS вместо композитных FK) и закрытый п.1 §7.
+- `0005_time_blocks` отложен в Phase 3 (таблице без UI в Phase 2 делать нечего).
+
+**Проверено (БД, проект `lifeos`, Postgres 17.11)**
+
+- Миграции `0003`, `0004` применены через MCP (`apply_migration`), история чистая
+  (0001 → 0002 → 0003 → 0004). Структура: 4 таблицы, колонки/типы/дефолты —
+  по плану; `relrowsecurity=true` на всех; 16 политик (`*_select/insert/update/
+  delete_own`); 4 триггера `set_updated_at()`; все CHECK + FK на месте
+  (`milestones.goal_id CASCADE`, `tasks.goal_id/milestone_id/recurrence_rule_id
+  SET NULL`, частичный `uq_tasks_recurrence_instance`).
+- Живой тест через REST от имени пользователя A (`e2e.lifeos@gmail.com`),
+  скрипт в TEMP (в репозиторий не коммитился): 25/25 PASS. Цепочка
+  goal → milestone → task; удаление цели → milestone исчез (CASCADE), задача жива
+  с `goal_id/milestone_id IS NULL` (SET NULL). Негативы: чужой `user_id` —
+  reject, ссылка на несуществующий `goal_id` (insert milestone, relink task) —
+  reject, anon — 0 строк везде. Гарды повторений живые: пустые `weekdays` —
+  reject, NULL в `weekdays` — reject, дублирующий экземпляр `(rule, date)` — reject.
+- Текст `WITH CHECK` политик вычитан из `pg_policies` — `EXISTS`-гарды на месте
+  дословно. Пробные строки удалены, таблицы пустые для пользователя A.
+- `npm run typecheck` + `lint` (0 errors) + `test` 110/110 (104 старых + 6 новых).
+
+**Осталось**
+
+- Единица 2 по `docs/plan.md`: Goals сервис + хуки (миграции уже живые, моки
+  больше не нужны для ручной проверки).
+- Ограничение проверки изоляции: один подтверждённый аккаунт; двух-тенантный
+  сценарий (B владеет целью, A ссылается) — в e2e единицы 9 / Phase 6 (PRD §19 п.11).
