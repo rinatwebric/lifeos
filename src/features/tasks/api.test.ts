@@ -651,7 +651,9 @@ describe("tasks api", () => {
     stubClient("u1", vi.fn().mockReturnValue(moved.builder));
 
     await rescheduleTask("t1", "2026-12-01");
-    expect(moved.update).toHaveBeenCalledWith({ due_date: "2026-12-01" });
+    expect(moved.update).toHaveBeenCalledWith(
+      expect.objectContaining({ due_date: "2026-12-01", recurrence_rule_id: null }),
+    );
 
     const cleared = mockBuilder(
       { data: null, error: null },
@@ -660,7 +662,9 @@ describe("tasks api", () => {
     stubClient("u1", vi.fn().mockReturnValue(cleared.builder));
 
     await rescheduleTask("t1", null);
-    expect(cleared.update).toHaveBeenCalledWith({ due_date: null });
+    expect(cleared.update).toHaveBeenCalledWith(
+      expect.objectContaining({ due_date: null, recurrence_rule_id: null }),
+    );
   });
 
   it("deletes a task scoped to the JWT identity", async () => {

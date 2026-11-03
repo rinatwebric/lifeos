@@ -280,6 +280,11 @@ export async function createTask(input: CreateTaskInput): Promise<Task> {
  * in which case the milestone link is cleared (no orphan milestones).
  * This function contains no progress math and
  * no overdue logic — overdue stays derived via `isTaskOverdue`.
+ *
+ * Recurrence (plan.md Unit 7): any edit of an instance detaches it from its
+ * series (`recurrence_rule_id = NULL`). The rule row and the sibling
+ * instances are never touched — a series is only extended by the
+ * recurrence top-up, never rewritten by an instance edit.
  */
 export async function updateTask(id: string, patch: UpdateTaskInput): Promise<Task> {
   try {
@@ -368,6 +373,10 @@ export async function updateTask(id: string, patch: UpdateTaskInput): Promise<Ta
       return getTask(id);
     }
 
+    // Instance edit detaches the series link; the rule keeps generating
+    // future dates, but this row becomes a standalone task.
+    payload.recurrence_rule_id = null;
+
     const { data, error } = await client
       .from("tasks")
       .update(payload)
@@ -417,7 +426,10 @@ export async function setTaskStatus(id: string, status: TaskStatus): Promise<Tas
   }
 }
 
-/** Moves the due date (`null` clears it). Past dates stay allowed: overdue is derived, not rejected. */
+/** Moves the due date (`null` clears it). Past dates stay allowed: overdue is derived, not rejected.
+ * A rescheduled instance leaves its series (`recurrence_rule_id = NULL`) so
+ * the moved date can never collide with the series unique
+ * `(recurrence_rule_id, due_date)`; history and the rule are untouched. */
 export async function rescheduleTask(id: string, dueDate: string | null): Promise<Task> {
   try {
     const userId = await requireUserId();
@@ -425,7 +437,7 @@ export async function rescheduleTask(id: string, dueDate: string | null): Promis
 
     const { data, error } = await client
       .from("tasks")
-      .update({ due_date: dueDate })
+      .update({ due_date: dueDate, recurrence_rule_id: null })
       .eq("id", id)
       .eq("user_id", userId)
       .select()

@@ -5,6 +5,7 @@ import type { Session } from "@supabase/supabase-js";
 import { exchangeCodeFromUrl, getSession, onAuthStateChange } from "./api";
 import { AuthContext, type AuthContextValue } from "./useAuth";
 import { isSupabaseConfigured } from "@/lib/env";
+import { topUpAllActiveRecurrenceInstances } from "@/features/tasks/recurrence/api";
 
 interface AuthProviderProps {
   children: ReactNode;
@@ -15,11 +16,13 @@ interface AuthProviderProps {
  * (`AuthProvider` calls `queryClient.clear()` on sign-out/account switch).
  *
  * Inside the `onAuthStateChange` callback: only `setState` +
- * `queryClient.clear()`. Never call Supabase methods there — the client holds
- * a lock during the callback and re-entering it deadlocks. Initial loading
- * (code exchange + `getSession`) happens in the effect body, not the callback.
- * Profile/preferences loading belongs to a separate `useEffect` keyed by
- * `user.id` (unit 5), never to this callback.
+ * `queryClient.clear()` plus a deferred (queueMicrotask) recurrence top-up
+ * on `SIGNED_IN`. Never call Supabase methods synchronously there — the
+ * client holds a lock during the callback and re-entering it deadlocks;
+ * the top-up runs after the lock is released and never blocks render.
+ * Initial loading (code exchange + `getSession`) happens in the effect
+ * body, not the callback. Profile/preferences loading belongs to a
+ * separate `useEffect` keyed by `user.id` (unit 5), never to this callback.
  */
 export function AuthProvider({ children }: AuthProviderProps) {
   const queryClient = useQueryClient();
@@ -82,7 +85,22 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
     let unsubscribe: () => void;
     try {
-      ({ unsubscribe } = onAuthStateChange((_event, next) => applySession(next)));
+      ({ unsubscribe } = onAuthStateChange((event, next) => {
+        applySession(next);
+
+        // Recurrence top-up on sign-in (plan.md Unit 7): refresh every active
+        // rule for 30 days ahead. Deferred past the auth callback so the
+        // Supabase client lock is released; never blocks render; failures
+        // are logged, never crash the app. Idempotent via
+        // `uq_tasks_recurrence_instance` + ON CONFLICT DO NOTHING.
+        if (event === "SIGNED_IN" && next?.user) {
+          queueMicrotask(() => {
+            void topUpAllActiveRecurrenceInstances().catch((error: unknown) => {
+              console.warn("[recurrence] top-up after sign-in failed", error);
+            });
+          });
+        }
+      }));
     } catch {
       if (!cancelled) {
         setInitialized(true);

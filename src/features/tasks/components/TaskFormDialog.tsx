@@ -10,6 +10,7 @@ import { Select } from "@/components/ui/Select";
 import { Textarea } from "@/components/ui/Textarea";
 import { useGoals, useMilestones } from "@/features/goals/hooks";
 import { useCreateTask, useUpdateTask } from "@/features/tasks/hooks";
+import { useCreateRecurringTask } from "@/features/tasks/recurrence/hooks";
 import {
   createTaskSchema,
   updateTaskSchema,
@@ -17,7 +18,7 @@ import {
 } from "@/features/tasks/schema";
 import { isoToLocalDateTime, localDateTimeToIso } from "@/lib/dates";
 import { humanize } from "@/lib/strings";
-import { PRIORITIES, TASK_STATUSES, type Task } from "@/types/domain";
+import { PRIORITIES, TASK_STATUSES, type RecurrenceFrequency, type Task } from "@/types/domain";
 
 interface TaskFormDialogProps {
   open: boolean;
@@ -29,6 +30,18 @@ interface TaskFormDialogProps {
 }
 
 type TaskFormValues = CreateTaskInput;
+
+const WEEKDAY_OPTIONS: Array<{ value: number; label: string }> = [
+  { value: 0, label: "Sun" },
+  { value: 1, label: "Mon" },
+  { value: 2, label: "Tue" },
+  { value: 3, label: "Wed" },
+  { value: 4, label: "Thu" },
+  { value: 5, label: "Fri" },
+  { value: 6, label: "Sat" },
+];
+
+const DEFAULT_WEEKDAYS = [1, 2, 3, 4, 5];
 
 function defaultValuesFor(task: Task | null): TaskFormValues {
   if (task) {
@@ -65,9 +78,16 @@ const nullIfEmpty = (value: unknown): string | null | unknown =>
 
 export function TaskFormDialog({ open, onClose, task, timeZone }: TaskFormDialogProps) {
   const createTask = useCreateTask();
+  const createRecurringTask = useCreateRecurringTask();
   const updateTask = useUpdateTask();
   const goalsQuery = useGoals();
   const [serverError, setServerError] = useState<string | null>(null);
+
+  const [repeatEnabled, setRepeatEnabled] = useState(false);
+  const [repeatFrequency, setRepeatFrequency] = useState<RecurrenceFrequency>("daily");
+  const [repeatWeekdays, setRepeatWeekdays] = useState<number[]>(DEFAULT_WEEKDAYS);
+  const [repeatEndDate, setRepeatEndDate] = useState("");
+  const [repeatError, setRepeatError] = useState<string | null>(null);
 
   const {
     register,
@@ -89,6 +109,11 @@ export function TaskFormDialog({ open, onClose, task, timeZone }: TaskFormDialog
     if (open) {
       reset(defaultValuesFor(task));
       setServerError(null);
+      setRepeatEnabled(false);
+      setRepeatFrequency("daily");
+      setRepeatWeekdays(DEFAULT_WEEKDAYS);
+      setRepeatEndDate("");
+      setRepeatError(null);
     }
   }, [open, task, reset]);
 
@@ -98,7 +123,7 @@ export function TaskFormDialog({ open, onClose, task, timeZone }: TaskFormDialog
   const scheduledEnd = watch("scheduledEnd") ?? null;
   const milestonesQuery = useMilestones(selectedGoalId ?? undefined);
 
-  const saving = createTask.isPending || updateTask.isPending;
+  const saving = createTask.isPending || createRecurringTask.isPending || updateTask.isPending;
 
   const toLocalInput = (iso: string | null): string => {
     if (!iso) {
@@ -133,11 +158,51 @@ export function TaskFormDialog({ open, onClose, task, timeZone }: TaskFormDialog
     }
   };
 
+  const toggleWeekday = (day: number): void => {
+    setRepeatWeekdays((current) =>
+      current.includes(day) ? current.filter((d) => d !== day) : [...current, day].sort(),
+    );
+  };
+
   const onSubmit = async (values: TaskFormValues): Promise<void> => {
     setServerError(null);
+    setRepeatError(null);
     try {
       if (task) {
+        // Instance edits never carry the series: updateTask detaches
+        // `recurrence_rule_id` server-side, the rule keeps generating.
         await updateTask.mutateAsync({ id: task.id, patch: values });
+      } else if (repeatEnabled) {
+        if (repeatFrequency === "weekdays" && repeatWeekdays.length === 0) {
+          setRepeatError("Choose at least one weekday.");
+          return;
+        }
+        const startDate = values.dueDate ?? new Date().toISOString().slice(0, 10);
+        const endDate = repeatEndDate === "" ? null : repeatEndDate;
+        if (endDate !== null && Date.parse(endDate) < Date.parse(startDate)) {
+          setRepeatError("End date must not be before the start date.");
+          return;
+        }
+        await createRecurringTask.mutateAsync({
+          task: {
+            title: values.title,
+            description: values.description ?? null,
+            priority: values.priority,
+            status: values.status,
+            dueDate: values.dueDate ?? null,
+            scheduledStart: values.scheduledStart ?? null,
+            scheduledEnd: values.scheduledEnd ?? null,
+            estimatedDurationMinutes: values.estimatedDurationMinutes ?? null,
+            goalId: values.goalId ?? null,
+            milestoneId: values.milestoneId ?? null,
+          },
+          recurrence: {
+            frequency: repeatFrequency,
+            weekdays: repeatFrequency === "weekdays" ? repeatWeekdays : [],
+            intervalValue: 1,
+            endDate,
+          },
+        });
       } else {
         await createTask.mutateAsync(values);
       }
@@ -304,6 +369,81 @@ export function TaskFormDialog({ open, onClose, task, timeZone }: TaskFormDialog
             />
           </Field>
         </div>
+
+        {task ? null : (
+          <div className="space-y-3 rounded-lg border border-line p-3">
+            <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-content">
+              <input
+                type="checkbox"
+                checked={repeatEnabled}
+                onChange={(event) => setRepeatEnabled(event.target.checked)}
+                className="size-4 accent-current"
+              />
+              Repeat
+            </label>
+
+            {repeatEnabled ? (
+              <div className="space-y-3">
+                <Field id="task-repeat-frequency" label="Frequency" required>
+                  <Select
+                    value={repeatFrequency}
+                    onChange={(event) =>
+                      setRepeatFrequency(event.target.value as RecurrenceFrequency)
+                    }
+                  >
+                    <option value="daily">Every day</option>
+                    <option value="weekdays">Specific days of the week</option>
+                    <option value="weekly">Every week</option>
+                  </Select>
+                </Field>
+
+                {repeatFrequency === "weekdays" ? (
+                  <fieldset>
+                    <legend className="mb-1 block text-sm font-medium text-content">
+                      Days of the week
+                    </legend>
+                    <div className="flex flex-wrap gap-2">
+                      {WEEKDAY_OPTIONS.map((option) => (
+                        <label
+                          key={option.value}
+                          htmlFor={`task-repeat-weekday-${option.value}`}
+                          className="flex cursor-pointer items-center gap-1 rounded-full border border-line px-2.5 py-1 text-xs text-content"
+                        >
+                          <input
+                            id={`task-repeat-weekday-${option.value}`}
+                            type="checkbox"
+                            checked={repeatWeekdays.includes(option.value)}
+                            onChange={() => toggleWeekday(option.value)}
+                            className="size-3.5 accent-current"
+                          />
+                          {option.label}
+                        </label>
+                      ))}
+                    </div>
+                  </fieldset>
+                ) : null}
+
+                <Field
+                  id="task-repeat-end"
+                  label="Repeat ends"
+                  hint="Optional. No end date repeats forever."
+                >
+                  <Input
+                    type="date"
+                    value={repeatEndDate}
+                    onChange={(event) => setRepeatEndDate(event.target.value)}
+                  />
+                </Field>
+
+                {repeatError ? (
+                  <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+                    {repeatError}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        )}
 
         {serverError ? (
           <p role="alert" className="text-sm text-red-600 dark:text-red-400">

@@ -68,6 +68,7 @@ export function TaskRow({
         </p>
         <div className="flex flex-wrap items-center gap-1.5">
           {showPriorityBadge ? <Badge tone="outline">{humanize(task.priority)} priority</Badge> : null}
+          {task.recurrenceRuleId ? <Badge tone="outline">Repeat</Badge> : null}
           {task.dueDate ? (
             <span className="text-xs text-muted">{task.dueDate}</span>
           ) : null}
