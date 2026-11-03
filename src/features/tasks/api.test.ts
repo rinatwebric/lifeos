@@ -12,6 +12,7 @@ import {
   listTasks,
   rescheduleTask,
   setTaskStatus,
+  TASK_LIST_LIMIT,
   updateTask,
 } from "./api";
 import { TaskServiceError } from "./errors";
@@ -50,6 +51,7 @@ interface BuilderMocks {
   gte: ReturnType<typeof vi.fn>;
   lte: ReturnType<typeof vi.fn>;
   order: ReturnType<typeof vi.fn>;
+  limit: ReturnType<typeof vi.fn>;
   select: ReturnType<typeof vi.fn>;
   insert: ReturnType<typeof vi.fn>;
   update: ReturnType<typeof vi.fn>;
@@ -65,13 +67,14 @@ function mockBuilder(thenResult: unknown, singleResult?: unknown): BuilderMocks 
   const gte = vi.fn();
   const lte = vi.fn();
   const order = vi.fn();
+  const limit = vi.fn();
   const select = vi.fn();
   const insert = vi.fn();
   const update = vi.fn();
   const deleteFn = vi.fn();
   const single = vi.fn();
 
-  Object.assign(builder, { eq, ilike, gte, lte, order, select, insert, update, single });
+  Object.assign(builder, { eq, ilike, gte, lte, order, limit, select, insert, update, single });
   builder["delete"] = deleteFn;
 
   eq.mockReturnValue(builder);
@@ -79,6 +82,7 @@ function mockBuilder(thenResult: unknown, singleResult?: unknown): BuilderMocks 
   gte.mockReturnValue(builder);
   lte.mockReturnValue(builder);
   order.mockReturnValue(builder);
+  limit.mockReturnValue(builder);
   select.mockReturnValue(builder);
   insert.mockReturnValue(builder);
   update.mockReturnValue(builder);
@@ -98,6 +102,7 @@ function mockBuilder(thenResult: unknown, singleResult?: unknown): BuilderMocks 
     gte,
     lte,
     order,
+    limit,
     select,
     insert,
     update,
@@ -233,6 +238,82 @@ describe("tasks api", () => {
 
     await listTasks({ search: "   " });
     expect(blank.ilike).not.toHaveBeenCalled();
+  });
+
+  it("caps the list query at TASK_LIST_LIMIT rows", async () => {
+    expect(TASK_LIST_LIMIT).toBe(500);
+    const { builder, limit } = mockBuilder({ data: [], error: null });
+    stubClient("u1", vi.fn().mockReturnValue(builder));
+
+    await listTasks();
+
+    expect(limit).toHaveBeenCalledWith(TASK_LIST_LIMIT);
+  });
+
+  it("rejects a milestone without a goal on create", async () => {
+    const { builder, insert } = mockBuilder(
+      { data: null, error: null },
+      { data: TASK_ROW, error: null },
+    );
+    const fromEntry = vi.fn().mockReturnValue(builder);
+    stubClient("u1", fromEntry);
+
+    await expect(
+      createTask({
+        title: "Step",
+        priority: "medium",
+        status: "todo",
+        goalId: null,
+        milestoneId: "123e4567-e89b-12d3-a456-426614174001",
+      }),
+    ).rejects.toMatchObject({ code: "validation" });
+
+    await expect(
+      createTask({
+        title: "Step",
+        priority: "medium",
+        status: "todo",
+        milestoneId: "123e4567-e89b-12d3-a456-426614174001",
+      }),
+    ).rejects.toMatchObject({ code: "validation" });
+
+    expect(insert).not.toHaveBeenCalled();
+    expect(fromEntry).not.toHaveBeenCalledWith("milestones");
+  });
+
+  it("clears the milestone link when the goal is unlinked on update", async () => {
+    const current = { ...TASK_ROW, goal_id: "g1", milestone_id: "m1" };
+    const { builder, update, single } = mockBuilder(
+      { data: null, error: null },
+      { data: { ...current, goal_id: null, milestone_id: null }, error: null },
+    );
+    single.mockResolvedValueOnce({ data: current, error: null });
+    const fromEntry = vi.fn().mockReturnValue(builder);
+    stubClient("u1", fromEntry);
+
+    const result = await updateTask("t1", { goalId: null });
+
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({ goal_id: null, milestone_id: null }),
+    );
+    expect(fromEntry).not.toHaveBeenCalledWith("milestones");
+    expect(result.milestoneId).toBeNull();
+  });
+
+  it("clears a milestone added to a goal-less task on update", async () => {
+    const current = { ...TASK_ROW, goal_id: null, milestone_id: null };
+    const { builder, update, single } = mockBuilder(
+      { data: null, error: null },
+      { data: current, error: null },
+    );
+    single.mockResolvedValueOnce({ data: current, error: null });
+    const fromEntry = vi.fn().mockReturnValue(builder);
+    stubClient("u1", fromEntry);
+
+    await updateTask("t1", { milestoneId: "m2" });
+
+    expect(update).toHaveBeenCalledWith(expect.objectContaining({ milestone_id: null }));
+    expect(fromEntry).not.toHaveBeenCalledWith("milestones");
   });
 
   it("gets a single task and surfaces PGRST116 as not_found", async () => {

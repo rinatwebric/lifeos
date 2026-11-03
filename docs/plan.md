@@ -115,6 +115,23 @@ SQL Unit 1 финализирован: `tasks.goal_id ON DELETE SET NULL`,
    Ошибки: общий маппинг вынесен в `src/lib/dbErrors.ts`
    (`DbServiceError` + `toDbError`); `goals/errors.ts` и `tasks/errors.ts` —
    тонкие обёртки под прежними именами.
+    **Правило «этап без цели» (Unit 5 fix, 2026-11-04):** `createTask` отклоняет
+    связку «milestone без goal» ошибкой `validation` («Select a goal before
+    choosing a milestone, or clear the milestone.»); `updateTask` в том же
+    случае ссылку молча очищает (`milestone_id = NULL`) — отвязка цели не
+    должна оставлять висячую ссылку, а правка обязана быть прощающей.
+    Покрыто тестами `api.test.ts`.
+    **Инвалидация task-count (Unit 5 fix):** только мутации, меняющие связь
+    с целью (`create`/`update`/`delete`; `useDeleteTask` принимает
+    `{ id, goalId }` и инвалидирует по переданному `goalId`, кэш деталки
+    может отсутствовать). `setTaskStatus`/`reschedule` связь не трогают —
+    лишняя инвалидация убрана.
+    **Сортировка и лимит (Unit 5 fix):** сортировка по умолчанию остаётся
+    в памяти (`due_date` nulls last, затем ранг приоритета, затем
+    `created_at` desc, затем `id`), потому что PostgREST не выражает
+    ранжирование приоритетов; запрос ограничен `TASK_LIST_LIMIT = 500`
+    (`.limit(500)` + серверная предсортировка), дальше — пагинация или
+    серверное view.
 6. **Tasks UI: список, фильтры, связи, жизненный цикл.**
    Файлы: `src/features/tasks/TasksPage.tsx` (замена плейсхолдера), `TaskForm.tsx`
    (goal/milestone-селекты, даты, длительность), `TaskRow.tsx` (complete-кнопка),

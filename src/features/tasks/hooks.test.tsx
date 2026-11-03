@@ -132,7 +132,7 @@ describe("tasks mutations", () => {
     });
   });
 
-  it("useRescheduleTask refreshes the detail, lists and the goal task-count", async () => {
+  it("useRescheduleTask refreshes the detail and lists but not the goal task-count", async () => {
     mockedRescheduleTask.mockResolvedValue({ ...TASK, dueDate: "2026-12-01" });
     const queryClient = createClient();
     const spy = vi.spyOn(queryClient, "invalidateQueries");
@@ -144,24 +144,43 @@ describe("tasks mutations", () => {
 
     expect(spy).toHaveBeenCalledWith({ queryKey: tasks.detail("t1") });
     expect(spy).toHaveBeenCalledWith({ queryKey: tasks.lists });
-    expect(spy).toHaveBeenCalledWith({
+    // A due-date move never changes the goal link, so the count stays stale-free.
+    expect(spy).not.toHaveBeenCalledWith({
       queryKey: [...goals.detail("g1"), "task-count"],
     });
   });
 
-  it("useDeleteTask refreshes lists and the previous goal task-count from cache", async () => {
+  it("useDeleteTask invalidates the task-count from the passed goalId, not the cache", async () => {
     mockedDeleteTask.mockResolvedValue(undefined);
     const queryClient = createClient();
-    queryClient.setQueryData<Task>(tasks.detail("t1"), { ...TASK });
+    // No cached detail on purpose: the caller passes the goal through.
     const spy = vi.spyOn(queryClient, "invalidateQueries");
 
     const { result } = renderHook(() => useDeleteTask(), {
       wrapper: createWrapper(queryClient),
     });
-    await result.current.mutateAsync("t1");
+    await result.current.mutateAsync({ id: "t1", goalId: "g1" });
 
     expect(spy).toHaveBeenCalledWith({ queryKey: tasks.lists });
     expect(spy).toHaveBeenCalledWith({
+      queryKey: [...goals.detail("g1"), "task-count"],
+    });
+    expect(queryClient.getQueryData(tasks.detail("t1"))).toBeUndefined();
+  });
+
+  it("useDeleteTask without a goal does not touch any task-count key", async () => {
+    mockedDeleteTask.mockResolvedValue(undefined);
+    const queryClient = createClient();
+    queryClient.setQueryData<Task>(tasks.detail("t1"), { ...TASK, goalId: null });
+    const spy = vi.spyOn(queryClient, "invalidateQueries");
+
+    const { result } = renderHook(() => useDeleteTask(), {
+      wrapper: createWrapper(queryClient),
+    });
+    await result.current.mutateAsync({ id: "t1", goalId: null });
+
+    expect(spy).toHaveBeenCalledWith({ queryKey: tasks.lists });
+    expect(spy).not.toHaveBeenCalledWith({
       queryKey: [...goals.detail("g1"), "task-count"],
     });
     expect(queryClient.getQueryData(tasks.detail("t1"))).toBeUndefined();
@@ -188,7 +207,8 @@ describe("tasks mutations", () => {
       expect(spy).toHaveBeenCalledWith({ queryKey: tasks.detail("t1") });
     });
     expect(spy).toHaveBeenCalledWith({ queryKey: tasks.lists });
-    expect(spy).toHaveBeenCalledWith({
+    // A status flip never changes the goal link, so the count stays stale-free.
+    expect(spy).not.toHaveBeenCalledWith({
       queryKey: [...goals.detail("g1"), "task-count"],
     });
   });

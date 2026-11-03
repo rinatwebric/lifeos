@@ -62,6 +62,8 @@ const PRIORITY_RANK: Record<Priority, number> = {
  * descending, then `id` ascending as a final deterministic tiebreak.
  * Runs in memory because PostgREST cannot express the priority ranking;
  * the query below still pre-orders by `due_date`/`created_at` server-side.
+ * The server-side cap (`TASK_LIST_LIMIT`) bounds the in-memory sort;
+ * beyond it the UI must add pagination or a server view (see plan.md Unit 5).
  */
 function compareTasks(a: Task, b: Task): number {
   if (a.dueDate !== b.dueDate) {
@@ -91,6 +93,14 @@ function compareTasks(a: Task, b: Task): number {
   }
   return a.id < b.id ? -1 : 1;
 }
+
+/**
+ * Server-side row cap for the task list. The default sort needs the priority
+ * rank applied in memory (PostgREST has no such ordering), so the result set
+ * must stay bounded; 500 rows keep the client sort instant while pagination
+ * or a server-side view is still future work (see plan.md Unit 5).
+ */
+export const TASK_LIST_LIMIT = 500;
 
 export async function listTasks(filters?: TaskFilters): Promise<Task[]> {
   try {
@@ -123,6 +133,7 @@ export async function listTasks(filters?: TaskFilters): Promise<Task[]> {
     }
     query = query.order("due_date", { ascending: true, nullsFirst: false });
     query = query.order("created_at", { ascending: false });
+    query = query.limit(TASK_LIST_LIMIT);
 
     const { data, error } = await query;
 
@@ -216,6 +227,17 @@ export async function createTask(input: CreateTaskInput): Promise<Task> {
     const userId = await requireUserId();
     const client = getSupabaseClient();
 
+    // Rule "milestone without goal" (plan.md Unit 5): a milestone always
+    // lives under a goal, so a new task cannot point at a milestone while
+    // pointing at no goal. Reject with a form-level message instead of
+    // storing an orphan link.
+    if ((input.goalId ?? null) === null && (input.milestoneId ?? null) !== null) {
+      throw new TaskServiceError(
+        "validation",
+        "Select a goal before choosing a milestone, or clear the milestone.",
+      );
+    }
+
     await assertMilestoneBelongsToGoal(input.goalId ?? null, input.milestoneId ?? null, userId);
 
     const payload: Omit<TasksRow, "id" | "created_at" | "updated_at"> = {
@@ -250,7 +272,9 @@ export async function createTask(input: CreateTaskInput): Promise<Task> {
  * Partial update. `completed_at` is rewritten only when the status actually
  * changes (re-saving a `completed` task keeps the original timestamp);
  * link changes (`goalId`/`milestoneId`) re-run the belonging check against
- * the effective post-patch pair. This function contains no progress math and
+ * the effective post-patch pair — except when the effective goal is null,
+ * in which case the milestone link is cleared (no orphan milestones).
+ * This function contains no progress math and
  * no overdue logic — overdue stays derived via `isTaskOverdue`.
  */
 export async function updateTask(id: string, patch: UpdateTaskInput): Promise<Task> {
@@ -277,12 +301,23 @@ export async function updateTask(id: string, patch: UpdateTaskInput): Promise<Ta
       current = data as TasksRow;
     }
 
+    // Rule "milestone without goal" (plan.md Unit 5): the effective pair
+    // after the patch decides. When the task ends up with no goal but still
+    // points at a milestone — either because the goal is unlinked now or
+    // because a milestone was added to a goal-less task — the service clears
+    // the milestone link instead of storing an orphan. (createTask rejects
+    // the same shape up front; updates clear to stay forgiving on unlink.)
+    let clearOrphanMilestone = false;
     if (touchesLinks) {
       const effectiveGoalId =
         patch.goalId !== undefined ? patch.goalId : (current?.goal_id ?? null);
       const effectiveMilestoneId =
         patch.milestoneId !== undefined ? patch.milestoneId : (current?.milestone_id ?? null);
-      await assertMilestoneBelongsToGoal(effectiveGoalId, effectiveMilestoneId, userId);
+      if (effectiveGoalId === null && effectiveMilestoneId !== null) {
+        clearOrphanMilestone = true;
+      } else {
+        await assertMilestoneBelongsToGoal(effectiveGoalId, effectiveMilestoneId, userId);
+      }
     }
 
     const payload: Partial<TasksRow> = {};
@@ -320,6 +355,9 @@ export async function updateTask(id: string, patch: UpdateTaskInput): Promise<Ta
     }
     if (patch.milestoneId !== undefined) {
       payload.milestone_id = patch.milestoneId;
+    }
+    if (clearOrphanMilestone) {
+      payload.milestone_id = null;
     }
 
     if (Object.keys(payload).length === 0) {

@@ -92,7 +92,6 @@ export interface SetTaskStatusVariables {
 interface SetTaskStatusContext {
   previousDetail: Task | undefined;
   previousLists: Array<readonly [readonly unknown[], Task[] | undefined]>;
-  goalId: string | null;
 }
 
 /**
@@ -133,7 +132,6 @@ export function useSetTaskStatus() {
       return {
         previousDetail,
         previousLists,
-        goalId: previousDetail?.goalId ?? null,
       };
     },
     onError: (
@@ -148,15 +146,11 @@ export function useSetTaskStatus() {
         queryClient.setQueryData(key, data);
       }
     },
-    onSettled: (
-      task: Task | undefined,
-      _error: Error | null,
-      variables: SetTaskStatusVariables,
-      context: SetTaskStatusContext | undefined,
-    ) => {
+    onSettled: (_task: Task | undefined, _error: Error | null, variables: SetTaskStatusVariables) => {
+      // A status flip never changes the goal link, so the goal's task-count
+      // is untouched — only the detail and the lists refresh.
       void queryClient.invalidateQueries({ queryKey: tasks.detail(variables.id) });
       invalidateTaskLists(queryClient);
-      invalidateGoalTaskCount(queryClient, task?.goalId ?? context?.goalId);
     },
   });
 }
@@ -172,26 +166,30 @@ export function useRescheduleTask() {
   return useMutation({
     mutationFn: (variables: RescheduleTaskVariables) =>
       rescheduleTask(variables.id, variables.dueDate),
-    onSuccess: (task: Task, variables: RescheduleTaskVariables) => {
+    onSuccess: (_task: Task, variables: RescheduleTaskVariables) => {
+      // Moving the due date never changes the goal link, so the goal's
+      // task-count is untouched — only the detail and the lists refresh.
       void queryClient.invalidateQueries({ queryKey: tasks.detail(variables.id) });
       invalidateTaskLists(queryClient);
-      invalidateGoalTaskCount(queryClient, task.goalId);
     },
   });
+}
+
+/** The goal is passed by the caller: the cached detail may be absent. */
+export interface DeleteTaskVariables {
+  id: string;
+  goalId?: string | null;
 }
 
 export function useDeleteTask() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (id: string) => deleteTask(id),
-    onSuccess: (_data: void, id: string) => {
-      // The row is gone; its cached detail (if any) still knows the goal, so
-      // the goal's task-count used by the delete dialog is refreshed too.
-      const cached = queryClient.getQueryData<Task>(tasks.detail(id));
+    mutationFn: (variables: DeleteTaskVariables) => deleteTask(variables.id),
+    onSuccess: (_data: void, variables: DeleteTaskVariables) => {
       invalidateTaskLists(queryClient);
-      invalidateGoalTaskCount(queryClient, cached?.goalId);
-      void queryClient.removeQueries({ queryKey: tasks.detail(id) });
+      invalidateGoalTaskCount(queryClient, variables.goalId);
+      void queryClient.removeQueries({ queryKey: tasks.detail(variables.id) });
     },
   });
 }
