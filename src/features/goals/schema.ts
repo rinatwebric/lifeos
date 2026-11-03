@@ -1,0 +1,94 @@
+import { z } from "zod";
+
+import {
+  GOAL_CATEGORIES,
+  GOAL_STATUSES,
+  MILESTONE_STATUSES,
+  PRIORITIES,
+  PROGRESS_MODES,
+} from "@/types/domain";
+
+const DATE_KEY_MESSAGE = "Use YYYY-MM-DD.";
+const DATE_KEY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+const titleField = z
+  .string()
+  .trim()
+  .min(1, "Title is required.")
+  .max(200, "Title must be 200 characters or fewer.");
+
+const descriptionField = z
+  .string()
+  .trim()
+  .max(2000, "Description must be 2,000 characters or fewer.")
+  .nullable()
+  .optional();
+
+const dateKeyField = z.string().regex(DATE_KEY_PATTERN, DATE_KEY_MESSAGE);
+
+const optionalDateKeyField = dateKeyField.nullable().optional();
+
+const progressField = z.number().int().min(0).max(100, "Progress must be between 0 and 100.");
+
+/**
+ * Single source of truth for goal/milestone inputs: forms and the service
+ * layer share these schemas (and the inferred types below).
+ * Dates are YYYY-MM-DD keys; lexicographic comparison matches chronological
+ * order, so `target_date >= start_date` is a plain string comparison.
+ */
+export const goalBaseSchema = z.object({
+  title: titleField,
+  description: descriptionField,
+  category: z.enum(GOAL_CATEGORIES),
+  priority: z.enum(PRIORITIES),
+  status: z.enum(GOAL_STATUSES),
+  startDate: dateKeyField,
+  targetDate: optionalDateKeyField,
+  progress: progressField,
+  progressMode: z.enum(PROGRESS_MODES),
+});
+
+export const createGoalSchema = goalBaseSchema.refine(
+  (values) =>
+    values.targetDate === null ||
+    values.targetDate === undefined ||
+    values.targetDate >= values.startDate,
+  {
+    message: "Target date must be on or after the start date.",
+    path: ["targetDate"],
+  },
+);
+
+export type CreateGoalInput = z.infer<typeof createGoalSchema>;
+
+export const updateGoalSchema = goalBaseSchema
+  .partial()
+  .refine(
+    (values) =>
+      values.targetDate === null ||
+      values.targetDate === undefined ||
+      values.startDate === undefined ||
+      values.targetDate >= values.startDate,
+    {
+      message: "Target date must be on or after the start date.",
+      path: ["targetDate"],
+    },
+  );
+
+export type UpdateGoalInput = z.infer<typeof updateGoalSchema>;
+
+export const createMilestoneSchema = z.object({
+  goalId: z.string().uuid("Goal is required."),
+  title: titleField,
+  description: descriptionField,
+  targetDate: optionalDateKeyField,
+  status: z.enum(MILESTONE_STATUSES).optional(),
+  position: z.number().int().min(0).optional(),
+});
+
+export type CreateMilestoneInput = z.infer<typeof createMilestoneSchema>;
+
+/** Milestones never move between goals: `goalId` is intentionally omitted. */
+export const updateMilestoneSchema = createMilestoneSchema.omit({ goalId: true }).partial();
+
+export type UpdateMilestoneInput = z.infer<typeof updateMilestoneSchema>;
