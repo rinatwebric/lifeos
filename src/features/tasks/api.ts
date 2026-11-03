@@ -185,8 +185,9 @@ export async function getTask(id: string): Promise<Task> {
  * such constraint in the database (0004 only guards cross-tenant links via
  * RLS `EXISTS` checks), so the service reads the milestone and compares
  * `goal_id` before writing. Documented in docs/plan.md, Unit 5.
+ * Single source of truth — recurrence/api.ts reuses this export.
  */
-async function assertMilestoneBelongsToGoal(
+export async function assertMilestoneBelongsToGoal(
   goalId: string | null,
   milestoneId: string | null,
   userId: string,

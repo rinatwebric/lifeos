@@ -48,8 +48,11 @@ export function useCreateRecurrenceRule() {
 export function useCreateRecurringTask() {
   const queryClient = useQueryClient();
 
-  return useMutation<CreateRecurringTaskResult, Error, CreateRecurringTaskInput>({
-    mutationFn: (input: CreateRecurringTaskInput) => createRecurringTask(input),
+  return useMutation<CreateRecurringTaskResult, Error, CreateRecurringTaskInput & { timeZone?: string }>({
+    mutationFn: (variables) => {
+      const { timeZone, ...input } = variables;
+      return createRecurringTask(input, timeZone ? { timeZone } : undefined);
+    },
     onSuccess: () => {
       invalidateRecurrence(queryClient);
     },
@@ -103,10 +106,15 @@ export function useTopUpRecurrenceInstances() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ ruleId, horizonDays }: { ruleId: string; horizonDays?: number }) =>
-      horizonDays === undefined
-        ? topUpRecurrenceInstances(ruleId)
-        : topUpRecurrenceInstances(ruleId, horizonDays),
+    mutationFn: ({
+      ruleId,
+      horizonDays,
+      timeZone,
+    }: {
+      ruleId: string;
+      horizonDays?: number;
+      timeZone?: string;
+    }) => topUpRecurrenceInstances(ruleId, { horizonDays, timeZone }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: tasks.lists });
     },

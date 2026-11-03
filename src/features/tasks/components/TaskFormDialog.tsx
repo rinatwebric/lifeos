@@ -16,7 +16,7 @@ import {
   updateTaskSchema,
   type CreateTaskInput,
 } from "@/features/tasks/schema";
-import { isoToLocalDateTime, localDateTimeToIso } from "@/lib/dates";
+import { isoToLocalDateTime, localDateTimeToIso, toDateKey } from "@/lib/dates";
 import { humanize } from "@/lib/strings";
 import { PRIORITIES, TASK_STATUSES, type RecurrenceFrequency, type Task } from "@/types/domain";
 
@@ -177,7 +177,7 @@ export function TaskFormDialog({ open, onClose, task, timeZone }: TaskFormDialog
           setRepeatError("Choose at least one weekday.");
           return;
         }
-        const startDate = values.dueDate ?? new Date().toISOString().slice(0, 10);
+        const startDate = values.dueDate ?? toDateKey(new Date(), timeZone);
         const endDate = repeatEndDate === "" ? null : repeatEndDate;
         if (endDate !== null && Date.parse(endDate) < Date.parse(startDate)) {
           setRepeatError("End date must not be before the start date.");
@@ -202,6 +202,7 @@ export function TaskFormDialog({ open, onClose, task, timeZone }: TaskFormDialog
             intervalValue: 1,
             endDate,
           },
+          timeZone,
         });
       } else {
         await createTask.mutateAsync(values);

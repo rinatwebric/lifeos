@@ -1,4 +1,5 @@
 import { getSupabaseClient } from "@/lib/supabase/client";
+import { toDateKey } from "@/lib/dates";
 import { expandRecurrenceDates, RECURRENCE_HORIZON_DAYS } from "@/lib/recurrence";
 import {
   mapRecurrenceRuleRowToRecurrenceRule,
@@ -12,6 +13,7 @@ import type {
   TaskStatus,
 } from "@/types/domain";
 
+import { assertMilestoneBelongsToGoal } from "../api";
 import { RECURRENCE_ERROR_MESSAGES, RecurrenceServiceError, toRecurrenceError } from "./errors";
 import { recurrenceRuleSchema, type UpdateRecurrenceRuleInput } from "./schema";
 
@@ -43,6 +45,29 @@ export interface CreateRecurringTaskInput {
   };
 }
 
+export interface CreateRecurringTaskOptions {
+  timeZone?: string;
+  now?: Date;
+}
+
+export interface TopUpRecurrenceOptions {
+  horizonDays?: number;
+  timeZone?: string;
+  now?: Date;
+}
+
+export interface TopUpAllOptions {
+  horizonDays?: number;
+  timeZone?: string;
+  now?: Date;
+}
+
+export interface UpdateRecurrenceRuleOptions {
+  horizonDays?: number;
+  timeZone?: string;
+  now?: Date;
+}
+
 export interface CreateRecurringTaskResult {
   rule: RecurrenceRule;
   created: number;
@@ -68,8 +93,74 @@ async function requireUserId(): Promise<string> {
   return data.session.user.id;
 }
 
-function todayKeyUTC(now: Date = new Date()): string {
-  return now.toISOString().slice(0, 10);
+const DAY_MS = 86_400_000;
+
+function resolveTopUp(
+  arg?: number | TopUpRecurrenceOptions,
+): { horizonDays: number; timeZone: string; now: Date } {
+  if (typeof arg === "number") {
+    return { horizonDays: arg, timeZone: "UTC", now: new Date() };
+  }
+  return {
+    horizonDays: arg?.horizonDays ?? RECURRENCE_TOP_UP_DEFAULT_DAYS,
+    timeZone: arg?.timeZone ?? "UTC",
+    now: arg?.now ?? new Date(),
+  };
+}
+
+function resolveTopUpAll(
+  arg?: number | TopUpAllOptions,
+): { horizonDays: number; timeZone: string; now: Date } {
+  return resolveTopUp(arg);
+}
+
+function resolveCreateOptions(arg?: CreateRecurringTaskOptions): {
+  timeZone: string;
+  now: Date;
+} {
+  return {
+    timeZone: arg?.timeZone ?? "UTC",
+    now: arg?.now ?? new Date(),
+  };
+}
+
+function todayInZone(now: Date, timeZone: string): string {
+  try {
+    return toDateKey(now, timeZone);
+  } catch {
+    return toDateKey(now, "UTC");
+  }
+}
+
+/** Whole-day distance between two YYYY-MM-DD keys (UTC midnight based). */
+function diffDateKeys(fromKey: string, toKey: string): number {
+  const fromMs = Date.parse(`${fromKey}T00:00:00Z`);
+  const toMs = Date.parse(`${toKey}T00:00:00Z`);
+  if (Number.isNaN(fromMs) || Number.isNaN(toMs)) {
+    return 0;
+  }
+  return Math.round((toMs - fromMs) / DAY_MS);
+}
+
+/**
+ * Shifts a stored UTC ISO timestamp by whole days, preserving the duration
+ * when applied equally to start and end. Fixed 86_400_000 ms per day:
+ * DST transitions are intentionally not compensated (wall time may shift by
+ * 1h across a DST boundary — documented in docs/plan.md), absolute duration
+ * is always preserved.
+ */
+function shiftIsoByDays(iso: string | null, deltaDays: number): string | null {
+  if (iso === null) {
+    return null;
+  }
+  const ms = Date.parse(iso);
+  if (Number.isNaN(ms)) {
+    return iso;
+  }
+  if (deltaDays === 0) {
+    return iso;
+  }
+  return new Date(ms + deltaDays * DAY_MS).toISOString();
 }
 
 function uniqueWeekdays(weekdays: number[]): number[] {
@@ -135,49 +226,6 @@ async function insertTasksIgnoreConflicts(payloads: TaskInsertPayload[]): Promis
   }
 
   return created;
-}
-
-/**
- * Service-level belonging rule (same as tasks Unit 5): when both `goalId`
- * and `milestoneId` are set, the milestone must belong to that goal. There
- * is intentionally no such constraint in the database — the service reads
- * the milestone and compares `goal_id` before writing.
- */
-async function assertMilestoneBelongsToGoal(
-  goalId: string | null,
-  milestoneId: string | null,
-  userId: string,
-): Promise<void> {
-  if (goalId === null || milestoneId === null) {
-    return;
-  }
-
-  const client = getSupabaseClient();
-  const { data, error } = await client
-    .from("milestones")
-    .select("goal_id")
-    .eq("id", milestoneId)
-    .eq("user_id", userId)
-    .single();
-
-  if (error) {
-    const mapped = toRecurrenceError(error);
-    if (mapped.code === "network") {
-      throw mapped;
-    }
-    throw new RecurrenceServiceError(
-      "validation",
-      "The selected milestone was not found. Please reload and choose another one.",
-    );
-  }
-
-  const row = data as unknown as { goal_id: string };
-  if (row.goal_id !== goalId) {
-    throw new RecurrenceServiceError(
-      "validation",
-      "The selected milestone does not belong to the selected goal. Choose a milestone from this goal or clear it.",
-    );
-  }
 }
 
 export async function listRecurrenceRules(): Promise<RecurrenceRule[]> {
@@ -260,10 +308,17 @@ export async function createRecurrenceRule(input: {
  * instances copy title/description/priority/links and reset status to
  * `todo`. Only future dates inside `[startDate, endDate]` are inserted,
  * in one batch; a concurrent second device is absorbed row-by-row, so a
- * retry or a second device never duplicates.
+ * retry or a second device never duplicates. Scheduled times are shifted
+ * by whole days relative to the anchor due date so every instance keeps
+ * the template's wall times (09:00–10:00 on D → 09:00–10:00 on D+7,
+ * DST transitions excepted — see `shiftIsoByDays`).
  */
-export async function createRecurringTask(input: CreateRecurringTaskInput): Promise<CreateRecurringTaskResult> {
+export async function createRecurringTask(
+  input: CreateRecurringTaskInput,
+  options?: CreateRecurringTaskOptions,
+): Promise<CreateRecurringTaskResult> {
   try {
+    const { timeZone, now } = resolveCreateOptions(options);
     const userId = await requireUserId();
     const title = input.task.title.trim();
 
@@ -289,7 +344,7 @@ export async function createRecurringTask(input: CreateRecurringTaskInput): Prom
       userId,
     );
 
-    const today = todayKeyUTC();
+    const today = todayInZone(now, timeZone);
     const startDate = input.task.dueDate ?? today;
     const parsed = recurrenceRuleSchema.safeParse({
       frequency: input.recurrence.frequency,
@@ -334,21 +389,25 @@ export async function createRecurringTask(input: CreateRecurringTaskInput): Prom
       return { rule, created: 0 };
     }
 
-    const payloads: TaskInsertPayload[] = dates.map((dueDate) => ({
-      user_id: userId,
-      title,
-      description: input.task.description ?? null,
-      priority: input.task.priority,
-      status: "todo",
-      due_date: dueDate,
-      scheduled_start: null,
-      scheduled_end: null,
-      estimated_duration_minutes: input.task.estimatedDurationMinutes ?? null,
-      goal_id: input.task.goalId ?? null,
-      milestone_id: input.task.milestoneId ?? null,
-      completed_at: null,
-      recurrence_rule_id: rule.id,
-    }));
+    const anchor = startDate;
+    const payloads: TaskInsertPayload[] = dates.map((dueDate) => {
+      const delta = diffDateKeys(anchor, dueDate);
+      return {
+        user_id: userId,
+        title,
+        description: input.task.description ?? null,
+        priority: input.task.priority,
+        status: "todo",
+        due_date: dueDate,
+        scheduled_start: shiftIsoByDays(input.task.scheduledStart ?? null, delta),
+        scheduled_end: shiftIsoByDays(input.task.scheduledEnd ?? null, delta),
+        estimated_duration_minutes: input.task.estimatedDurationMinutes ?? null,
+        goal_id: input.task.goalId ?? null,
+        milestone_id: input.task.milestoneId ?? null,
+        completed_at: null,
+        recurrence_rule_id: rule.id,
+      };
+    });
 
     const created = await insertTasksIgnoreConflicts(payloads);
 
@@ -361,6 +420,7 @@ export async function createRecurringTask(input: CreateRecurringTaskInput): Prom
 export async function updateRecurrenceRule(
   id: string,
   patch: UpdateRecurrenceRuleInput,
+  options?: number | TopUpRecurrenceOptions,
 ): Promise<RecurrenceRule> {
   try {
     const userId = await requireUserId();
@@ -425,7 +485,7 @@ export async function updateRecurrenceRule(
     // A rule edit only affects future dates not yet materialised: created
     // instances are never regenerated or deleted, the top-up below inserts
     // only missing future dates.
-    await topUpRecurrenceInstances(rule.id);
+    await topUpRecurrenceInstances(rule.id, options);
 
     return rule;
   } catch (error) {
@@ -479,10 +539,36 @@ export async function deleteRecurrenceRule(id: string): Promise<void> {
   }
 }
 
+function buildInstancePayload(
+  userId: string,
+  ruleId: string,
+  dueDate: string,
+  template: TasksRow,
+  anchorDueDate: string | null,
+): TaskInsertPayload {
+  const delta = anchorDueDate ? diffDateKeys(anchorDueDate, dueDate) : 0;
+  return {
+    user_id: userId,
+    title: template.title,
+    description: template.description,
+    priority: template.priority,
+    status: "todo",
+    due_date: dueDate,
+    scheduled_start: shiftIsoByDays(template.scheduled_start, delta),
+    scheduled_end: shiftIsoByDays(template.scheduled_end, delta),
+    estimated_duration_minutes: template.estimated_duration_minutes,
+    goal_id: template.goal_id,
+    milestone_id: template.milestone_id,
+    completed_at: null,
+    recurrence_rule_id: ruleId,
+  };
+}
+
 /**
  * Eager top-up for one rule: generates dates for
  * `[today, today + horizonDays)` intersected with the rule window and
- * inserts only future dates not already present, in one batch.
+ * inserts only future dates not already present, in one batch. `today`
+ * is the calendar date in `timeZone` (via `toDateKey`), never UTC.
  *
  * Idempotency comes from the read-then-insert pre-filter (a second call
  * finds nothing missing and writes nothing) plus unique-violation
@@ -491,16 +577,21 @@ export async function deleteRecurrenceRule(id: string): Promise<void> {
  * PostgREST cannot express against the partial index (42P10, see
  * `insertTasksIgnoreConflicts`).
  *
- * The template (title/description/priority/links) is copied from the
- * earliest attached instance, so the login-time top-up needs no UI input.
+ * The template is the most recently created attached instance
+ * (`created_at` desc): instance edits detach (`recurrence_rule_id = NULL`),
+ * so every attached row carries identical series fields and any survivor
+ * can anchor the series — deleting the earliest date never blocks the
+ * top-up. Scheduled times shift by whole days from the template's due
+ * date so duration is preserved.
  * Returns the number of rows actually inserted (0 when already up to date —
  * the idempotency proof: a second call creates 0 rows).
  */
 export async function topUpRecurrenceInstances(
   ruleId: string,
-  horizonDays: number = RECURRENCE_TOP_UP_DEFAULT_DAYS,
+  arg?: number | TopUpRecurrenceOptions,
 ): Promise<number> {
   try {
+    const { horizonDays, timeZone, now } = resolveTopUp(arg);
     if (horizonDays <= 0) {
       return 0;
     }
@@ -525,7 +616,7 @@ export async function topUpRecurrenceInstances(
       return 0;
     }
 
-    const today = todayKeyUTC();
+    const today = todayInZone(now, timeZone);
     const dates = expandRecurrenceDates(rule, today, Math.floor(horizonDays));
 
     if (dates.length === 0) {
@@ -558,7 +649,7 @@ export async function topUpRecurrenceInstances(
       .select("*")
       .eq("recurrence_rule_id", ruleId)
       .eq("user_id", userId)
-      .order("due_date", { ascending: true })
+      .order("created_at", { ascending: false })
       .limit(1);
 
     if (templateError) {
@@ -571,21 +662,9 @@ export async function topUpRecurrenceInstances(
       return 0;
     }
 
-    const payloads: TaskInsertPayload[] = missing.map((dueDate) => ({
-      user_id: userId,
-      title: template.title,
-      description: template.description,
-      priority: template.priority,
-      status: "todo",
-      due_date: dueDate,
-      scheduled_start: null,
-      scheduled_end: null,
-      estimated_duration_minutes: template.estimated_duration_minutes,
-      goal_id: template.goal_id,
-      milestone_id: template.milestone_id,
-      completed_at: null,
-      recurrence_rule_id: ruleId,
-    }));
+    const payloads: TaskInsertPayload[] = missing.map((dueDate) =>
+      buildInstancePayload(userId, ruleId, dueDate, template, template.due_date),
+    );
 
     return insertTasksIgnoreConflicts(payloads);
   } catch (error) {
@@ -597,23 +676,110 @@ export async function topUpRecurrenceInstances(
  * Login-time top-up: refreshes every active rule of the current user.
  * Best-effort per rule (one broken rule never blocks the others); returns
  * the total number of rows inserted across all rules.
+ *
+ * Batched: existing dates for all active rules come from one `.in(...)`
+ * query, templates from a second `.in(...)` query (grouped in memory by
+ * `recurrence_rule_id`, latest `created_at` wins), then a single batch
+ * insert for every missing date. Cost is constant in the rule count —
+ * never N+1. `today` is computed once via `toDateKey(now, timeZone)` for
+ * the whole pass so a midnight crossing cannot split the series.
  */
 export async function topUpAllActiveRecurrenceInstances(
-  horizonDays: number = RECURRENCE_TOP_UP_DEFAULT_DAYS,
+  arg?: number | TopUpAllOptions,
 ): Promise<number> {
-  const rules = await listRecurrenceRules();
-  let total = 0;
-
-  for (const rule of rules) {
-    if (!rule.isActive) {
-      continue;
-    }
-    try {
-      total += await topUpRecurrenceInstances(rule.id, horizonDays);
-    } catch {
-      continue;
-    }
+  const { horizonDays, timeZone, now } = resolveTopUpAll(arg);
+  if (horizonDays <= 0) {
+    return 0;
   }
 
-  return total;
+  const rules = await listRecurrenceRules();
+  const active = rules.filter((rule) => rule.isActive);
+  if (active.length === 0) {
+    return 0;
+  }
+
+  const today = todayInZone(now, timeZone);
+  const horizon = Math.floor(horizonDays);
+
+  try {
+    const userId = await requireUserId();
+    const client = getSupabaseClient();
+    const ruleIds = active.map((rule) => rule.id);
+
+    const { data: existingRows, error: existingError } = await client
+      .from("tasks")
+      .select("due_date, recurrence_rule_id")
+      .eq("user_id", userId)
+      .in("recurrence_rule_id", ruleIds);
+
+    if (existingError) {
+      throw toRecurrenceError(existingError);
+    }
+
+    const existingByRule = new Map<string, Set<string | null>>();
+    for (const row of ((existingRows as Array<{
+      due_date: string | null;
+      recurrence_rule_id: string | null;
+    }> | null) ?? [])) {
+      if (!row.recurrence_rule_id) {
+        continue;
+      }
+      let set = existingByRule.get(row.recurrence_rule_id);
+      if (!set) {
+        set = new Set();
+        existingByRule.set(row.recurrence_rule_id, set);
+      }
+      set.add(row.due_date);
+    }
+
+    const { data: templateRows, error: templateError } = await client
+      .from("tasks")
+      .select("*")
+      .eq("user_id", userId)
+      .in("recurrence_rule_id", ruleIds)
+      .order("created_at", { ascending: false });
+
+    if (templateError) {
+      throw toRecurrenceError(templateError);
+    }
+
+    const templateByRule = new Map<string, TasksRow>();
+    for (const row of ((templateRows as TasksRow[] | null) ?? [])) {
+      const key = row.recurrence_rule_id;
+      if (!key || templateByRule.has(key)) {
+        continue;
+      }
+      templateByRule.set(key, row);
+    }
+
+    const payloads: TaskInsertPayload[] = [];
+    for (const rule of active) {
+      try {
+        const dates = expandRecurrenceDates(rule, today, horizon);
+        if (dates.length === 0) {
+          continue;
+        }
+        const existing = existingByRule.get(rule.id);
+        const missing = existing ? dates.filter((date) => !existing.has(date)) : dates;
+        if (missing.length === 0) {
+          continue;
+        }
+        const template = templateByRule.get(rule.id);
+        if (!template) {
+          continue;
+        }
+        for (const dueDate of missing) {
+          payloads.push(
+            buildInstancePayload(userId, rule.id, dueDate, template, template.due_date),
+          );
+        }
+      } catch {
+        continue;
+      }
+    }
+
+    return insertTasksIgnoreConflicts(payloads);
+  } catch (error) {
+    throw toRecurrenceError(error);
+  }
 }

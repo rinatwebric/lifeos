@@ -5,10 +5,20 @@ import type { Session } from "@supabase/supabase-js";
 import { exchangeCodeFromUrl, getSession, onAuthStateChange } from "./api";
 import { AuthContext, type AuthContextValue } from "./useAuth";
 import { isSupabaseConfigured } from "@/lib/env";
+import { getProfile, profileQueryKey } from "@/features/settings/api";
 import { topUpAllActiveRecurrenceInstances } from "@/features/tasks/recurrence/api";
+import type { Profile } from "@/types/domain";
 
 interface AuthProviderProps {
   children: ReactNode;
+}
+
+function resolveBrowserTimeZone(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone ?? "UTC";
+  } catch {
+    return "UTC";
+  }
 }
 
 /**
@@ -92,12 +102,38 @@ export function AuthProvider({ children }: AuthProviderProps) {
         // rule for 30 days ahead. Deferred past the auth callback so the
         // Supabase client lock is released; never blocks render; failures
         // are logged, never crash the app. Idempotent via
-        // `uq_tasks_recurrence_instance` + ON CONFLICT DO NOTHING.
+        // read-then-insert pre-filter plus unique-violation tolerance.
+        // Time zone comes from the cached profile (`profileQueryKey`,
+        // populated by `getProfile` in settings/tasks); while the profile
+        // is not loaded yet, fall back to the browser zone (same default
+        // as OnboardingDialog) so "today" is never UTC-shifted.
         if (event === "SIGNED_IN" && next?.user) {
           queueMicrotask(() => {
-            void topUpAllActiveRecurrenceInstances().catch((error: unknown) => {
-              console.warn("[recurrence] top-up after sign-in failed", error);
-            });
+            void (async () => {
+              let timeZone: string | undefined;
+              try {
+                const cached =
+                  queryClient.getQueryData<Profile>(profileQueryKey);
+                if (cached?.timezone) {
+                  timeZone = cached.timezone;
+                } else {
+                  const fetched = await getProfile().catch(() => null);
+                  if (fetched?.timezone) {
+                    queryClient.setQueryData(profileQueryKey, fetched);
+                    timeZone = fetched.timezone;
+                  }
+                }
+              } catch {
+                // Fall through to the browser zone below.
+              }
+              try {
+                await topUpAllActiveRecurrenceInstances({
+                  timeZone: timeZone ?? resolveBrowserTimeZone(),
+                });
+              } catch (error: unknown) {
+                console.warn("[recurrence] top-up after sign-in failed", error);
+              }
+            })();
           });
         }
       }));
