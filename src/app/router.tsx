@@ -11,6 +11,7 @@ import { SignUpPage } from "@/features/auth/SignUpPage";
 import { AuthLayout } from "@/features/auth/AuthLayout";
 import { useAuth } from "@/features/auth/useAuth";
 import { DashboardPage } from "@/features/dashboard/DashboardPage";
+import { GoalDetailPage } from "@/features/goals/GoalDetailPage";
 import { GoalsPage } from "@/features/goals/GoalsPage";
 import { HabitsPage } from "@/features/habits/HabitsPage";
 import { NotFoundPage } from "@/features/misc/NotFoundPage";
@@ -85,6 +86,7 @@ const router = createBrowserRouter([
     children: [
       { index: true, element: <DashboardPage /> },
       { path: "goals", element: <GoalsPage /> },
+      { path: "goals/:id", element: <GoalDetailPage /> },
       { path: "tasks", element: <TasksPage /> },
       { path: "planner", element: <PlannerPage /> },
       { path: "habits", element: <HabitsPage /> },

@@ -1,0 +1,187 @@
+import { Pencil, Trash2 } from "lucide-react";
+import { useState } from "react";
+import { Link, useParams } from "react-router-dom";
+
+import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
+import { ProgressBar } from "@/components/ui/ProgressBar";
+import { DeleteGoalDialog } from "@/features/goals/components/DeleteGoalDialog";
+import { GoalFormDialog } from "@/features/goals/components/GoalFormDialog";
+import { MilestoneList } from "@/features/goals/components/MilestoneList";
+import { useGoal, useMilestones } from "@/features/goals/hooks";
+import { calculateGoalProgress } from "@/lib/progress";
+import { humanize } from "@/lib/strings";
+import type { Goal, GoalStatus } from "@/types/domain";
+
+const STATUS_TONE: Record<GoalStatus, "accent" | "neutral" | "outline"> = {
+  active: "accent",
+  completed: "neutral",
+  not_started: "outline",
+  paused: "outline",
+  archived: "outline",
+};
+
+function formatDateRange(goal: Goal): string {
+  if (goal.targetDate) {
+    return `${goal.startDate} – ${goal.targetDate}`;
+  }
+  return `Started ${goal.startDate}`;
+}
+
+export function GoalDetailPage() {
+  const { id } = useParams<{ id: string }>();
+  const goalQuery = useGoal(id);
+  const milestonesQuery = useMilestones(id);
+
+  const [editingGoal, setEditingGoal] = useState(false);
+  const [deletingGoal, setDeletingGoal] = useState(false);
+
+  if (goalQuery.isLoading) {
+    return (
+      <div className="space-y-6">
+        <Link to="/goals" className="text-sm text-muted hover:underline">
+          ← All goals
+        </Link>
+        <div role="status" aria-label="Loading goal">
+          <span className="sr-only">Loading goal…</span>
+          <Card>
+            <div className="animate-pulse space-y-3" aria-hidden="true">
+              <div className="h-6 w-1/2 rounded bg-surface-muted" />
+              <div className="h-5 w-1/3 rounded bg-surface-muted" />
+              <div className="h-2 w-full rounded-full bg-surface-muted" />
+            </div>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  const goal = goalQuery.data ?? null;
+  if (goalQuery.isError || !goal) {
+    return (
+      <div className="space-y-6">
+        <Link to="/goals" className="text-sm text-muted hover:underline">
+          ← All goals
+        </Link>
+        <Card>
+          <h1 className="text-xl font-semibold tracking-tight text-content">Goal not found</h1>
+          <p className="mt-1 text-sm text-muted">
+            This goal does not exist or has been deleted.
+          </p>
+          <div className="mt-4">
+            <Link
+              to="/goals"
+              className="inline-flex h-8 items-center justify-center gap-2 rounded-lg border border-line bg-surface px-3 text-sm font-medium text-content transition-colors hover:bg-surface-muted"
+            >
+              Back to goals
+            </Link>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
+  const milestones = milestonesQuery.data ?? [];
+  const progress =
+    calculateGoalProgress({
+      progressMode: goal.progressMode,
+      progress: goal.progress,
+      milestones: milestones.map((milestone) => ({ status: milestone.status })),
+    }) ?? goal.progress;
+
+  return (
+    <div className="space-y-6">
+      <Link to="/goals" className="text-sm text-muted hover:underline">
+        ← All goals
+      </Link>
+
+      <section className="space-y-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="space-y-2">
+            <h1 className="text-xl font-semibold tracking-tight text-content sm:text-2xl">
+              {goal.title}
+            </h1>
+            <div className="flex flex-wrap gap-1.5">
+              <Badge tone={STATUS_TONE[goal.status]}>{humanize(goal.status)}</Badge>
+              <Badge>{humanize(goal.category)}</Badge>
+              <Badge tone="outline">{humanize(goal.priority)} priority</Badge>
+            </div>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <Button variant="secondary" size="sm" onClick={() => setEditingGoal(true)}>
+              <Pencil className="size-3.5" aria-hidden="true" />
+              Edit
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setDeletingGoal(true)}
+              aria-label={`Delete ${goal.title}`}
+            >
+              <Trash2 className="size-3.5" aria-hidden="true" />
+              Delete
+            </Button>
+          </div>
+        </div>
+
+        {goal.description ? <p className="text-sm text-muted">{goal.description}</p> : null}
+
+        <div className="space-y-1">
+          <ProgressBar value={progress} label={`Progress for ${goal.title}`} />
+          <p className="text-xs text-muted">
+            {`${progress}% complete`}
+            {goal.progressMode === "milestones" ? " · from milestones" : " · manual"}
+          </p>
+        </div>
+
+        <p className="text-xs text-muted">{formatDateRange(goal)}</p>
+
+        {goal.progressMode === "manual" ? (
+          <p className="text-xs text-muted">
+            <button
+              type="button"
+              className="cursor-pointer underline"
+              onClick={() => setEditingGoal(true)}
+            >
+              Switch this goal to milestone progress to see it update automatically.
+            </button>
+          </p>
+        ) : null}
+      </section>
+
+      <section className="space-y-4">
+        <h2 className="text-lg font-semibold tracking-tight text-content">Milestones</h2>
+        {milestonesQuery.isLoading ? (
+          <div role="status" aria-label="Loading milestones">
+            <span className="sr-only">Loading milestones…</span>
+            <Card>
+              <div className="animate-pulse space-y-2" aria-hidden="true">
+                <div className="h-5 w-2/3 rounded bg-surface-muted" />
+                <div className="h-5 w-1/2 rounded bg-surface-muted" />
+              </div>
+            </Card>
+          </div>
+        ) : milestonesQuery.isError ? (
+          <div role="alert" className="rounded-lg border border-line bg-surface p-4">
+            <p className="text-sm text-content">Could not load milestones. Please try again.</p>
+            <div className="mt-3">
+              <Button variant="secondary" size="sm" onClick={() => void milestonesQuery.refetch()}>
+                Retry
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <MilestoneList goalId={goal.id} milestones={milestones} />
+        )}
+      </section>
+
+      <GoalFormDialog open={editingGoal} onClose={() => setEditingGoal(false)} goal={goal} />
+      <DeleteGoalDialog
+        open={deletingGoal}
+        onClose={() => setDeletingGoal(false)}
+        goal={goal}
+      />
+    </div>
+  );
+}

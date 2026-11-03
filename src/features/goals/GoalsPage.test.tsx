@@ -1,5 +1,6 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Goal } from "@/types/domain";
@@ -45,6 +46,14 @@ const GOAL: Goal = {
   createdAt: "2026-11-01T00:00:00.000Z",
   updatedAt: "2026-11-02T00:00:00.000Z",
 };
+
+function renderGoalsPage() {
+  return render(
+    <MemoryRouter>
+      <GoalsPage />
+    </MemoryRouter>,
+  );
+}
 
 function stubDefaults(): {
   createMutate: ReturnType<typeof vi.fn>;
@@ -108,7 +117,7 @@ beforeEach(() => {
 describe("GoalsPage", () => {
   it("shows an empty state with a next-step CTA when there are no goals", async () => {
     const user = userEvent.setup();
-    render(<GoalsPage />);
+    renderGoalsPage();
 
     expect(screen.getByText("No goals yet")).toBeInTheDocument();
 
@@ -120,7 +129,7 @@ describe("GoalsPage", () => {
 
   it("renders the goal list with stored manual progress", () => {
     stubGoals([GOAL]);
-    render(<GoalsPage />);
+    renderGoalsPage();
 
     expect(screen.getByRole("heading", { name: "Learn piano" })).toBeInTheDocument();
     expect(
@@ -137,7 +146,7 @@ describe("GoalsPage", () => {
         { goalId: "g1", status: "pending" },
       ],
     } as unknown as ReturnType<typeof useAllMilestones>);
-    render(<GoalsPage />);
+    renderGoalsPage();
 
     expect(
       screen.getByRole("progressbar", { name: "Progress for Learn piano" }),
@@ -147,7 +156,7 @@ describe("GoalsPage", () => {
 
   it("shows a validation error under the title when it is empty", async () => {
     const user = userEvent.setup();
-    render(<GoalsPage />);
+    renderGoalsPage();
 
     await user.click(screen.getByRole("button", { name: "New goal" }));
     await user.click(screen.getByRole("button", { name: "Create goal" }));
@@ -157,7 +166,7 @@ describe("GoalsPage", () => {
 
   it("rejects a target date before the start date with a field-level message", async () => {
     const user = userEvent.setup();
-    render(<GoalsPage />);
+    renderGoalsPage();
 
     await user.click(screen.getByRole("button", { name: "New goal" }));
     await user.type(screen.getByLabelText("Title", { exact: false }), "Run a marathon");
@@ -179,7 +188,7 @@ describe("GoalsPage", () => {
   it("creates a goal with the form values and closes the dialog", async () => {
     const { createMutate } = stubDefaults();
     const user = userEvent.setup();
-    render(<GoalsPage />);
+    renderGoalsPage();
 
     await user.click(screen.getByRole("button", { name: "New goal" }));
     await user.type(screen.getByLabelText("Title", { exact: false }), "Run a marathon");
@@ -208,7 +217,7 @@ describe("GoalsPage", () => {
       refetch: vi.fn(),
     } as unknown as ReturnType<typeof useTaskCountForGoal>);
     const user = userEvent.setup();
-    render(<GoalsPage />);
+    renderGoalsPage();
 
     await user.click(screen.getByRole("button", { name: "Delete Learn piano" }));
 
@@ -235,7 +244,7 @@ describe("GoalsPage", () => {
       refetch: vi.fn(),
     } as unknown as ReturnType<typeof useTaskCountForGoal>);
     const user = userEvent.setup();
-    render(<GoalsPage />);
+    renderGoalsPage();
 
     await user.click(screen.getByRole("button", { name: "Delete Learn piano" }));
     expect(
@@ -254,7 +263,7 @@ describe("GoalsPage", () => {
     const { updateMutate } = stubDefaults();
     stubGoals([GOAL]);
     const user = userEvent.setup();
-    render(<GoalsPage />);
+    renderGoalsPage();
 
     await user.click(screen.getByRole("button", { name: "Archive" }));
 
@@ -263,7 +272,7 @@ describe("GoalsPage", () => {
 
   it("passes the selected status filter to useGoals", async () => {
     const user = userEvent.setup();
-    render(<GoalsPage />);
+    renderGoalsPage();
 
     await user.selectOptions(screen.getByLabelText("Status"), "active");
 
@@ -281,7 +290,7 @@ describe("GoalsPage", () => {
       refetch,
     } as unknown as ReturnType<typeof useGoals>);
     const user = userEvent.setup();
-    render(<GoalsPage />);
+    renderGoalsPage();
 
     expect(screen.getByRole("alert")).toHaveTextContent("Could not load goals.");
 
@@ -299,7 +308,7 @@ describe("GoalsPage", () => {
       const { deleteMutateAsync } = stubDefaults();
       stubGoals([GOAL]);
       const user = userEvent.setup();
-      render(<GoalsPage />);
+      renderGoalsPage();
 
       await user.click(screen.getByRole("button", { name: "Delete Learn piano" }));
       expect(screen.getByRole("dialog")).toBeInTheDocument();
@@ -317,7 +326,7 @@ describe("GoalsPage", () => {
 
   it("shows a no-match state with Clear filters that resets the query", async () => {
     const user = userEvent.setup();
-    render(<GoalsPage />);
+    renderGoalsPage();
 
     await user.selectOptions(screen.getByLabelText("Status"), "completed");
 
@@ -334,7 +343,7 @@ describe("GoalsPage", () => {
       isError: false,
       refetch: vi.fn(),
     } as unknown as ReturnType<typeof useGoals>);
-    render(<GoalsPage />);
+    renderGoalsPage();
 
     expect(screen.getByRole("status", { name: "Loading goals" })).toBeInTheDocument();
   });
@@ -342,7 +351,7 @@ describe("GoalsPage", () => {
   it("prefills the edit form with the selected goal", async () => {
     stubGoals([GOAL]);
     const user = userEvent.setup();
-    render(<GoalsPage />);
+    renderGoalsPage();
 
     await user.click(screen.getByRole("button", { name: "Edit" }));
 
@@ -362,7 +371,7 @@ describe("GoalsPage", () => {
   it("clears the form after a successful create", async () => {
     stubDefaults();
     const user = userEvent.setup();
-    render(<GoalsPage />);
+    renderGoalsPage();
 
     await user.click(screen.getByRole("button", { name: "New goal" }));
     await user.type(screen.getByLabelText("Title", { exact: false }), "Run a marathon");

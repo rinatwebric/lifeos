@@ -1,4 +1,5 @@
 import { Archive, Pencil, Trash2 } from "lucide-react";
+import { Link } from "react-router-dom";
 
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -43,7 +44,11 @@ export function GoalCard({ goal, progress, onEdit, onDelete }: GoalCardProps) {
   return (
     <Card className="flex flex-col gap-3">
       <div className="flex items-start justify-between gap-2">
-        <h3 className="text-base font-semibold text-content">{goal.title}</h3>
+        <h3 className="text-base font-semibold text-content">
+          <Link to={`/goals/${goal.id}`} className="hover:underline">
+            {goal.title}
+          </Link>
+        </h3>
         <Badge tone={STATUS_TONE[goal.status]}>{humanize(goal.status)}</Badge>
       </div>
 
