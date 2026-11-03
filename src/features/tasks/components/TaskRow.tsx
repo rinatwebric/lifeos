@@ -2,7 +2,6 @@ import { Link } from "react-router-dom";
 
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { useMilestones } from "@/features/goals/hooks";
 import { useSetTaskStatus } from "@/features/tasks/hooks";
 import { isTaskOverdue } from "@/lib/dates";
 import { humanize } from "@/lib/strings";
@@ -12,25 +11,29 @@ import type { Task } from "@/types/domain";
 interface TaskRowProps {
   task: Task;
   timeZone: string;
-  /** Goal title from the page-level goals list; null when the task has no goal. */
+  /** Goal title from the page-level goals list; null hides the goal link. */
   goalTitle: string | null;
+  /** Milestone title from the page-level milestones fetch; null hides the link. */
+  milestoneTitle: string | null;
   onEdit: (task: Task) => void;
   onReschedule: (task: Task) => void;
   onDelete: (task: Task) => void;
 }
 
-export function TaskRow({ task, timeZone, goalTitle, onEdit, onReschedule, onDelete }: TaskRowProps) {
+export function TaskRow({
+  task,
+  timeZone,
+  goalTitle,
+  milestoneTitle,
+  onEdit,
+  onReschedule,
+  onDelete,
+}: TaskRowProps) {
   const setStatus = useSetTaskStatus();
-  // Milestone titles are not in the list payload (no N+1 per row: the query
-  // is keyed by goal, so rows sharing a goal share one cached request).
-  const milestonesQuery = useMilestones(task.goalId ?? undefined);
 
   const completed = task.status === "completed";
   const overdue = isTaskOverdue(task, new Date(), timeZone);
-  const milestoneTitle =
-    task.milestoneId != null
-      ? (milestonesQuery.data?.find((milestone) => milestone.id === task.milestoneId)?.title ?? null)
-      : null;
+  const showPriorityBadge = task.priority === "high" || task.priority === "critical";
 
   const handleToggle = (): void => {
     if (setStatus.isPending) {
@@ -64,25 +67,25 @@ export function TaskRow({ task, timeZone, goalTitle, onEdit, onReschedule, onDel
           {task.title}
         </p>
         <div className="flex flex-wrap items-center gap-1.5">
-          <Badge tone="outline">{humanize(task.priority)} priority</Badge>
+          {showPriorityBadge ? <Badge tone="outline">{humanize(task.priority)} priority</Badge> : null}
           {task.dueDate ? (
             <span className="text-xs text-muted">{task.dueDate}</span>
           ) : null}
           {overdue ? <Badge tone="danger">Overdue</Badge> : null}
-          {task.goalId ? (
+          {task.goalId && goalTitle ? (
             <Link
               to={`/goals/${task.goalId}`}
               className="text-xs font-medium text-accent hover:underline"
             >
-              {goalTitle ?? "View goal"}
+              {goalTitle}
             </Link>
           ) : null}
-          {task.milestoneId && task.goalId ? (
+          {task.milestoneId && task.goalId && milestoneTitle ? (
             <Link
               to={`/goals/${task.goalId}`}
               className="text-xs text-muted hover:underline"
             >
-              {milestoneTitle ?? "Milestone"}
+              {milestoneTitle}
             </Link>
           ) : null}
         </div>

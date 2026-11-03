@@ -435,12 +435,16 @@ export async function reorderMilestones(
 /**
  * Minimal milestone slice for list progress: one query over all of the
  * user's milestones, grouped by `goalId` on the client. This avoids N+1
- * (`useMilestones` per card). Scaling note (also in docs/plan.md Unit 3):
+ * (`useMilestones` per card or per task row). The `id`/`title` ride along
+ * so task rows resolve milestone names from the same fetch.
+ * Scaling note (also in docs/plan.md Unit 3):
  * if this ever grows large, replace with a view/RPC returning per-goal
  * counts; one fetch is enough for now.
  */
 export interface MilestoneProgressSlice {
+  id: string;
   goalId: string;
+  title: string;
   status: MilestoneStatus;
 }
 
@@ -451,17 +455,21 @@ export async function listAllMilestones(): Promise<MilestoneProgressSlice[]> {
 
     const { data, error } = await client
       .from("milestones")
-      .select("goal_id,status")
+      .select("id,goal_id,title,status")
       .eq("user_id", userId);
 
     if (error) {
       throw toGoalError(error);
     }
 
-    return ((data ?? []) as Array<{ goal_id: string; status: MilestoneStatus }>).map((row) => ({
-      goalId: row.goal_id,
-      status: row.status,
-    }));
+    return ((data ?? []) as Array<{ id: string; goal_id: string; title: string; status: MilestoneStatus }>).map(
+      (row) => ({
+        id: row.id,
+        goalId: row.goal_id,
+        title: row.title,
+        status: row.status,
+      }),
+    );
   } catch (error) {
     throw toGoalError(error);
   }

@@ -5,7 +5,7 @@ import { act } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useGoals, useMilestones } from "@/features/goals/hooks";
+import { useGoals, useAllMilestones, useMilestones } from "@/features/goals/hooks";
 import { getProfile } from "@/features/settings/api";
 import {
   useCreateTask,
@@ -157,6 +157,20 @@ function stubDefaults() {
   vi.mocked(useGoals).mockReturnValue({
     data: [{ ...GOAL_1 }, { ...GOAL_2 }],
   } as unknown as ReturnType<typeof useGoals>);
+  // Row milestone titles come from the single `useAllMilestones` fetch
+  // (no per-goal queries in `TaskRow`); the create/edit form still reads
+  // per-goal `useMilestones` for its milestone select.
+  vi.mocked(useAllMilestones).mockReturnValue({
+    data: [
+      {
+        id: MILESTONE_1_ID,
+        goalId: GOAL_1_ID,
+        title: "Finish chapter 1",
+        status: "pending",
+      },
+      { id: MILESTONE_2_ID, goalId: GOAL_2_ID, title: "Week 1 done", status: "pending" },
+    ],
+  } as unknown as ReturnType<typeof useAllMilestones>);
   vi.mocked(useMilestones).mockImplementation(
     (goalId?: string) =>
       ({

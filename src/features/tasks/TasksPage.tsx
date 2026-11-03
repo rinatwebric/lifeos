@@ -6,13 +6,14 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { useGoals } from "@/features/goals/hooks";
+import { useGoals, useAllMilestones } from "@/features/goals/hooks";
 import { getProfile, profileQueryKey } from "@/features/settings/api";
 import { DeleteTaskDialog } from "@/features/tasks/components/DeleteTaskDialog";
 import { RescheduleTaskDialog } from "@/features/tasks/components/RescheduleTaskDialog";
 import { TaskFormDialog } from "@/features/tasks/components/TaskFormDialog";
 import { TaskRow } from "@/features/tasks/components/TaskRow";
 import { TasksFilters } from "@/features/tasks/components/TasksFilters";
+import { TASK_LIST_LIMIT } from "@/features/tasks/api";
 import { useTasks } from "@/features/tasks/hooks";
 import type { TaskFilters } from "@/features/tasks/api";
 import type { Task } from "@/types/domain";
@@ -48,6 +49,9 @@ export function TasksPage() {
 
   const tasksQuery = useTasks(filters);
   const goalsQuery = useGoals();
+  // One milestones fetch for every row (grouped by id on the client):
+  // task rows never fire per-goal `useMilestones` (no N+1).
+  const allMilestonesQuery = useAllMilestones();
   // The profile key is reused as-is (no third key): overdue is derived from
   // the due date in the profile's time zone, never stored.
   const profileQuery = useQuery({
@@ -65,8 +69,17 @@ export function TasksPage() {
     return map;
   }, [goalsQuery.data]);
 
+  const milestoneTitleById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const milestone of allMilestonesQuery.data ?? []) {
+      map.set(milestone.id, milestone.title);
+    }
+    return map;
+  }, [allMilestonesQuery.data]);
+
   const tasks = tasksQuery.data ?? [];
   const filtering = hasActiveFilters(filters);
+  const atLimit = tasks.length === TASK_LIST_LIMIT;
 
   return (
     <div className="space-y-6">
@@ -84,7 +97,9 @@ export function TasksPage() {
       <TasksFilters filters={filters} goals={goalsQuery.data ?? []} onChange={setFilters} />
 
       <p className="text-sm text-muted" aria-live="polite">
-        {tasksQuery.isLoading ? "Loading tasks…" : taskCountLabel(tasks.length)}
+        {tasksQuery.isLoading
+          ? "Loading tasks…"
+          : `${taskCountLabel(tasks.length)}${atLimit ? ` · Showing first ${TASK_LIST_LIMIT} tasks` : ""}`}
       </p>
 
       {tasksQuery.isLoading ? (
@@ -139,6 +154,9 @@ export function TasksPage() {
                 task={task}
                 timeZone={timeZone}
                 goalTitle={task.goalId ? (goalTitleById.get(task.goalId) ?? null) : null}
+                milestoneTitle={
+                  task.milestoneId ? (milestoneTitleById.get(task.milestoneId) ?? null) : null
+                }
                 onEdit={setEditing}
                 onReschedule={setRescheduling}
                 onDelete={setDeleting}

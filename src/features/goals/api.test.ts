@@ -281,8 +281,8 @@ describe("goals api", () => {
   it("fetches all milestone slices in one query (no N+1)", async () => {
     const { builder, eq, select } = mockBuilder({
       data: [
-        { goal_id: "goal-1", status: "completed" },
-        { goal_id: "goal-1", status: "pending" },
+        { id: "m1", goal_id: "goal-1", title: "Scales", status: "completed" },
+        { id: "m2", goal_id: "goal-1", title: "Chords", status: "pending" },
       ],
       error: null,
     });
@@ -290,11 +290,11 @@ describe("goals api", () => {
 
     const result = await listAllMilestones();
 
-    expect(select).toHaveBeenCalledWith("goal_id,status");
+    expect(select).toHaveBeenCalledWith("id,goal_id,title,status");
     expect(eq).toHaveBeenCalledWith("user_id", "u1");
     expect(result).toEqual([
-      { goalId: "goal-1", status: "completed" },
-      { goalId: "goal-1", status: "pending" },
+      { id: "m1", goalId: "goal-1", title: "Scales", status: "completed" },
+      { id: "m2", goalId: "goal-1", title: "Chords", status: "pending" },
     ]);
   });
 
