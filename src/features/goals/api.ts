@@ -10,6 +10,7 @@ import type {
   GoalCategory,
   GoalStatus,
   Milestone,
+  MilestoneStatus,
   Priority,
 } from "@/types/domain";
 
@@ -412,6 +413,41 @@ export async function reorderMilestones(
     }
 
     return listMilestones(goalId);
+  } catch (error) {
+    throw toGoalError(error);
+  }
+}
+
+/**
+ * Minimal milestone slice for list progress: one query over all of the
+ * user's milestones, grouped by `goalId` on the client. This avoids N+1
+ * (`useMilestones` per card). Scaling note (also in docs/plan.md Unit 3):
+ * if this ever grows large, replace with a view/RPC returning per-goal
+ * counts; one fetch is enough for now.
+ */
+export interface MilestoneProgressSlice {
+  goalId: string;
+  status: MilestoneStatus;
+}
+
+export async function listAllMilestones(): Promise<MilestoneProgressSlice[]> {
+  try {
+    const userId = await requireUserId();
+    const client = getSupabaseClient();
+
+    const { data, error } = await client
+      .from("milestones")
+      .select("goal_id,status")
+      .eq("user_id", userId);
+
+    if (error) {
+      throw toGoalError(error);
+    }
+
+    return ((data ?? []) as Array<{ goal_id: string; status: MilestoneStatus }>).map((row) => ({
+      goalId: row.goal_id,
+      status: row.status,
+    }));
   } catch (error) {
     throw toGoalError(error);
   }

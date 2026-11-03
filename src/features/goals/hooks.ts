@@ -9,6 +9,7 @@ import {
   deleteGoal,
   deleteMilestone,
   getGoal,
+  listAllMilestones,
   listGoals,
   listMilestones,
   reorderMilestones,
@@ -211,5 +212,17 @@ export function useTaskCountForGoal(goalId: string | undefined) {
     queryKey: [...goals.detail(goalId ?? ""), "task-count"] as const,
     queryFn: () => countTasksForGoal(goalId as string),
     enabled: Boolean(goalId),
+  });
+}
+
+/**
+ * All of the user's milestones as `{ goalId, status }` slices in one query.
+ * The list groups them by goal for `calculateGoalProgress` — never one
+ * `useMilestones` per card (N+1).
+ */
+export function useAllMilestones() {
+  return useQuery({
+    queryKey: goals.allMilestones,
+    queryFn: listAllMilestones,
   });
 }

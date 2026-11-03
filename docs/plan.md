@@ -79,6 +79,10 @@ SQL Unit 1 финализирован: `tasks.goal_id ON DELETE SET NULL`,
    и acceptance
    «Goals» (§18) выполняются вручную; чужой `user_id` недоступен (RLS).
    Проверка: `npm run typecheck && npm run lint && npm test && npm run build`.
+   Масштабирование прогресса: список грузит этапы одним запросом
+   (`listAllMilestones` → `useAllMilestones`, группировка на клиенте, N+1 нет);
+   при росте данных заменить на view/RPC с per-goal счётчиками — пока одной выборки
+   достаточно.
 4. **Milestones: CRUD, позиции, завершение, пересчёт прогресса.**
    Файлы: `src/features/goals/milestones/` (`api.ts`, `schemas.ts`, `MilestoneList.tsx`,
    `MilestoneForm.tsx`, тесты). Прогресс — `calculateGoalProgress` из `src/lib/progress.ts`

@@ -10,6 +10,7 @@ import {
   createGoal,
   createMilestone,
   getGoal,
+  listAllMilestones,
   listGoals,
   listMilestones,
   reorderMilestones,
@@ -274,6 +275,26 @@ describe("goals api", () => {
 
     await expect(countTasksForGoal("goal-1")).resolves.toBe(3);
     expect(fromEntry).toHaveBeenCalledWith("tasks");
+  });
+
+  it("fetches all milestone slices in one query (no N+1)", async () => {
+    const { builder, eq, select } = mockBuilder({
+      data: [
+        { goal_id: "goal-1", status: "completed" },
+        { goal_id: "goal-1", status: "pending" },
+      ],
+      error: null,
+    });
+    stubClient("u1", vi.fn().mockReturnValue(builder));
+
+    const result = await listAllMilestones();
+
+    expect(select).toHaveBeenCalledWith("goal_id,status");
+    expect(eq).toHaveBeenCalledWith("user_id", "u1");
+    expect(result).toEqual([
+      { goalId: "goal-1", status: "completed" },
+      { goalId: "goal-1", status: "pending" },
+    ]);
   });
 
   it("builds scoped query keys", () => {

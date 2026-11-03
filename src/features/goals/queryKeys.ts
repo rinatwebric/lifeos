@@ -10,6 +10,7 @@ export const goals = {
   list: (filters?: GoalFilters) => ["goals", "list", filters ?? {}] as const,
   detail: (id: string) => ["goals", "detail", id] as const,
   milestones: (goalId: string) => ["goals", "milestones", goalId] as const,
+  allMilestones: ["goals", "milestones", "all"] as const,
 };
 
 /** Alias for readers that prefer an explicit `*QueryKeys` name. */
