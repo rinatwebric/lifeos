@@ -39,6 +39,17 @@ npm run dev
 
 `service_role` key и ключи AI-провайдеров **никогда** не попадают во frontend.
 
+### Supabase Auth: Redirect URLs
+
+Восстановление пароля по умолчанию ведёт на `<origin>/reset-password`
+(см. `defaultRecoveryRedirect()` в `src/features/auth/api.ts`). Этот URL обязан быть
+в allow-list, иначе письмо уведёт на project Site URL (по умолчанию `localhost:3000`):
+
+Supabase Dashboard → Authentication → URL Configuration → Redirect URLs → добавить:
+
+- `http://localhost:5173/reset-password` (локальная разработка)
+- `https://<ваш-домен>/reset-password` (production)
+
 ## Скрипты
 
 | Команда                           | Что делает                                  |

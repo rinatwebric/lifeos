@@ -83,16 +83,24 @@ export async function signOut(): Promise<void> {
 
 /**
  * Starts the recovery flow: Supabase emails a link that returns to
- * `redirectTo` (must be allow-listed in the Supabase dashboard).
+ * `redirectTo` (must be allow-listed in the Supabase dashboard, otherwise the
+ * link falls back to the project Site URL, default `localhost:3000`).
  * Completing the flow signs the user in, then the new password is set
  * with `updatePassword`.
+ *
+ * `redirectTo` defaults to `<origin>/reset-password` so callers cannot forget
+ * it; pass an explicit value only to override (e.g. in tests).
  */
-export async function resetPassword(email: string, redirectTo?: string): Promise<void> {
+export function defaultRecoveryRedirect(): string {
+  return `${window.location.origin}/reset-password`;
+}
+
+export async function resetPassword(
+  email: string,
+  redirectTo: string = defaultRecoveryRedirect(),
+): Promise<void> {
   const client = getSupabaseClient();
-  const { error } = await client.auth.resetPasswordForEmail(
-    email,
-    redirectTo ? { redirectTo } : undefined,
-  );
+  const { error } = await client.auth.resetPasswordForEmail(email, { redirectTo });
 
   if (error) {
     throw toAuthError(error);
@@ -126,6 +134,35 @@ export async function resendConfirmation(
   if (error) {
     throw toAuthError(error);
   }
+}
+
+/**
+ * Exchanges a PKCE `?code=` from the URL for a session. The project uses the
+ * implicit flow by default (client sets `detectSessionInUrl`, no `flowType`),
+ * so normally there is no code and this is a no-op returning `null`.
+ * It only activates when a link (recovery/OAuth) arrives with an explicit
+ * code — without the exchange `updatePassword` would fail with
+ * `session_missing`. The single-use code is removed from the URL afterwards.
+ */
+export async function exchangeCodeFromUrl(): Promise<Session | null> {
+  const url = new URL(window.location.href);
+  const code = url.searchParams.get("code");
+
+  if (!code) {
+    return null;
+  }
+
+  const client = getSupabaseClient();
+  const { data, error } = await client.auth.exchangeCodeForSession(code);
+
+  if (error) {
+    throw toAuthError(error);
+  }
+
+  url.searchParams.delete("code");
+  window.history.replaceState(null, "", url.toString());
+
+  return data.session;
 }
 
 export async function getSession(): Promise<Session | null> {

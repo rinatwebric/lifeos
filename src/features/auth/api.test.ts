@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getSupabaseClient } from "@/lib/supabase/client";
 
 import {
+  exchangeCodeFromUrl,
   getSession,
   onAuthStateChange,
   resendConfirmation,
@@ -137,13 +138,15 @@ describe("recovery flow", () => {
     });
   });
 
-  it("resetPassword works without redirectTo", async () => {
+  it("resetPassword defaults to <origin>/reset-password so callers cannot forget it", async () => {
     const resetMock = vi.fn().mockResolvedValue({ data: {}, error: null });
     stubClient({ resetPasswordForEmail: resetMock });
 
     await resetPassword("a@example.com");
 
-    expect(resetMock).toHaveBeenCalledWith("a@example.com", undefined);
+    expect(resetMock).toHaveBeenCalledWith("a@example.com", {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
   });
 
   it("updatePassword sets the new password on the recovery session", async () => {
@@ -172,8 +175,7 @@ describe("recovery flow", () => {
   });
 });
 
-describe("resendConfirmation / getSession / onAuthStateChange", () => {
-  it("resends signup confirmation with redirect", async () => {
+describe("resendConfirmation / getSession / onAuthStateChange", () => {  it("resends signup confirmation with redirect", async () => {
     const resendMock = vi.fn().mockResolvedValue({ data: {}, error: null });
     stubClient({ resend: resendMock });
 
@@ -213,6 +215,48 @@ describe("resendConfirmation / getSession / onAuthStateChange", () => {
   });
 });
 
+describe("exchangeCodeFromUrl", () => {
+  beforeEach(() => {
+    window.history.replaceState(null, "", "/");
+  });
+
+  it("returns null without calling Supabase when there is no code", async () => {
+    const exchangeMock = vi.fn();
+    stubClient({ exchangeCodeForSession: exchangeMock });
+    window.history.replaceState(null, "", "/sign-in");
+
+    await expect(exchangeCodeFromUrl()).resolves.toBeNull();
+    expect(exchangeMock).not.toHaveBeenCalled();
+  });
+
+  it("exchanges a PKCE code and removes it from the URL", async () => {
+    const exchangeMock = vi.fn().mockResolvedValue({
+      data: { session: { access_token: "t" }, user: { id: "u1" } },
+      error: null,
+    });
+    stubClient({ exchangeCodeForSession: exchangeMock });
+    window.history.replaceState(null, "", "/reset-password?code=pkce-code-123");
+
+    const session = await exchangeCodeFromUrl();
+
+    expect(exchangeMock).toHaveBeenCalledWith("pkce-code-123");
+    expect(session).toEqual({ access_token: "t" });
+    expect(new URL(window.location.href).searchParams.get("code")).toBeNull();
+  });
+
+  it("maps an expired/revoked code to session_missing even though status is 401", async () => {
+    stubClient({
+      exchangeCodeForSession: vi.fn().mockResolvedValue({
+        data: { session: null, user: null },
+        error: authError("bad_jwt: token is expired", { status: 401 }),
+      }),
+    });
+    window.history.replaceState(null, "", "/?code=stale");
+
+    await expect(exchangeCodeFromUrl()).rejects.toMatchObject({ code: "session_missing" });
+  });
+});
+
 describe("toAuthError", () => {
   it("passes AuthServiceError through untouched", () => {
     const original = new AuthServiceError("network", "down");
@@ -226,6 +270,11 @@ describe("toAuthError", () => {
   it("maps email_not_confirmed, weak passwords, rate limits and unknown", () => {
     expect(toAuthError(authError("Email not confirmed")).code).toBe("email_not_confirmed");
     expect(toAuthError(authError("Password is weak_password")).code).toBe("weak_password");
+    expect(toAuthError(authError("Password should be at least 6 characters")).code).toBe(
+      "weak_password",
+    );
+    // A bare "password" must not hijack unrelated messages.
+    expect(toAuthError(authError("Cannot update password for this user")).code).toBe("unknown");
     expect(toAuthError(authError("Over request rate limit", { status: 429 })).code).toBe(
       "rate_limited",
     );

@@ -99,3 +99,46 @@
 **Осталось**
 
 - Единицы 3–6 по `docs/plan.md` (провайдер сессии → экраны → роуты/Settings → тесты+журнал).
+
+## 2026-11-03 — Итерация 1.2, единица 3: провайдер сессии закрыта (+ правки 1–4)
+
+**Сделано**
+
+- `src/features/auth/AuthProvider.tsx` (new): `status: 'loading' | 'authenticated' | 'anonymous'`
+  + `user` + `session` через `useAuth()`. Кеш чистится на `SIGNED_OUT` и при смене `user.id`
+  (первая эмиссия только инициализирует, `INITIAL_SESSION` повтор — no-op). Порядок в
+  `src/app/providers.tsx`: `QueryClientProvider → AuthProvider`.
+- `src/features/auth/AuthProvider.test.tsx` (new, 6 тестов): loading→anonymous/authenticated,
+  SIGNED_OUT → `clear()` + `getSession` больше не вызывается, смена user → `clear()`,
+  повтор той же сессии — без `clear()`, StrictMode: 2 подписки → первая отписана, unmount —
+  вторая отписана, `useAuth` вне провайдера кидает.
+- Правка 3 (deadlock): в колбэке `onAuthStateChange` только `setState` + `clear()`,
+  никаких вызовов Supabase; init (code exchange + `getSession`) — в теле эффекта;
+  загрузка профиля — отдельным `useEffect` по `user.id` (единица 5), зафиксировано
+  комментарием в провайдере.
+- Правка 4 (recovery flow): проект на implicit flow (клиент: `detectSessionInUrl: true`,
+  без `flowType`, дефолт supabase-js — implicit; hash подхватывается автоматически).
+  Добавлена no-op-safe страховка `exchangeCodeFromUrl()` (`?code=` → `exchangeCodeForSession`,
+  чистка кода из URL) + вызов разово в ините провайдера + 3 теста. Без кода — `null`.
+- Правка 1: `resetPassword(email, redirectTo = <origin>/reset-password)` — дефолт внутри
+  сервиса; `README.md` — раздел «Supabase Auth: Redirect URLs» (иначе письмо уведёт на
+  дефолтный Site URL `localhost:3000`).
+- Правка 2: в `toAuthError` проверки `session_missing`/`bad_jwt`/`session_not_found`
+  стоят ДО `status === 401`; правило `password` сужено до `weak_password` /
+  `password should be` / `password is too short`.
+- Смежный фикс: `App.test.tsx` стабит `AuthProvider` passthrough-моком — шелл-тест
+  про layout/баннер, реальный провайдер покрыт своим тестом (иначе с unconfigured env
+  провайдер кидал бы `getSupabaseClient()` в самом шелл-тесте).
+- В БД ничего не применялось.
+
+**Проверено**
+
+- `npm run typecheck` — ok
+- `npm run lint` — 0 errors (1 warn: `react-refresh/only-export-components` на
+  `AuthProvider.tsx` — `useAuth()` рядом с компонентом по плану единицы 3, warn
+  допустим конфигом)
+- `npm test` — 43/43 (34 старых + 9 новых: 6 провайдер + 3 exchange)
+
+**Осталось**
+
+- Единицы 4–6 по `docs/plan.md` (экраны → роуты/Settings → тесты+журнал).

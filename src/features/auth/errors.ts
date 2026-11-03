@@ -85,6 +85,17 @@ export function toAuthError(error: unknown): AuthServiceError {
   if (text.includes("email not confirmed") || code === "email_not_confirmed") {
     mapped = "email_not_confirmed";
   } else if (
+    text.includes("auth session missing") ||
+    text.includes("session missing") ||
+    text.includes("session_not_found") ||
+    text.includes("bad_jwt") ||
+    text.includes("invalid jwt")
+  ) {
+    // Expired/revoked sessions also arrive as HTTP 401 — check them BEFORE
+    // the 401 fallback below, or the user sees "invalid email or password"
+    // instead of "session expired".
+    mapped = "session_missing";
+  } else if (
     text.includes("invalid login credentials") ||
     text.includes("invalid_credentials") ||
     status === 401
@@ -98,7 +109,13 @@ export function toAuthError(error: unknown): AuthServiceError {
   ) {
     // Generic copy on purpose: never leak whether the email exists.
     mapped = "user_already_exists";
-  } else if (text.includes("weak_password") || text.includes("password")) {
+  } else if (
+    code === "weak_password" ||
+    text.includes("weak_password") ||
+    text.includes("password should be") ||
+    text.includes("password is too short")
+  ) {
+    // Narrow on purpose: a bare "password" would swallow unrelated messages.
     mapped = "weak_password";
   } else if (
     text.includes("invalid email") ||
@@ -113,8 +130,6 @@ export function toAuthError(error: unknown): AuthServiceError {
     status === 429
   ) {
     mapped = "rate_limited";
-  } else if (text.includes("auth session missing") || text.includes("session missing")) {
-    mapped = "session_missing";
   } else if (
     error instanceof Error &&
     (text.includes("failed to fetch") || text.includes("network"))

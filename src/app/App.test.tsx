@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import type { ReactNode } from "react";
 
 import App from "@/App";
 
@@ -10,6 +11,13 @@ vi.mock("@/lib/env", () => ({
   isSupabaseConfigured: false,
   supabaseEnv: null,
   describeMissingEnv: () => "VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY",
+}));
+
+// Shell test is about layout/banner, not auth: stub the provider so the suite
+// stays independent of Supabase (real provider is covered in AuthProvider.test).
+vi.mock("@/features/auth/AuthProvider", () => ({
+  AuthProvider: ({ children }: { children: ReactNode }) => <>{children}</>,
+  useAuth: () => ({ status: "anonymous" as const, user: null, session: null }),
 }));
 
 describe("App shell", () => {
