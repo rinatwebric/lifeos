@@ -382,3 +382,96 @@
   больше не нужны для ручной проверки).
 - Ограничение проверки изоляции: один подтверждённый аккаунт; двух-тенантный
   сценарий (B владеет целью, A ссылается) — в e2e единицы 9 / Phase 6 (PRD §19 п.11).
+
+## 2026-11-04 — Итерация 2 ЗАКРЫТА (единица 9: документы, деплой-конфиг, порядок)
+
+**Сделано (единицы 1–6 и 8; код уже был в main, здесь — фиксация)**
+
+- Unit 1 — схема Phase 2 (`7086298` + `3741dbc`, журнал `b0b870f`): `0003_goals_milestones`
+  + `0004_tasks_recurrence`, RLS 16 политик (`user_id = auth.uid()`), кросс-тенантные
+  `EXISTS`-гарды в `WITH CHECK`, `weekdays`-проверки, индексы `(user_id, due_date)` /
+  `(user_id, scheduled_start)`. Живая проверка REST от имени пользователя A — 25/25.
+- Unit 2 — Goals сервис + хуки (`2a14c27`): CRUD, `archive/pause/resume/complete`
+  как смена статуса + `completed_at`, Zod-схемы, TanStack Query-ключи, `api.test.ts`.
+- Unit 3 — Goals UI (`c14e4fd` + правки `2fe3110`): список, форма, статусы,
+  удаление с подтверждением («N задач останутся, но потеряют связь с целью»).
+- Unit 4 — Goal detail + milestones (`a765736` + правки `ddcb42f`): CRUD этапов,
+  позиции (`ORDER BY position, created_at, id`, без UNIQUE), завершение ставит
+  `completed_at`, прогресс — `calculateGoalProgress` (режим `milestones` + есть
+  этапы → derived, иначе ручное, clamp 0–100).
+- Unit 5 — Tasks сервис + хуки (`9e6af78` + правки `2ebfd23`): CRUD,
+  `complete/reopen`, `reschedule`, привязки `goal_id/milestone_id`, `countTasksForGoal`
+  (канонически в `tasks/api.ts`, реэкспорт из `goals/api.ts`), ошибки через
+  `src/lib/dbErrors.ts` (`DbServiceError` + `toDbError`).
+- Unit 6 — Tasks UI (`608d161` + правки `dbfed51`): список, фильтры
+  (status/priority/goal/search), сортировка, связь с целью, complete-кнопка,
+  перенос даты, удаление, reopen.
+- Unit 8 — Dashboard на реальных данных (`041b090` + правки `e213fdc`):
+  `DashboardPage` + `useDashboardData` (агрегация без запросов в цикле),
+  Today's progress (empty state вместо 0% при пустом дне), Today's tasks,
+  Active goals, детерминированный блок **Insights** (без «AI» в названии),
+  Schedule — честная заглушка «Nothing scheduled yet» до Phase 3.
+- Unit 9 (это изменение): `e2e/smoke.spec.ts` — убит протухший ассёрт
+  плейсхолдера «Phase 2 — Goals & Tasks» (Goals UI настоящий с Unit 3),
+  заменён на кнопку «New goal»; `vercel.json` (SPA-rewrite `/(.*) → /index.html`,
+  иначе `/goals/:id` даст 404); `docs/assets/dashboard.png` + `tasks.png`
+  (сняты на живых данных скриптом через UI, демо-данные после съёмки удалены);
+  `docs/plan.md` — итерация помечена закрытой, Unit 7 вынесен в Phase 2.5;
+  `docs/ROADMAP.md` — Phase 2 отмечен выполненным (кроме отложенного);
+  README — статус, деплой-секция, скриншоты, «Что работает».
+
+**Решения (приняты 2026-11-04, зафиксированы в `docs/plan.md`)**
+
+1. Удаление цели — `SET NULL` (`tasks.goal_id/milestone_id ON DELETE SET NULL`,
+   `milestones.goal_id ON DELETE CASCADE`); каскада на `tasks` нет ни в каком виде;
+   диалог показывает число отвязываемых задач (`countTasksForGoal`).
+2. Статусы этапов — только `pending | completed` (`MILESTONE_STATUSES`);
+   `in_progress` выводится из задач этапа в Planner.
+3. Сортировка задач по умолчанию — в памяти (`due_date` asc nulls last, затем ранг
+   приоритета `critical > high > medium > low` по явной карте `PRIORITY_RANK`,
+   затем `created_at` desc, затем `id`): PostgREST ранжирование не выражает.
+   Запрос ограничен `TASK_LIST_LIMIT = 500` (серверная предсортировка + `.limit(500)`);
+   дальше — пагинация или серверное view. UI честно пишет «Showing first 500 tasks».
+4. Insights — детерминированные строки на реальных числах (overdue, нагрузка дня),
+   правилa в коде (`buildInsights`), не модель; слово «AI» в блоке не используется
+   (PRD §3.2: пользователя про AI не врём). Чат-ассистент — Phase 4.
+5. Сервисное правило «этап без цели»: `createTask` отклоняет связку
+   «milestone без goal» ошибкой `validation`; `updateTask` в том же случае молча
+   чистит `milestone_id` (отвязка цели не оставляет висячую ссылку).
+
+**Отложено**
+
+- Unit 7 (recurrence UI/сервис) → **Phase 2.5**. Причина: разовые задачи полностью
+  закрывают поток «цель → задача → выполнение»; eager-докатка зафиксирована
+  решением 3, таблица `recurrence_rules` + чистый `src/lib/recurrence.ts` уже
+  в схеме/коде, проводка сервиса и формы — отдельным блоком после деплоя.
+- `goal_events` (полноценная история цели) → **Phase 3+** (долг в ROADMAP,
+  осознанное расхождение с PRD §3.3). Сейчас в данных есть
+  `created_at / updated_at / completed_at`, отдельного блока «История» в UI нет.
+- `0005_time_blocks` → Phase 3 (таблице без UI в Phase 2 делать нечего).
+
+**Проверено (числа)**
+
+- `npm run typecheck` — ok
+- `npm run lint` — 0 errors (13 warnings: `react-refresh/only-export-components`
+  на COPY-константах рядом с компонентами + `react-hooks/incompatible-library`
+  на `watch()` из RHF — оба допустимы, ошибок нет)
+- `npm test` — **267/267** (30 файлов: unit + RTL)
+- `npm run build` — ok (`dist/`, 809 kB JS / 230 kB gzip — чанк один, code-splitting
+  не настраивался; предупреждение vite о размере, не ошибка)
+- Live e2e (реальный Supabase-проект, только anon key, общий e2e-аккаунт,
+  по 1 воркеру): **8/8** — auth 4/4 (anon-редирект, вход, persist wake/sleep,
+  sign out; 5-й тест sign-up с реальным письмом пропущен сознательно — лимит
+  отправок проекта, верифицирован в итерации 1.2), goals 1/1, tasks 1/1,
+  dashboard 1/1 (цель + 2 этапа + 2 задачи, тоггл двигает процент), smoke 1/1
+  (после фикса протухшего ассёрта).
+- Общий e2e-аккаунт после прогонов и скриншотов вычищен (все демо-цели/задачи удалены).
+
+**Осталось**
+
+- Подключить репозиторий в Vercel, выставить env (`VITE_SUPABASE_URL`,
+  `VITE_SUPABASE_ANON_KEY` — только anon), добавить прод-домен и `/reset-password`
+  в Supabase → Authentication → URL Configuration; проверить живой URL
+  (вход → цель → задача → дашборд → reload `/goals/:id` → выход). Детали — в отчёте ниже.
+- Unit 7 (Phase 2.5) и Phase 3 (planner) — следующим шагом по `docs/plan.md`.
+- `git tag v0.3.0` + push (команда — в задаче Unit 9 п.5).

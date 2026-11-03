@@ -19,5 +19,5 @@ test("dashboard renders and primary navigation works", async ({ page }) => {
   await page.getByRole("link", { name: "Goals", exact: true }).first().click();
 
   await expect(page.getByRole("heading", { name: "Goals", exact: true })).toBeVisible();
-  await expect(page.getByText("Phase 2 — Goals & Tasks")).toBeVisible();
+  await expect(page.getByRole("button", { name: "New goal" })).toBeVisible();
 });
