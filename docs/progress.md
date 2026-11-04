@@ -1413,3 +1413,35 @@ PostgREST отдаёт `timestamptz` с `"+00:00"` и `time` как `"HH:MM:SS"`
 - Миграция 0006 НЕ применена, функция НЕ задеплоена — живые вызовы
   невозможны; claim проверен фейковым клиентом с атомарным compare-and-swap,
   не живой БД.
+
+## 2026-11-04 — Итерация 5, шаг 8 часть 1: assistant chat UI
+
+**Сделано (один коммит)**
+
+- `src/features/assistant/AssistantPage.tsx`: заглушка заменена реальным
+  экраном (`PageHeader` + честная копия «Nothing changes until you review and
+  confirm», без «AI»-обещаний).
+- `src/features/assistant/ChatPanel.tsx` (new): список диалогов
+  (`useConversations`) + лента (`useMessages`) + composer (`textarea`,
+  Ctrl/Cmd+Enter, disabled на пустом и >4000, счётчик `n / 4000`); состояния
+  loading (skeleton), empty («Ask about your week, or ask for a plan.» +
+  3 примера §6.2), error (текст из `AssistantServiceError` + Retry),
+  `rate_limited` — «50 messages, resets tomorrow»; disabled при отправке;
+  после успеха сообщение приходит из инвалидации (без оптимистичных вставок).
+  Токены только, `min-h-11` touch targets, mobile-first.
+- `src/features/assistant/ChatPanel.test.tsx` (new, 5 тестов): empty, отправка,
+  disabled/counter, rate_limited текст, disabled при отправке.
+- `docs/plan-phase-4.md`: статус части 1 (чат), модалка — следующим коммитом.
+
+**Проверено (числа)**
+
+- `npm run typecheck` — ok
+- `npm run lint` — 0 errors, 16 warnings (те же известные классы)
+- `npm test` — **676/676 в 70 файлах** (было 671/69: +5 новых `ChatPanel`)
+- `npm run build` — ok
+- `grep rounded-lg|text-xs|text-sm|min-h-screen|red-|green-|transition-all src/features/assistant/` — CLEAN
+
+**Не проверено живьём**
+
+- Миграция 0006 НЕ применена, функция НЕ задеплоена — UI проверен на моках;
+  живого ключа нет и не использовался.

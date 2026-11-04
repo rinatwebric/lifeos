@@ -297,6 +297,20 @@ AI-ассистент помогает управлять целями/зада�
 
 Проверка: `npm run typecheck && npm run lint && npm test && npm run build`
 
+> Статус (2026-11-04, часть 1 — чат): `AssistantPage` — реальный экран вместо
+> `PhasePlaceholder` (`PageHeader` + честная копия «Nothing changes until you
+> review and confirm», без «AI»-обещаний); `ChatPanel` — список диалогов
+> (`useConversations`) + лента (`useMessages`) + composer (`textarea`,
+> Ctrl/Cmd+Enter, disabled на пустом и >4000, счётчик `n / 4000`); состояния
+> loading (skeleton), empty («Ask about your week, or ask for a plan.» +
+> 3 примера §6.2), error (текст из `AssistantServiceError` + Retry),
+> `rate_limited` объясняет лимит «50 messages, resets tomorrow» и не
+> предлагает немедленный Retry вслепую, disabled при отправке; после успеха
+> сообщение приходит из инвалидации (без оптимистичных вставок). Токены
+> только (`rounded-control/card`, `text-ui/body/micro`, `text-muted`,
+> `duration-fast`), `min-h-11` touch targets, mobile-first. `ProposalModal` —
+> следующим коммитом, не в этом.
+
 ### Шаг 9. Weekly review + Dashboard Insights + e2e + журнал
 
 Цель: замкнуть Phase 4: weekly review и анализ невыполненных на том же пайплайне; e2e на stub; документы.

@@ -1,16 +1,24 @@
 import { Sparkles } from "lucide-react";
 
-import { PhasePlaceholder } from "@/components/ui/PhasePlaceholder";
+import { PageHeader } from "@/components/ui/PageHeader";
+
+import { ChatPanel } from "./ChatPanel";
 
 export function AssistantPage() {
   return (
-    <PhasePlaceholder
-      title="AI Assistant"
-      description="A planning partner that proposes changes — you stay in control of every decision."
-      icon={Sparkles}
-      phase="Phase 4 — AI Assistant"
-      detail="Server-side AI service with a controlled tool layer (read-only context, proposal-only writes), structured JSON responses and a human approval step before anything changes."
-      footer="The AI never gets direct database access and never applies changes without explicit confirmation."
-    />
+    <div className="space-y-6">
+      <PageHeader
+        title="Assistant"
+        description="A planning partner that proposes next steps. Nothing changes until you review and confirm."
+      />
+      <p className="flex items-start gap-2 text-ui text-muted">
+        <Sparkles className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+        <span>
+          The assistant reads your goals and tasks to suggest plans. It never applies changes on its
+          own — every proposal waits for your decision.
+        </span>
+      </p>
+      <ChatPanel />
+    </div>
   );
 }
