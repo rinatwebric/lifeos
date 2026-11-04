@@ -475,3 +475,109 @@
   (вход → цель → задача → дашборд → reload `/goals/:id` → выход). Детали — в отчёте ниже.
 - Unit 7 (Phase 2.5) и Phase 3 (planner) — следующим шагом по `docs/plan.md`.
 - `git tag v0.3.0` + push (команда — в задаче Unit 9 п.5).
+## 2026-11-04 — Phase 2.5 (повторения) закрыта + политика почты
+
+**Сделано**
+
+- Unit 7 (повторяющиеся задачи), коммит `c4074b2`: `src/features/tasks/recurrence/`
+  (`schema`, `errors`, `api`, `hooks`, `queryKeys`, 18 тестов), докатка на `SIGNED_IN` в
+  `AuthProvider` через `queueMicrotask` (мимо auth-лока, ошибки только в `console.warn`),
+  UI: чекбокс Repeat в `TaskFormDialog` (только режим создания) + бейдж Repeat в `TaskRow`,
+  `e2e/recurrence.spec.ts`. Правка экземпляра (`updateTask`) и перенос (`rescheduleTask`)
+  отвязывают `recurrence_rule_id = NULL`; `setTaskStatus` связь сохраняет.
+- Найденный факт: batch `upsert` с `onConflict: recurrence_rule_id,due_date` невозможен —
+  PostgREST не выражает предикат частичного индекса `uq_tasks_recurrence_instance`
+  (`WHERE recurrence_rule_id IS NOT NULL`), живой probe даёт `42P10`. Идемпотентность сделана
+  как read-then-insert + построчный retry при `23505` от гонки двух устройств; наблюдаемая
+  семантика та же (второй вызов = 0 строк).
+- Правки по ревью, коммит `9fa5bcf`: «сегодня» в докатке считается в поясе пользователя
+  (`toDateKey(now, timeZone)`, а не UTC-дата — при UTC+6 около полуночи создавался вчерашний
+  экземпляр); `scheduled_start/end` сдвигаются на дельту дней (раньше будущие экземпляры
+  теряли время); якорь серии — `created_at desc` (удаление раннего экземпляра больше не
+  выключает генерацию); докатка одним проходом (4 запроса вместо ~5 на правило);
+  `assertMilestoneBelongsToGoal` экспортирован из `tasks/api.ts`, дубль с `as unknown as` убран.
+  Побочный факт: `Asia/Almaty` сейчас UTC+5, для честного UTC+6 в тестах взят `Asia/Bishkek`.
+- **Supabase ограничил дефолтный SMTP проекта** `svbcpjpewzivqifyckkm` (письмо от команды
+  Supabase, bounce rate). Причина — e2e-спека регистрации гоняла несуществующие
+  `e2e.signup.*@gmail.com`. Ограничение не снимается само: нужен custom SMTP.
+- **Решение владельца (2026-11-04):** на время демо `Confirm email = OFF` в Supabase.
+  Регистрация работает без письма, `signUp` возвращает сессию; приложение уже поддерживает
+  обе ветки (`needsConfirmation = session === null`), правок кода не потребовалось.
+  Осознанно принятые последствия: Forgot password, resend confirmation, invite и magic link
+  не работают; сброс пароля — только из Dashboard.
+- Прод: `https://lifeos-sepia-mu.vercel.app`, деплой готов, env стоят в Production и Preview.
+  Rewrites проверены снаружи: `/` и `/goals/:id` отдают SPA (949 байт, `<title>LifeOS`),
+  Vercel-404 нет.
+- Демо-сев: написан `scripts/seed-demo.mjs` (3 цели, 6 задач, префикс `Demo: `, `--dry-run` /
+  `--clean`, только anon key + логин, без `service_role`). Файл пока **не закоммичен**.
+
+**Проверено**
+
+- `npm test` — 289/289 (31 файл), прогнано дважды после правок; `typecheck`, `lint` (0 errors),
+  `build` — зелёные.
+- `node scripts/seed-demo.mjs --dry-run` — печатает план, БД не трогает; `eslint` + `prettier`
+  по файлу чистые.
+- e2e после Unit 7 (по отчёту исполнителя): 10/10 — auth, goals, tasks, dashboard, smoke,
+  recurrence; у второго экземпляра серии совпадают wall-времена, reload не плодит дублей.
+
+**Осталось**
+
+- Человеку (дашборды): закоммитить сев; создать отдельный демо-аккаунт (не e2e!);
+  добавить `VITE_DEMO_*` в Vercel; удалить неподтверждённых пользователей из Users.
+- Агенту: итерация 3 в `docs/plan.md` (кнопка демо-входа, гигиена e2e, README/тег `v0.4.0`).
+- После демо: custom SMTP (Brevo/Resend) → `Confirm email = ON` → прогнать e2e с реальным
+  `E2E_SIGNUP_EMAIL` → почистить пользователей, созданных на демо.
+
+## 2026-11-04 — Итерация 3 Demo readiness ЗАКРЫТА (единицы 1–4) + тег v0.4.0
+
+**Сделано**
+
+- Unit 1 — сев демо-данных, коммит `5416f9d`: `scripts/seed-demo.mjs` (3 цели,
+  6 задач, префикс `Demo: `, `--dry-run` / `--clean`, только anon key + логин,
+  без `service_role`) + строка про сев в README. Follow-up владельца `e1643ec`:
+  сев читает `VITE_DEMO_EMAIL` / `VITE_DEMO_PASSWORD` из `.env.local` (тот же
+  аккаунт, что кнопка демо-входа), а не `E2E_*` — демо-аккаунт обязан быть
+  отдельным от e2e-аккаунта (посетители правят демо, e2e-ассерты стабильны).
+- Unit 2 — кнопка демо-входа, коммит `db9e981`: `demoAccount.ts`
+  (`getDemoCredentials()` читает `import.meta.env` в момент вызова, `null`
+  при пустом значении; `isDemoSignInAvailable()`), `DemoSignInButton.tsx`
+  («Explore the demo account», успех → `/`, ошибка → `onError`, `disabled`
+  в полёте, без env — `null`), вставка в `SignInPage.tsx`, 5 unit-тестов,
+  `.env.example` — закомментированные `VITE_DEMO_*` («public demo account,
+  sample data only»). Без хардкода кредов, без `service_role`, без e2e-аккаунта.
+- Unit 3 — гигиена e2e, коммит `84d7116`: `auth.spec.ts` больше не гоняет
+  фейковые `e2e.signup.*@gmail.com` (bounce → блокировка SMTP) и не ждёт
+  «Check your email» (при `Confirm email = OFF` сессия возвращается сразу) —
+  регистрация `+`-алиаса из `E2E_SIGNUP_EMAIL`, `test.skip` без него, ожидание
+  `/` + «Welcome back»; `recurrence.spec.ts` cleanup: сначала удаление правила
+  (`recurrence_rules` через anon-key REST), затем задач — докатка становится
+  no-op, цикл «до 12 итераций» удалён. `helpers.ts` экспортирует
+  `E2E_SIGNUP_EMAIL`, `.env.e2e.example` документирует его.
+- Unit 4 — этот коммит: README — разделы «Demo account» (прод-ссылка, кнопка,
+  shared-предупреждение, восстановление сидом) и «Email (demo)» (confirmation
+  disabled, password reset requires custom SMTP), статус Phase 2.5 done,
+  счётчики (294 теста); `docs/plan.md` — итерация помечена закрытой;
+  тег `v0.4.0`.
+
+**Проверено (на каждой единице)**
+
+- `npm run typecheck` — ok; `npm run lint` — 0 errors (14 warnings: известные
+  `react-refresh/only-export-components` на COPY-константах + `useAuth`
+  (тот же допустимый паттерн) и `react-hooks/incompatible-library` на `watch()`
+  из RHF — ошибок нет); `npm test` — 294/294 (289 старых + 5 новых
+  `DemoSignInButton`); `npm run build` — ok.
+- `node scripts/seed-demo.mjs --dry-run` — печатает план (3 цели, 6 задач),
+  БД не трогает; `eslint`/`prettier` по файлу чистые.
+- Миграции и RLS не тронуты (запрет итерации): схема не менялась, политик
+  не ослаблялось — только код, тесты и документы.
+
+**Осталось**
+
+- Человеку (Vercel/Dashboard): убедиться, что `VITE_DEMO_EMAIL` /
+  `VITE_DEMO_PASSWORD` стоят в Production и Preview; создать демо-аккаунт,
+  если ещё не создан (не e2e-аккаунт!); прогнать сев; кликнуть кнопку на проде →
+  дашборд с демо-данными; удалить неподтверждённых пользователей из Users.
+- После демо (отдельная итерация, `docs/plan.md` единица 5): custom SMTP →
+  `Confirm email = ON` → удалить демо-пользователей → прогнать e2e с реальным
+  `E2E_SIGNUP_EMAIL` → отметить снятие ограничения.
+- Дальше — Phase 3 (planner, `0005_time_blocks`, AI — см. ROADMAP).

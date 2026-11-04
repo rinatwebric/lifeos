@@ -17,14 +17,40 @@
 на реальных данных. Повторения отложены в Phase 2.5, полноценная история цели
 (`goal_events`) — в Phase 3+.
 
-Следующий шаг: Phase 2.5 (повторения) и Phase 3 — Planner (см. [docs/ROADMAP.md](docs/ROADMAP.md)).
+**Phase 2.5 — Recurrence — done** (закрыта 2026-11-04): повторяющиеся задачи
+(daily/weekly/weekdays), eager-генерация на 30 дней + докатка при входе,
+идемпотентность через read-then-insert (частичный уникальный индекс PostgREST
+не выражает), бейдж Repeat, правка экземпляра отвязывает серию.
+
+Следующий шаг: Phase 3 — Planner (см. [docs/ROADMAP.md](docs/ROADMAP.md)).
+После демо — восстановление почты отдельным шагом: custom SMTP →
+`Confirm email = ON` (см. `docs/plan.md`, единица 5).
 
 ## Live demo
 
 Прод-деплой — Vercel, авто-деплой из ветки `main` (конфиг SPA-rewrite в `vercel.json`).
 
-**URL:** `https://<your-app>.vercel.app` — заменить на реальный домен после
-подключения репозитория в Vercel (см. чек-лист деплоя в отчёте итерации 2).
+**URL:** `https://lifeos-sepia-mu.vercel.app`
+
+### Demo account
+
+На экране `/sign-in` — кнопка «Explore the demo account»: вход в общий демо-аккаунт
+(shared demo account) с примерами целей и задач. Данные одноразовые — любой
+посетитель может их менять. Восстановить после чужих правок:
+`node scripts/seed-demo.mjs` (предварительно посмотреть план:
+`node scripts/seed-demo.mjs --dry-run`).
+
+Демо-аккаунт отдельный от e2e-аккаунта: демо создано для людей, e2e — для
+автотестов. Креды демо лежат только в env (`VITE_DEMO_EMAIL` /
+`VITE_DEMO_PASSWORD`, Vercel → Production и Preview).
+
+### Email (demo)
+
+На время демо подтверждение email выключено (confirmation disabled for the demo,
+`Confirm email = OFF`): регистрация сразу попадает в приложение, без письма.
+Обратная сторона: письма не уходят вообще — восстановление пароля, повторная
+отправка подтверждения, invite и magic link не работают; password reset requires
+custom SMTP (сброс — только через Supabase Dashboard → Users).
 
 ## Скриншоты
 
@@ -33,8 +59,11 @@
 
 ## Что работает
 
-- Auth: регистрация, вход, выход, восстановление и подтверждение email (обе ветки
-  по `session`), onboarding — часовой пояс и время подъёма/отбоя.
+- Auth: регистрация, вход, выход, onboarding — часовой пояс и время подъёма/отбоя.
+  На время демо подтверждение email выключено: регистрация сразу попадает
+  в приложение (подробности — раздел «Email (demo)» выше). На `/sign-in` —
+  кнопка «Explore the demo account» (общий демо-аккаунт, только когда заданы
+  `VITE_DEMO_*`).
 - Цели: CRUD, статусы `not_started/active/paused/completed/archived`, прогресс
   ручной или по этапам (переключение не стирает ручное значение); удаление
   отвязывает задачи (`SET NULL`, их число показано в диалоге), этапы удаляются
@@ -50,8 +79,8 @@
   Insights без «AI»; расписание — честная заглушка до Phase 3.
 - Безопасность: RLS на всех пользовательских таблицах (`user_id = auth.uid()`),
   identity только из проверенного JWT, `service_role` нигде не используется.
-- Проверки: 267 unit-тестов (Vitest + RTL), live e2e (auth/goals/tasks/dashboard/
-  smoke) против реального Supabase-проекта; `typecheck`, `lint`, `build` зелёные.
+- Проверки: 294 unit-тестов (Vitest + RTL), live e2e (auth/goals/tasks/dashboard/
+  smoke/recurrence) против реального Supabase-проекта; `typecheck`, `lint`, `build` зелёные.
 
 Полное техническое задание — [docs/PRD.md](docs/PRD.md).
 Архитектурные решения — [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
@@ -100,6 +129,7 @@ Supabase Dashboard → Authentication → URL Configuration → Redirect URLs �
 ```bash
 Copy-Item .env.example .env.local   # заполнить VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY
 Copy-Item .env.e2e.example .env.e2e # заполнить E2E_EMAIL / E2E_PASSWORD (подтверждённый пользователь)
+                                 # + E2E_SIGNUP_EMAIL (реальный ящик для sign-up теста)
 npm run dev                          # http://localhost:5173
 npm run typecheck; npm run lint; npm test
 npx playwright install chromium      # один раз для e2e
@@ -110,10 +140,14 @@ node scripts/verify-rls.mjs         # ручная проверка RLS, тол�
 - `service_role` нигде не нужен и не используется — ни в приложении, ни в тестах, ни в скриптах.
 - Без `E2E_EMAIL` / `E2E_PASSWORD` e2e-файл скипается целиком, поэтому CI без секретов не падает.
 - Каждый e2e-тест работает в чистом контексте браузера: сессии между сценариями не протекают.
-- `sign-up` e2e-тест отправляет настоящее письмо подтверждения (Supabase считает такие
-  отправки поштучно, на проекте лимит срабатывает быстро) — запускайте полную suites
-  не чаще раза в час и удаляйте тестовых пользователей через Dashboard → Users.
-- Демо-данные для показа: `node scripts/seed-demo.mjs --dry-run` (план без записи),
+- `sign-up` e2e-тест регистрирует `+`-алиас реального ящика из `E2E_SIGNUP_EMAIL`
+  (при `Confirm email = OFF` сразу попадает в приложение; письма не ждёт и не
+  открывает). Без `E2E_SIGNUP_EMAIL` тест скипается, остальные зелёные.
+  Не выдумывайте адреса вида `e2e.signup.*@gmail.com`: несуществующие получатели
+  дали bounce rate, из-за которого Supabase ограничил дефолтный SMTP проекта.
+- Демо-данные для показа: сев идёт в отдельный демо-аккаунт (`VITE_DEMO_EMAIL` /
+  `VITE_DEMO_PASSWORD` в `.env.local`, не e2e-аккаунт),
+  `node scripts/seed-demo.mjs --dry-run` (план без записи),
   `node scripts/seed-demo.mjs --clean` (удалить только `Demo: `-строки). Сев идёт через
   PostgREST от имени пользователя (anon key + логин), без `service_role`.
 

@@ -3,6 +3,108 @@
 Обновляется перед каждой задачей. Выполненные пункты уезжают в `docs/progress.md`.
 Формат: один шаг = один коммит = одна проверяемая единица работы.
 
+## Итерация 3 — Demo readiness (ЗАКРЫТА 2026-11-04)
+
+> **Статус:** итерация закрыта единицами 1–4 + follow-up владельца:
+> `5416f9d` (сев + README-строка), `e1643ec` (сев в демо-аккаунт, не e2e),
+> `db9e981` (кнопка демо-входа), `84d7116` (гигиена e2e), этот коммит (документы)
+> + тег `v0.4.0`. Проверки на каждой единице: typecheck + lint (0 errors) +
+> `npm test` 294/294 + `build`. Миграции и RLS не тронуты.
+
+**Цель:** приложение готово к публичному показу: посетитель попадает внутрь одним кликом,
+регистрация не требует почты, репозиторий не содержит мусорных адресов, состояние этапа
+зафиксировано тегом. Новых продуктовых фич нет.
+
+**Контекст (факты на 2026-11-04):**
+
+- Phase 2 закрыта (единицы 1–6, 8, 9), Phase 2.5 (повторения, бывший Unit 7) закрыта
+  коммитами `c4074b2` + `9fa5bcf`. Проверки: `npm test` 289/289, `build` ok, e2e 10/10.
+- Прод: `https://lifeos-sepia-mu.vercel.app`; rewrites рабочие — проверено снаружи: `/` и
+  `/goals/:id` отдают SPA, не 404. Env `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` стоят
+  в Production и Preview.
+- **Supabase ограничил дефолтный SMTP проекта** `svbcpjpewzivqifyckkm` из-за bounce rate:
+  e2e гонял несуществующие адреса `e2e.signup.*@gmail.com`. Письма не уходят, ограничение
+  само не снимется.
+- **Решение 2026-11-04 (владелец):** на время демо **Confirm email = OFF**
+  (Authentication → Sign In / Providers → Email). Регистрация работает без письма, `signUp`
+  возвращает сессию; приложение уже умеет обе ветки (`needsConfirmation = session === null`
+  в `src/features/auth/api.ts`) — правок кода не требует.
+  Следствия, которые нельзя забыть: Forgot password, resend confirmation, invite и magic link
+  **не работают**; сброс пароля — только через Supabase Dashboard.
+
+**Границы итерации:**
+
+- Миграции и схему БД не трогать. RLS не ослаблять.
+- Секретов в git нет: демо-креды только в env (`.env.local`, Vercel).
+- Демо-аккаунт **обязан быть отдельным** от e2e-аккаунта (`E2E_EMAIL`): посетители правят демо,
+  а e2e-ассерты должны оставаться стабильными.
+
+### Порядок единиц (каждая = один коммит)
+
+1. **Сев демо-данных (файл написан, не закоммичен).**
+   Файл: `scripts/seed-demo.mjs` (untracked). Проверено: `--dry-run` печатает план без записи,
+   `eslint`/`prettier` чистые. Пишет через PostgREST от имени пользователя (anon + логин),
+   без `service_role`; все строки с префиксом `Demo: `, удаление — `--clean`.
+   Сделать: закоммитить + строка в README про сев. Логику не менять.
+   Проверка: `node scripts/seed-demo.mjs --dry-run`; затем `--clean` → 0 строк.
+
+2. **Кнопка демо-входа на `/sign-in`.**
+   Новые файлы:
+   - `src/features/auth/demoAccount.ts` — `getDemoCredentials()` читает `import.meta.env`
+     (`VITE_DEMO_EMAIL`, `VITE_DEMO_PASSWORD`) **в момент вызова**, возвращает `null`,
+     если одно из значений пустое; плюс `isDemoSignInAvailable()`.
+   - `src/features/auth/DemoSignInButton.tsx` — кнопка «Explore the demo account» + подпись
+     «Signs in to a shared demo account with sample goals and tasks.». Вызывает существующий
+     `signIn()` из `api.ts`; успех → `navigate("/", { replace: true })`; ошибка → текст через
+     `onError` (тот же канал, что `AuthAlert`); `disabled` пока запрос в полёте; без env →
+     `return null` (кнопки нет вообще).
+   - Вставка в `SignInPage.tsx` под формой: `<DemoSignInButton onError={setFormError} />`.
+   Запрещено: хардкодить креды в коде, использовать `service_role` или e2e-аккаунт,
+   трогать `AuthProvider`/RLS.
+   Тесты (`DemoSignInButton.test.tsx`, ≥4): без env — не рендерится; с `vi.stubEnv` — `signIn`
+   вызван с кредами и есть переход на `/`; ошибка `signIn` → сообщение в `onError`; кнопка
+   недоступна во время запроса.
+   Env: `.env.example` — закомментированные `VITE_DEMO_EMAIL` / `VITE_DEMO_PASSWORD` с пометкой
+   «public demo account, sample data only»; Vercel — Production и Preview.
+   Проверка: gate зелёный; на проде клик ведёт на дашборд с демо-данными.
+
+3. **Гигиена e2e (убрать причину блокировки почты).**
+   - `e2e/auth.spec.ts:92` регистрирует `e2e.signup.${stamp}@gmail.com` и ждёт «Check your email».
+     Сломано дважды: фейковые адреса дают bounce, а при `Confirm email = OFF` сессия возвращается
+     сразу и экран не появляется. Заменить на `E2E_SIGNUP_EMAIL` из env (реальный ящик с
+     `+`-алиасом), `test.skip(!E2E_SIGNUP_EMAIL, ...)`, ожидание — попадание в приложение (`/`).
+   - `e2e/recurrence.spec.ts` cleanup: сначала удалить правило (`recurrence_rules`), затем задачи.
+     Тогда докатка не может воскресить дату, и цикл «до 12 итераций» не нужен.
+   Проверка: `npm run test:e2e` без `E2E_SIGNUP_EMAIL` (skip, остальные зелёные), с ним —
+   регистрация проходит.
+
+4. **Документы и тег.**
+   - `docs/progress.md` — записи по Phase 2.5 и по этой итерации (числа, решения, остатки).
+   - `README.md` — раздел «Demo»: прод-ссылка, кнопка демо-входа, предупреждение
+     «shared demo account, данные одноразовые, восстановить: `scripts/seed-demo.mjs`»;
+     раздел «Email»: «confirmation disabled for the demo; password reset requires custom SMTP».
+   - `git tag -a v0.4.0 -m "Phase 2 + 2.5: goals, milestones, tasks, dashboard, recurrence"`
+     + `git push origin v0.4.0`.
+   Проверка: `git ls-remote --tags origin` показывает тег, `main` синхронен.
+
+5. **После демо — восстановление почты (отдельная итерация, не сейчас).**
+   - Custom SMTP (Brevo 300/день бесплатно или Resend), sender подтверждён.
+   - Authentication: `Confirm email = ON`.
+   - Удалить пользователей, созданных во время демо (Dashboard → Users).
+   - Прогнать `e2e/auth.spec.ts` с реальным `E2E_SIGNUP_EMAIL`.
+   - Отметить в `docs/progress.md`, что ограничение снято.
+
+### Проверка итерации
+
+`npm run typecheck && npm run lint && npm test && npm run build` зелёные на каждой единице.
+На проде: кнопка демо-входа → дашборд с данными; регистрация без письма → сразу в приложении;
+`/goals/:id` после F5 не 404.
+
+### Вне этой итерации
+
+Phase 3 (planner, time blocks, `0005_time_blocks`), AI assistant, восстановление
+Forgot password (ждёт SMTP), перевод e2e на admin API.
+
 ## Итерация 2 — Phase 2: Goals & Tasks (ЗАКРЫТА 2026-11-04)
 
 > **Статус:** итерация закрыта единицей 9 (этот план — исторический документ,
