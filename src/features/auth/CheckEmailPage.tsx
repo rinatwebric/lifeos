@@ -93,17 +93,17 @@ export function CheckEmailPage({ cooldownSeconds = RESEND_COOLDOWN_SECONDS }: Ch
   const resendDisabled = sending || cooldown > 0;
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       <div className="space-y-1">
-        <h1 className="text-xl font-semibold tracking-tight text-content">
+        <h1 className="text-heading font-semibold tracking-tight text-content">
           {CHECK_EMAIL_COPY.title}
         </h1>
-        <p className="text-sm text-muted">
+        <p className="text-ui text-muted">
           {CHECK_EMAIL_COPY.sentTo} <span className="font-medium text-content">{email}</span>
         </p>
       </div>
 
-      <p className="text-sm text-muted">{CHECK_EMAIL_COPY.spamHint}</p>
+      <p className="text-ui text-muted">{CHECK_EMAIL_COPY.spamHint}</p>
 
       {result ? <AuthAlert tone={result.tone}>{result.text}</AuthAlert> : null}
 
@@ -111,7 +111,7 @@ export function CheckEmailPage({ cooldownSeconds = RESEND_COOLDOWN_SECONDS }: Ch
         type="button"
         onClick={() => void onResend()}
         disabled={resendDisabled}
-        className="w-full rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-content transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+        className="h-11 w-full rounded-control bg-accent px-4 py-2 text-ui font-medium text-accent-content transition-[opacity] duration-fast ease-standard hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
       >
         {sending
           ? CHECK_EMAIL_COPY.resending
@@ -120,7 +120,7 @@ export function CheckEmailPage({ cooldownSeconds = RESEND_COOLDOWN_SECONDS }: Ch
             : CHECK_EMAIL_COPY.resend}
       </button>
 
-      <p className="text-center text-sm text-muted">
+      <p className="text-center text-ui text-muted">
         {CHECK_EMAIL_COPY.backPrompt}{" "}
         <Link to="/sign-in" className="font-medium text-content underline-offset-4 hover:underline">
           {CHECK_EMAIL_COPY.backLink}

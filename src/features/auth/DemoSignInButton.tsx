@@ -63,7 +63,7 @@ export function DemoSignInButton({ onError }: DemoSignInButtonProps) {
       >
         {pending ? DEMO_SIGN_IN_COPY.pending : DEMO_SIGN_IN_COPY.button}
       </Button>
-      <p className="text-xs text-muted">{DEMO_SIGN_IN_COPY.caption}</p>
+      <p className="text-micro text-muted">{DEMO_SIGN_IN_COPY.caption}</p>
     </div>
   );
 }

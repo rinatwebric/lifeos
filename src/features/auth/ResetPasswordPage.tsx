@@ -98,12 +98,12 @@ export function ResetPasswordPage({ initialMode = "request" }: ResetPasswordPage
 
   if (mode === "update") {
     return (
-      <div className="space-y-5">
+      <div className="space-y-6">
         <div className="space-y-1">
-          <h1 className="text-xl font-semibold tracking-tight text-content">
+          <h1 className="text-heading font-semibold tracking-tight text-content">
             {RESET_PASSWORD_COPY.updateTitle}
           </h1>
-          <p className="text-sm text-muted">{RESET_PASSWORD_COPY.updateSubtitle}</p>
+          <p className="text-ui text-muted">{RESET_PASSWORD_COPY.updateSubtitle}</p>
         </div>
 
         {formError ? <AuthAlert tone="error">{formError}</AuthAlert> : null}
@@ -141,12 +141,12 @@ export function ResetPasswordPage({ initialMode = "request" }: ResetPasswordPage
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       <div className="space-y-1">
-        <h1 className="text-xl font-semibold tracking-tight text-content">
+        <h1 className="text-heading font-semibold tracking-tight text-content">
           {RESET_PASSWORD_COPY.requestTitle}
         </h1>
-        <p className="text-sm text-muted">{RESET_PASSWORD_COPY.requestSubtitle}</p>
+        <p className="text-ui text-muted">{RESET_PASSWORD_COPY.requestSubtitle}</p>
       </div>
 
       {expiredLink ? <AuthAlert tone="error">{RESET_PASSWORD_COPY.expiredLink}</AuthAlert> : null}
@@ -175,7 +175,7 @@ export function ResetPasswordPage({ initialMode = "request" }: ResetPasswordPage
         </AuthSubmit>
       </form>
 
-      <p className="text-center text-sm text-muted">
+      <p className="text-center text-ui text-muted">
         <Link to="/sign-in" className="font-medium text-content underline-offset-4 hover:underline">
           {RESET_PASSWORD_COPY.backToSignIn}
         </Link>

@@ -25,7 +25,7 @@ export function AppLayout() {
   const showOnboarding = status === "authenticated" && profileQuery.data?.onboardedAt === null;
 
   return (
-    <div className="flex min-h-screen flex-col bg-canvas text-content lg:flex-row">
+    <div className="flex min-h-dvh flex-col bg-canvas text-content lg:flex-row">
       <Sidebar />
 
       <div className="flex min-w-0 flex-1 flex-col">

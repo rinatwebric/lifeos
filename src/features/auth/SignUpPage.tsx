@@ -64,10 +64,10 @@ export function SignUpPage() {
   };
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       <div className="space-y-1">
-        <h1 className="text-xl font-semibold tracking-tight text-content">{SIGN_UP_COPY.title}</h1>
-        <p className="text-sm text-muted">{SIGN_UP_COPY.subtitle}</p>
+        <h1 className="text-heading font-semibold tracking-tight text-content">{SIGN_UP_COPY.title}</h1>
+        <p className="text-ui text-muted">{SIGN_UP_COPY.subtitle}</p>
       </div>
 
       {formError ? <AuthAlert tone="error">{formError}</AuthAlert> : null}
@@ -110,7 +110,7 @@ export function SignUpPage() {
             {...register("password")}
           />
           {!errors.password ? (
-            <p id="sign-up-password-hint" className="mt-1 text-xs text-muted">
+            <p id="sign-up-password-hint" className="mt-1 text-caption text-muted">
               {SIGN_UP_COPY.passwordHint}
             </p>
           ) : null}
@@ -120,7 +120,7 @@ export function SignUpPage() {
         </AuthSubmit>
       </form>
 
-      <p className="text-center text-sm text-muted">
+      <p className="text-center text-ui text-muted">
         {SIGN_UP_COPY.signInPrompt}{" "}
         <Link to="/sign-in" className="font-medium text-content underline-offset-4 hover:underline">
           {SIGN_UP_COPY.signInLink}

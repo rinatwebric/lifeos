@@ -94,10 +94,10 @@ export function SignInPage() {
   };
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       <div className="space-y-1">
-        <h1 className="text-xl font-semibold tracking-tight text-content">{SIGN_IN_COPY.title}</h1>
-        <p className="text-sm text-muted">{SIGN_IN_COPY.subtitle}</p>
+        <h1 className="text-heading font-semibold tracking-tight text-content">{SIGN_IN_COPY.title}</h1>
+        <p className="text-ui text-muted">{SIGN_IN_COPY.subtitle}</p>
       </div>
 
       {state?.passwordReset ? (
@@ -113,7 +113,7 @@ export function SignInPage() {
             type="button"
             onClick={() => void onResend()}
             disabled={resendStatus !== "idle"}
-            className="mt-2 font-medium text-content underline underline-offset-4 disabled:cursor-not-allowed disabled:opacity-60"
+            className="mt-2 inline-flex min-h-11 items-center font-medium text-content underline underline-offset-4 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {resendStatus === "sending"
               ? SIGN_IN_COPY.resending
@@ -153,7 +153,7 @@ export function SignInPage() {
 
       <DemoSignInButton onError={setFormError} />
 
-      <div className="space-y-2 text-center text-sm text-muted">
+      <div className="space-y-2 text-center text-ui text-muted">
         <p>
           {SIGN_IN_COPY.resetPrompt}{" "}
           <Link

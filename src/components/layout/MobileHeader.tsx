@@ -13,12 +13,15 @@ export function MobileHeader() {
         aria-label="Settings"
         className={({ isActive }) =>
           cn(
-            "grid size-9 place-items-center rounded-lg text-muted transition-colors hover:bg-surface-muted hover:text-content",
+            "relative grid size-9 place-items-center rounded-control text-muted transition-[color,background-color] duration-fast ease-standard hover:bg-surface-muted hover:text-content",
+            // Visible control stays 36px; the hit area reaches 44×44 without
+            // touching the Brand link (hit-areas.md: expand, don't collide).
+            "after:absolute after:-inset-1 after:content-['']",
             isActive && "bg-canvas text-content",
           )
         }
       >
-        <Settings className="size-4.5" aria-hidden="true" />
+        <Settings className="size-4.5" strokeWidth={2} absoluteStrokeWidth aria-hidden="true" />
       </NavLink>
     </header>
   );

@@ -14,7 +14,7 @@ export function AuthField({ id, label, error, className, ...inputProps }: AuthFi
 
   return (
     <div className="space-y-1.5">
-      <label htmlFor={id} className="block text-sm font-medium text-content">
+      <label htmlFor={id} className="block text-ui font-medium text-content">
         {label}
       </label>
       <input
@@ -22,15 +22,16 @@ export function AuthField({ id, label, error, className, ...inputProps }: AuthFi
         aria-invalid={error ? true : undefined}
         aria-describedby={error ? errorId : undefined}
         className={cn(
-          "w-full rounded-lg border bg-surface px-3 py-2 text-sm text-content",
+          "w-full rounded-control border bg-surface px-3 py-2 text-base text-content",
           "placeholder:text-muted focus:border-focus disabled:cursor-not-allowed disabled:opacity-60",
-          error ? "border-red-400" : "border-line",
+          "transition-[border-color] duration-fast ease-standard sm:text-ui",
+          error ? "border-danger" : "border-control",
           className,
         )}
         {...inputProps}
       />
       {error ? (
-        <p id={errorId} role="alert" className="text-xs text-red-600 dark:text-red-400">
+        <p id={errorId} role="alert" className="text-micro text-danger">
           {error}
         </p>
       ) : null}
@@ -50,7 +51,7 @@ export function AuthSubmit({ pending, pendingLabel, children }: AuthSubmitProps)
     <button
       type="submit"
       disabled={pending}
-      className="w-full rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-content transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+      className="h-11 w-full rounded-control bg-accent px-4 py-2 text-ui font-medium text-accent-content transition-[opacity] duration-fast ease-standard hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
     >
       {pending ? pendingLabel : children}
     </button>
@@ -70,11 +71,9 @@ export function AuthAlert({ tone, children }: AuthAlertProps) {
     <div
       role={role}
       className={cn(
-        "rounded-lg border px-3 py-2 text-sm",
-        tone === "error" &&
-          "border-red-300 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200",
-        tone === "success" &&
-          "border-green-300 bg-green-50 text-green-800 dark:border-green-900 dark:bg-green-950/40 dark:text-green-200",
+        "rounded-control border px-3 py-2 text-ui",
+        tone === "error" && "border-danger-border bg-danger-subtle text-danger",
+        tone === "success" && "border-success-border bg-success-subtle text-success",
         tone === "info" && "border-line bg-surface-muted text-muted",
       )}
     >

@@ -152,6 +152,10 @@
 @layer base {
   html {
     -webkit-text-size-adjust: 100%;
+    /* Sticky mobile header + fixed bottom nav must never cover a focused
+       element or an anchor target (better-layout "content bleeds"). */
+    scroll-padding-block-start: 4rem;
+    scroll-padding-block-end: 5rem;
   }
 
   body {
