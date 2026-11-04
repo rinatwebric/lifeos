@@ -71,6 +71,7 @@ export function ChatPanel() {
     conversationId: string;
   } | null>(null);
   const [reviewOpen, setReviewOpen] = useState(false);
+  const [decisionNotice, setDecisionNotice] = useState<string | null>(null);
   const userTimeZone =
     typeof Intl !== "undefined"
       ? (Intl.DateTimeFormat().resolvedOptions().timeZone ?? "UTC")
@@ -91,6 +92,7 @@ export function ChatPanel() {
       });
       setDraft("");
       setSelectedId(result.conversationId);
+      setDecisionNotice(null);
       setLastProposal({
         proposalId: result.proposalId,
         proposal: result.proposal,
@@ -243,6 +245,12 @@ export function ChatPanel() {
           </div>
         ) : null}
 
+        {decisionNotice ? (
+          <p role="status" className="text-ui text-muted">
+            {decisionNotice}
+          </p>
+        ) : null}
+
         <form
           className="space-y-2"
           onSubmit={(event) => {
@@ -305,12 +313,18 @@ export function ChatPanel() {
     </div>
     {showReview && lastProposal ? (
       <ProposalModal
+        key={lastProposal.proposalId}
         open={reviewOpen}
         proposalId={lastProposal.proposalId}
         proposal={lastProposal.proposal}
         timeZone={userTimeZone}
         onClose={() => setReviewOpen(false)}
-        onDecided={() => {
+        onDecided={(outcome) => {
+          if (outcome.kind === "approved") {
+            setDecisionNotice(`Applied ${outcome.applied} of ${outcome.total} actions.`);
+          } else {
+            setDecisionNotice("Rejected. Nothing was changed.");
+          }
           setLastProposal(null);
           setReviewOpen(false);
         }}

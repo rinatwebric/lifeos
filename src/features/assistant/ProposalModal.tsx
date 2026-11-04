@@ -8,13 +8,23 @@ import { ASSISTANT_ERROR_MESSAGES, AssistantServiceError } from "./errors";
 import { useApproveProposal, useRejectProposal } from "./hooks";
 import { ProposalActionRow } from "./ProposalActionRow";
 
+export interface ProposalDecisionOutcome {
+  kind: "approved";
+  applied: number;
+  total: number;
+}
+
+export type ProposalDecided =
+  | ProposalDecisionOutcome
+  | { kind: "rejected" };
+
 export interface ProposalModalProps {
   open: boolean;
   proposalId: string;
   proposal: AssistantProposal;
   timeZone: string;
   onClose: () => void;
-  onDecided?: () => void;
+  onDecided?: (outcome: ProposalDecided) => void;
 }
 
 function errorCopy(error: unknown): { code: string; text: string; showRetry: boolean } {
@@ -67,8 +77,8 @@ export function ProposalModal({
 
   const handleAcceptAll = async (): Promise<void> => {
     try {
-      await approveMutation.mutateAsync({ proposalId, selectedIndexes: allIndexes });
-      onDecided?.();
+      const result = await approveMutation.mutateAsync({ proposalId, selectedIndexes: allIndexes });
+      onDecided?.({ kind: "approved", applied: result.applied, total: result.total });
       onClose();
     } catch {
       // Error surfaces through approveMutation.error with a coded message.
@@ -78,8 +88,8 @@ export function ProposalModal({
   const handleAcceptSelected = async (): Promise<void> => {
     try {
       const sorted = [...selected].sort((a, b) => a - b);
-      await approveMutation.mutateAsync({ proposalId, selectedIndexes: sorted });
-      onDecided?.();
+      const result = await approveMutation.mutateAsync({ proposalId, selectedIndexes: sorted });
+      onDecided?.({ kind: "approved", applied: result.applied, total: result.total });
       onClose();
     } catch {
       // Error surfaces through approveMutation.error.
@@ -89,7 +99,7 @@ export function ProposalModal({
   const handleReject = async (): Promise<void> => {
     try {
       await rejectMutation.mutateAsync(proposalId);
-      onDecided?.();
+      onDecided?.({ kind: "rejected" });
       onClose();
     } catch {
       // Error surfaces through rejectMutation.error.
@@ -101,7 +111,7 @@ export function ProposalModal({
       open={open}
       onClose={onClose}
       title="Review proposal"
-      description="Nothing is applied yet. Choose which actions to accept — the rest stay untouched."
+      description="Nothing is applied yet. Only the checked actions will be applied — unchecked actions are discarded with the proposal."
     >
       <div className="space-y-4">
         <div className="space-y-1">
@@ -173,7 +183,8 @@ export function ProposalModal({
           </Button>
         </div>
         <p className="text-micro text-muted">
-          Accept applies only the checked actions. Reject discards the whole proposal.
+          Accept applies only the checked actions. Unchecked actions are discarded with the
+          proposal. Reject discards the whole proposal.
         </p>
       </div>
     </Dialog>

@@ -173,4 +173,133 @@ describe("ChatPanel", () => {
     expect(screen.getByLabelText("Message")).toBeDisabled();
     expect(screen.getByRole("button", { name: "Send" })).toBeDisabled();
   });
+
+  it("shows Applied N of M actions after approve and clears on next send", async () => {
+    const user = userEvent.setup();
+    stubQueries();
+    const sendMutate = vi.fn().mockResolvedValue({
+      conversationId: "conv-1",
+      userMessageId: "u-1",
+      assistantMessageId: "a-1",
+      proposalId: "p-1",
+      proposal: {
+        proposalType: "task_creation",
+        summary: "Two starter tasks.",
+        reasoning: "Small steps first.",
+        actions: [
+          {
+            type: "create_task",
+            title: "Write the outline",
+            description: null,
+            goalId: null,
+            milestoneId: null,
+            priority: null,
+            dueDate: null,
+            estimatedDurationMinutes: null,
+          },
+          {
+            type: "create_task",
+            title: "Read one chapter",
+            description: null,
+            goalId: null,
+            milestoneId: null,
+            priority: null,
+            dueDate: null,
+            estimatedDurationMinutes: null,
+          },
+        ],
+      },
+    });
+    mockedSend.mockReturnValue({
+      mutateAsync: sendMutate,
+      isPending: false,
+      error: null,
+      reset: vi.fn(),
+    } as unknown as ReturnType<typeof useSendMessage>);
+    const approveMutate = vi.fn().mockResolvedValue({
+      proposalId: "p-1",
+      status: "approved",
+      conversationId: "conv-1",
+      applied: 2,
+      total: 2,
+    });
+    mockedApprove.mockReturnValue({
+      mutateAsync: approveMutate,
+      isPending: false,
+      error: null,
+      reset: vi.fn(),
+    } as unknown as ReturnType<typeof useApproveProposal>);
+
+    render(<ChatPanel />);
+
+    await user.type(screen.getByLabelText("Message"), "Plan my week");
+    await user.click(screen.getByRole("button", { name: "Send" }));
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Review proposal" })).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("button", { name: "Review proposal" }));
+    await user.click(screen.getByRole("button", { name: "Accept all" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("status")).toHaveTextContent("Applied 2 of 2 actions.");
+    });
+    expect(screen.queryByRole("button", { name: "Review proposal" })).not.toBeInTheDocument();
+
+    await user.type(screen.getByLabelText("Message"), "Another week");
+    await user.click(screen.getByRole("button", { name: "Send" }));
+    await waitFor(() => {
+      expect(screen.queryByText("Applied 2 of 2 actions.")).not.toBeInTheDocument();
+    });
+  });
+
+  it("shows Rejected. Nothing was changed. after reject", async () => {
+    const user = userEvent.setup();
+    stubQueries();
+    mockedSend.mockReturnValue({
+      mutateAsync: vi.fn().mockResolvedValue({
+        conversationId: "conv-1",
+        userMessageId: "u-1",
+        assistantMessageId: "a-1",
+        proposalId: "p-1",
+        proposal: {
+          proposalType: "task_creation",
+          summary: "Two starter tasks.",
+          reasoning: "Small steps first.",
+          actions: [],
+        },
+      }),
+      isPending: false,
+      error: null,
+      reset: vi.fn(),
+    } as unknown as ReturnType<typeof useSendMessage>);
+    const rejectMutate = vi.fn().mockResolvedValue({
+      proposalId: "p-1",
+      status: "rejected",
+      conversationId: "conv-1",
+      applied: 0,
+      total: 0,
+    });
+    mockedReject.mockReturnValue({
+      mutateAsync: rejectMutate,
+      isPending: false,
+      error: null,
+      reset: vi.fn(),
+    } as unknown as ReturnType<typeof useRejectProposal>);
+
+    render(<ChatPanel />);
+
+    await user.type(screen.getByLabelText("Message"), "Plan my week");
+    await user.click(screen.getByRole("button", { name: "Send" }));
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Review proposal" })).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("button", { name: "Review proposal" }));
+    await user.click(screen.getByRole("button", { name: "Reject" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("status")).toHaveTextContent("Rejected. Nothing was changed.");
+    });
+  });
 });

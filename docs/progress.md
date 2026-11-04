@@ -1491,3 +1491,31 @@ PostgREST отдаёт `timestamptz` с `"+00:00"` и `time` как `"HH:MM:SS"`
 - Миграция 0006 НЕ применена, функция НЕ задеплоена — UI и claim проверены
   моками/фейками; живого ключа нет и не использовался.
 - Дальше — шаг 9 (weekly review, e2e на stub, документы).
+
+## 2026-11-04 — Итерация 5, ревью-фикс шага 8 (selection reset + честный статус)
+
+**Сделано (один коммит)**
+
+- `ChatPanel.tsx`: `ProposalModal` получил `key={lastProposal.proposalId}` —
+  состояние чекбоксов не переживает смену предложения; добавлен
+  `decisionNotice` (`role="status"`): после approve — «Applied N of M
+  actions.» из результата `approveProposal`, после reject — «Rejected. Nothing
+  was changed.»; сбрасывается при новой отправке.
+- `ProposalModal.tsx:104,175-177`: честная формулировка — применяются только
+  отмеченные, неотмеченные отбрасываются вместе с предложением (не «stay
+  untouched»); описание и футер обновлены.
+- Тест «a second proposal starts fully selected» (`ProposalModal.test.tsx`):
+  A с 3 действиями, снять галку, заменить на B с 5 действиями — все 5
+  отмечены, счётчик 5 (проверяет remount по key).
+- `ChatPanel.test.tsx`: +2 теста статуса approve/reject (approve с
+  `Applied 2 of 2`, reject с `Rejected…`, сброс при новой отправке).
+- `docs/plan-phase-4.md`: окно claim→apply (краш оставляет
+  `approved+applied_at` без данных, повтор запрещён 409) и бэклог 0007 RPC
+  `apply_proposal`.
+
+**Проверено (числа)**
+
+- `npm run typecheck` — ok
+- `npm run lint` — 0 errors, 16 warnings (те же известные классы)
+- `npm test` — **694/694 в 71 файле** (было 691/71: +1 key-reset, +2 статуса)
+- `npm run build` — ok

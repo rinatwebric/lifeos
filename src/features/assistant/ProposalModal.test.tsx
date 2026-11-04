@@ -251,4 +251,61 @@ describe("ProposalModal", () => {
     expect(screen.getByText(ASSISTANT_ERROR_MESSAGES.validation_failed)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Dismiss" })).toBeInTheDocument();
   });
+
+  it("a second proposal starts fully selected", async () => {
+    const user = userEvent.setup();
+    stubMutations();
+
+    const fiveActions: AssistantProposal = {
+      proposalType: "task_creation",
+      summary: "Five next steps.",
+      reasoning: "A bigger batch for the week ahead.",
+      actions: [0, 1, 2, 3, 4].map((index) => ({
+        type: "create_task",
+        title: `Task ${index + 1}`,
+        description: null,
+        goalId: null,
+        milestoneId: null,
+        priority: null,
+        dueDate: null,
+        estimatedDurationMinutes: null,
+      })),
+    };
+
+    const { rerender } = render(
+      <ProposalModal
+        key="proposal-A"
+        open
+        proposalId="proposal-A"
+        proposal={PROPOSAL}
+        timeZone="UTC"
+        onClose={vi.fn()}
+      />,
+    );
+
+    const firstDialog = screen.getByRole("dialog", { name: "Review proposal" });
+    const firstBoxes = within(firstDialog).getAllByRole("checkbox");
+    expect(firstBoxes).toHaveLength(3);
+    await user.click(firstBoxes[0]);
+    expect(screen.getByRole("button", { name: /Accept selected \(2\)/ })).toBeInTheDocument();
+
+    rerender(
+      <ProposalModal
+        key="proposal-B"
+        open
+        proposalId="proposal-B"
+        proposal={fiveActions}
+        timeZone="UTC"
+        onClose={vi.fn()}
+      />,
+    );
+
+    const secondDialog = screen.getByRole("dialog", { name: "Review proposal" });
+    const secondBoxes = within(secondDialog).getAllByRole("checkbox");
+    expect(secondBoxes).toHaveLength(5);
+    for (const box of secondBoxes) {
+      expect(box).toBeChecked();
+    }
+    expect(screen.getByRole("button", { name: /Accept selected \(5\)/ })).toBeInTheDocument();
+  });
 });
