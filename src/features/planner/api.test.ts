@@ -35,6 +35,8 @@ interface BuilderMocks {
   eq: ReturnType<typeof vi.fn>;
   gt: ReturnType<typeof vi.fn>;
   lt: ReturnType<typeof vi.fn>;
+  neq: ReturnType<typeof vi.fn>;
+  limit: ReturnType<typeof vi.fn>;
   order: ReturnType<typeof vi.fn>;
   select: ReturnType<typeof vi.fn>;
   insert: ReturnType<typeof vi.fn>;
@@ -49,6 +51,8 @@ function mockBuilder(thenResult: unknown, singleResult?: unknown): BuilderMocks 
   const eq = vi.fn();
   const gt = vi.fn();
   const lt = vi.fn();
+  const neq = vi.fn();
+  const limit = vi.fn();
   const order = vi.fn();
   const select = vi.fn();
   const insert = vi.fn();
@@ -56,12 +60,14 @@ function mockBuilder(thenResult: unknown, singleResult?: unknown): BuilderMocks 
   const deleteFn = vi.fn();
   const single = vi.fn();
 
-  Object.assign(builder, { eq, gt, lt, order, select, insert, update, single });
+  Object.assign(builder, { eq, gt, lt, neq, limit, order, select, insert, update, single });
   builder["delete"] = deleteFn;
 
   eq.mockReturnValue(builder);
   gt.mockReturnValue(builder);
   lt.mockReturnValue(builder);
+  neq.mockReturnValue(builder);
+  limit.mockReturnValue(builder);
   order.mockReturnValue(builder);
   select.mockReturnValue(builder);
   insert.mockReturnValue(builder);
@@ -76,7 +82,7 @@ function mockBuilder(thenResult: unknown, singleResult?: unknown): BuilderMocks 
     ) => Promise.resolve(thenResult).then(onFulfilled, onRejected),
   });
 
-  return { eq, gt, lt, order, select, insert, update, delete: deleteFn, single, builder: withThen };
+  return { eq, gt, lt, neq, limit, order, select, insert, update, delete: deleteFn, single, builder: withThen };
 }
 
 function stubClient(authUserId: string | null, fromEntry: ReturnType<typeof vi.fn>) {
@@ -307,7 +313,7 @@ describe("planner api", () => {
 
   it("deleteBlock clears the task mirror and deletes the block in one call", async () => {
     const blocks = mockBuilder(
-      { data: null, error: null },
+      { data: [], error: null },
       { data: { task_id: "t1" }, error: null },
     );
     const mirror = mockBuilder({ data: null, error: null });
@@ -340,7 +346,7 @@ describe("planner api", () => {
 
   it("does not delete the block when clearing the mirror fails", async () => {
     const blocks = mockBuilder(
-      { data: null, error: null },
+      { data: [], error: null },
       { data: { task_id: "t1" }, error: null },
     );
     const mirror = mockBuilder({ data: null, error: { code: "42501", message: "denied" } });
@@ -351,6 +357,151 @@ describe("planner api", () => {
 
     await expect(deleteBlock("b1")).rejects.toMatchObject({ code: "forbidden" });
     expect(blocks.delete).not.toHaveBeenCalled();
+  });
+
+  it("updateBlock with new start/end mirrors the final pair to the task", async () => {
+    const nextStart = "2026-11-04T12:00:00.000Z";
+    const nextEnd = "2026-11-04T13:00:00.000Z";
+    const updated = blockRow({
+      id: "b1",
+      task_id: "t1",
+      block_type: "task",
+      start_time: nextStart,
+      end_time: nextEnd,
+    });
+    const blocks = mockBuilder(
+      { data: null, error: null },
+      { data: updated, error: null },
+    );
+    const mirror = mockBuilder({ data: null, error: null });
+    const fromEntry = vi.fn((table: string) =>
+      table === "tasks" ? mirror.builder : blocks.builder,
+    );
+    stubClient("u1", fromEntry);
+
+    const result = await updateBlock("b1", { startTime: nextStart, endTime: nextEnd });
+
+    expect(result.startTime).toBe(nextStart);
+    expect(result.endTime).toBe(nextEnd);
+    expect(mirror.update).toHaveBeenCalledWith({
+      scheduled_start: nextStart,
+      scheduled_end: nextEnd,
+    });
+    expect(mirror.eq).toHaveBeenCalledWith("id", "t1");
+    expect(mirror.eq).toHaveBeenCalledWith("user_id", "u1");
+  });
+
+  it("updateBlock with only a title leaves tasks untouched", async () => {
+    const updated = blockRow({ id: "b1", title: "Renamed" });
+    const { builder, update } = mockBuilder(
+      { data: null, error: null },
+      { data: updated, error: null },
+    );
+    const fromEntry = vi.fn().mockReturnValue(builder);
+    stubClient("u1", fromEntry);
+
+    await updateBlock("b1", { title: "Renamed" });
+
+    expect(update).toHaveBeenCalled();
+    expect(fromEntry).not.toHaveBeenCalledWith("tasks");
+  });
+
+  it("updateBlock with new times on a break block leaves tasks untouched", async () => {
+    const nextStart = "2026-11-04T12:00:00.000Z";
+    const nextEnd = "2026-11-04T12:30:00.000Z";
+    const updated = blockRow({
+      id: "b2",
+      task_id: null,
+      block_type: "break",
+      start_time: nextStart,
+      end_time: nextEnd,
+    });
+    const { builder } = mockBuilder(
+      { data: null, error: null },
+      { data: updated, error: null },
+    );
+    const fromEntry = vi.fn().mockReturnValue(builder);
+    stubClient("u1", fromEntry);
+
+    const result = await updateBlock("b2", { startTime: nextStart, endTime: nextEnd });
+
+    expect(result.startTime).toBe(nextStart);
+    expect(fromEntry).not.toHaveBeenCalledWith("tasks");
+  });
+
+  it("updateBlock surfaces the mirror error without hiding the block write", async () => {
+    const nextStart = "2026-11-04T12:00:00.000Z";
+    const nextEnd = "2026-11-04T13:00:00.000Z";
+    const updated = blockRow({
+      id: "b1",
+      task_id: "t1",
+      block_type: "task",
+      start_time: nextStart,
+      end_time: nextEnd,
+    });
+    const blocks = mockBuilder(
+      { data: null, error: null },
+      { data: updated, error: null },
+    );
+    const mirror = mockBuilder({ data: null, error: { code: "42501", message: "denied" } });
+    const fromEntry = vi.fn((table: string) =>
+      table === "tasks" ? mirror.builder : blocks.builder,
+    );
+    stubClient("u1", fromEntry);
+
+    await expect(
+      updateBlock("b1", { startTime: nextStart, endTime: nextEnd }),
+    ).rejects.toMatchObject({ code: "forbidden" });
+    expect(blocks.update).toHaveBeenCalled();
+    expect(mirror.update).toHaveBeenCalledWith({
+      scheduled_start: nextStart,
+      scheduled_end: nextEnd,
+    });
+  });
+
+  it("deleteBlock with a surviving block repoints the mirror instead of nulling it", async () => {
+    const survivor = {
+      id: "b2",
+      start_time: "2026-11-04T14:00:00.000Z",
+      end_time: "2026-11-04T15:00:00.000Z",
+    };
+    const blocks = mockBuilder(
+      { data: [survivor], error: null },
+      { data: { task_id: "t1" }, error: null },
+    );
+    const mirror = mockBuilder({ data: null, error: null });
+    const fromEntry = vi.fn((table: string) =>
+      table === "tasks" ? mirror.builder : blocks.builder,
+    );
+    stubClient("u1", fromEntry);
+
+    await deleteBlock("b1");
+
+    expect(blocks.neq).toHaveBeenCalledWith("id", "b1");
+    expect(blocks.limit).toHaveBeenCalledWith(1);
+    expect(mirror.update).toHaveBeenCalledWith({
+      scheduled_start: survivor.start_time,
+      scheduled_end: survivor.end_time,
+    });
+    expect(mirror.eq).toHaveBeenCalledWith("id", "t1");
+    expect(blocks.delete).toHaveBeenCalledOnce();
+  });
+
+  it("deleteBlock with the last block clears the mirror to null", async () => {
+    const blocks = mockBuilder(
+      { data: [], error: null },
+      { data: { task_id: "t1" }, error: null },
+    );
+    const mirror = mockBuilder({ data: null, error: null });
+    const fromEntry = vi.fn((table: string) =>
+      table === "tasks" ? mirror.builder : blocks.builder,
+    );
+    stubClient("u1", fromEntry);
+
+    await deleteBlock("b1");
+
+    expect(mirror.update).toHaveBeenCalledWith({ scheduled_start: null, scheduled_end: null });
+    expect(blocks.delete).toHaveBeenCalledOnce();
   });
 
   it("maps CHECK, RLS, auth, duplicate and unknown failures to codes only", async () => {

@@ -164,6 +164,15 @@ export async function createBlock(input: CreateBlockInput): Promise<TimeBlock> {
  * existing link, and unlinking the goal-side equivalent (setting `taskId`
  * to null on a task block) is rejected instead of storing an orphan.
  * This function contains no scheduling math and no overdue logic.
+ *
+ * Д8 mirror rule: the task mirror (`scheduled_start` / `scheduled_end`)
+ * always points at an existing block. When the patch moves either edge
+ * (`startTime` and/or `endTime`) of a task block, the linked task is
+ * updated with the final row's pair in one `update` by `id + user_id`.
+ * Blocks without a task (`break`/`personal`) never touch `tasks`. A
+ * failed mirror write throws (code from `errors.ts`) instead of silently
+ * returning the updated block — the block row stays changed, the caller
+ * sees the error.
  */
 export async function updateBlock(id: string, patch: UpdateBlockInput): Promise<TimeBlock> {
   try {
@@ -251,20 +260,42 @@ export async function updateBlock(id: string, patch: UpdateBlockInput): Promise<
       throw toBlockError(error);
     }
 
-    return mapTimeBlockRowToTimeBlock(data as TimeBlocksRow);
+    const updatedRow = data as TimeBlocksRow;
+    const touchesTime = patch.startTime !== undefined || patch.endTime !== undefined;
+
+    if (touchesTime && updatedRow.task_id !== null) {
+      const { error: mirrorError } = await client
+        .from("tasks")
+        .update({
+          scheduled_start: updatedRow.start_time,
+          scheduled_end: updatedRow.end_time,
+        })
+        .eq("id", updatedRow.task_id)
+        .eq("user_id", userId);
+
+      if (mirrorError) {
+        throw toBlockError(mirrorError);
+      }
+    }
+
+    return mapTimeBlockRowToTimeBlock(updatedRow);
   } catch (error) {
     throw toBlockError(error);
   }
 }
 
 /**
- * Д8: deleting a block clears the mirror (`scheduled_start` /
- * `scheduled_end`) on the linked task, otherwise the Dashboard — which
- * reads tasks, not blocks — would keep showing "scheduled" with no block
- * behind it. One service call from the caller's perspective (a single
- * mutation, a single error channel): fetch the link, clear the mirror when
- * present, then delete the block. Break/personal blocks skip the tasks
- * write entirely.
+ * Д8: the task mirror (`scheduled_start` / `scheduled_end`) always points
+ * at an existing block, otherwise the Dashboard — which reads tasks, not
+ * blocks — would keep showing "scheduled" with no block behind it (or lie
+ * the opposite way: "not scheduled" while a block exists). One service
+ * call from the caller's perspective (a single mutation, a single error
+ * channel): fetch the link, then with a single remaining-blocks query
+ * (no loops) decide the mirror — repoint it at the surviving block when
+ * the task keeps another block, clear it to null only when no blocks
+ * remain — then delete the block. Break/personal blocks skip the tasks
+ * write entirely. A failed mirror write throws before the delete, so the
+ * block stays and the caller sees the error.
  */
 export async function deleteBlock(id: string): Promise<void> {
   try {
@@ -285,9 +316,30 @@ export async function deleteBlock(id: string): Promise<void> {
     const taskId = (current as Pick<TimeBlocksRow, "task_id"> | null)?.task_id ?? null;
 
     if (taskId !== null) {
+      const { data: siblings, error: siblingsError } = await client
+        .from("time_blocks")
+        .select("id,start_time,end_time")
+        .eq("task_id", taskId)
+        .eq("user_id", userId)
+        .neq("id", id)
+        .order("start_time", { ascending: true })
+        .limit(1);
+
+      if (siblingsError) {
+        throw toBlockError(siblingsError);
+      }
+
+      const survivor = (Array.isArray(siblings) ? siblings : [])[0] as
+        | Pick<TimeBlocksRow, "start_time" | "end_time">
+        | undefined;
+
       const { error: mirrorError } = await client
         .from("tasks")
-        .update({ scheduled_start: null, scheduled_end: null })
+        .update(
+          survivor
+            ? { scheduled_start: survivor.start_time, scheduled_end: survivor.end_time }
+            : { scheduled_start: null, scheduled_end: null },
+        )
         .eq("id", taskId)
         .eq("user_id", userId);
 
