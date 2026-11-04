@@ -708,3 +708,25 @@ MobileNav, Brand, SetupBanner) и экраны (`features/**`, `AuthLayout`), г
 
 **Осталось:** шаг 3 разбит на две единицы: 3a — дашборд и настройки; 3b — цели, задачи,
 диалоги, `RequireAuth`-заглушки. После них — возврат к планировщику (единицы 4–7).
+
+## 2026-11-04 — Дизайн, шаг 3a: дашборд и настройки (`e02f0b6`)
+
+**Сделано:** 5 файлов — `DashboardPage`, `SettingsPage`, `PreferencesForm`, `OnboardingDialog`,
+`Sidebar` (устаревший ярлык «Phase 1 · Foundation» → «Phase 3 · Planner in progress»). Литералы
+`red-*`/`green-*`/`text-xs`/`text-sm` заменены ролями `danger`/`success` и шкалой `text-ui/micro`;
+время, проценты и счётчики получили `tabular-nums`; чекбокс задачи обёрнут в `<label>` с
+`-m-3.5 p-3.5` (визуал 16px, хит-зона 44×44); `PreferencesForm` переведён на `Field/Input/Button`
+(минус ~100 строк ручной разметки), порядок элементов и `aria`-связки сохранены.
+
+**Проверено (ревью):** typecheck ok, lint 0 errors (14 warnings), **351/351 в 36 файлах**, build ok.
+В диффе сверил подписи и `aria`: `aria-label` чекбокса на месте, `aria-describedby`/`id` полей
+сохранены (тесты настроек и онбординга это подтверждают). Приём с отрицательным `margin` осознан:
+он не двигает визуальный размер, только расширяет область нажатия.
+
+**Долг, который нельзя потерять:** e2e за шаги 2 и 3a **не прогонялся** (правило «≥60 минут между
+живыми прогонами» из-за Auth rate limit). Прогнать `dashboard + goals + tasks + auth + smoke` в
+начале следующей сессии, до закрытия дизайн-прохода.
+
+**Осталось:** шаг 3b — цели, задачи и их диалоги (`GoalFormDialog`, `TaskFormDialog`, `TaskRow`,
+`TasksFilters`), `RequireAuth`-заглушки, `NotFoundPage`, плейсхолдеры Analytics/Habits/Planner/
+Assistant, 44px для иконок в строках.
