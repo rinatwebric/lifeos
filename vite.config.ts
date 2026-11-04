@@ -18,7 +18,9 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     setupFiles: ["./src/test/setup.ts"],
-    include: ["src/**/*.{test,spec}.{ts,tsx}"],
+    // Edge Function unit tests are Deno-deployable pure modules; they run in
+    // the same Vitest suite so `npm test` guards the provider contract too.
+    include: ["src/**/*.{test,spec}.{ts,tsx}", "supabase/functions/**/*.test.ts"],
     restoreMocks: true,
   },
 });
