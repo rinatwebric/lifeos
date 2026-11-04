@@ -1,7 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useForm, type Resolver } from "react-hook-form";
-import { z } from "zod";
 
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
@@ -9,20 +8,11 @@ import { Field } from "@/components/ui/Field";
 import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
 import { useCreateMilestone, useUpdateMilestone } from "@/features/goals/hooks";
+import { createMilestoneFormSchema } from "@/features/goals/schema";
+import { tmpl } from "@/lib/i18n/format";
+import { useMessages } from "@/lib/i18n/I18nContext";
+import { useRevalidateOnLocaleChange } from "@/lib/i18n/useRevalidate";
 import type { Milestone } from "@/types/domain";
-
-const milestoneFormSchema = z.object({
-  title: z.string().trim().min(1, "Title is required.").max(200, "Title must be 200 characters or fewer."),
-  description: z
-    .string()
-    .trim()
-    .max(2000, "Description must be 2,000 characters or fewer.")
-    .nullable()
-    .optional(),
-  targetDate: z.iso.date({ error: "Use YYYY-MM-DD." }).nullable().optional(),
-});
-
-type MilestoneFormValues = z.infer<typeof milestoneFormSchema>;
 
 interface MilestoneFormDialogProps {
   open: boolean;
@@ -32,34 +22,43 @@ interface MilestoneFormDialogProps {
   milestone: Milestone | null;
 }
 
-function defaultValuesFor(milestone: Milestone | null): MilestoneFormValues {
-  if (milestone) {
-    return {
-      title: milestone.title,
-      description: milestone.description,
-      targetDate: milestone.targetDate,
-    };
-  }
-  return { title: "", description: null, targetDate: null };
-}
-
 const nullIfEmpty = (value: unknown): string | null | unknown =>
   value === "" ? null : value;
 
 export function MilestoneFormDialog({ open, onClose, goalId, milestone }: MilestoneFormDialogProps) {
+  const m = useMessages();
+  const t = m.goals;
   const createMilestone = useCreateMilestone();
   const updateMilestone = useUpdateMilestone();
   const [serverError, setServerError] = useState<string | null>(null);
+
+  const schema = useMemo(
+    () =>
+      createMilestoneFormSchema({
+        titleRequired: m.validation.titleRequired,
+        titleTooLong: m.validation.titleTooLong,
+        descriptionTooLong: m.validation.descriptionTooLong,
+        dateFormat: m.validation.dateFormat,
+      }),
+    [m.validation],
+  );
+
+  type Values = { title: string; description: string | null | undefined; targetDate: string | null | undefined };
 
   const {
     register,
     handleSubmit,
     reset,
+    trigger,
     formState: { errors },
-  } = useForm<MilestoneFormValues>({
-    resolver: zodResolver(milestoneFormSchema) as Resolver<MilestoneFormValues>,
-    defaultValues: defaultValuesFor(milestone),
+  } = useForm<Values>({
+    resolver: zodResolver(schema) as Resolver<Values>,
+    defaultValues: milestone
+      ? { title: milestone.title, description: milestone.description, targetDate: milestone.targetDate }
+      : { title: "", description: null, targetDate: null },
   });
+
+  useRevalidateOnLocaleChange(trigger, Object.keys(errors).length > 0);
 
   // RHF reads `defaultValues` only on first mount, but this dialog stays
   // mounted while `milestone`/`open` change. Re-sync on every open so Edit
@@ -68,7 +67,11 @@ export function MilestoneFormDialog({ open, onClose, goalId, milestone }: Milest
   // effect free of synchronous setState.
   useEffect(() => {
     if (open) {
-      reset(defaultValuesFor(milestone));
+      reset(
+        milestone
+          ? { title: milestone.title, description: milestone.description, targetDate: milestone.targetDate }
+          : { title: "", description: null, targetDate: null },
+      );
     }
   }, [open, milestone, reset]);
 
@@ -79,7 +82,7 @@ export function MilestoneFormDialog({ open, onClose, goalId, milestone }: Milest
     onClose();
   };
 
-  const onSubmit = async (values: MilestoneFormValues): Promise<void> => {
+  const onSubmit = async (values: Values): Promise<void> => {
     setServerError(null);
     try {
       if (milestone) {
@@ -89,7 +92,7 @@ export function MilestoneFormDialog({ open, onClose, goalId, milestone }: Milest
       }
       handleClose();
     } catch (error) {
-      setServerError(error instanceof Error ? error.message : "Could not save the milestone.");
+      setServerError(error instanceof Error ? error.message : t.saveMilestoneError);
     }
   };
 
@@ -97,29 +100,25 @@ export function MilestoneFormDialog({ open, onClose, goalId, milestone }: Milest
     <Dialog
       open={open}
       onClose={handleClose}
-      title={milestone ? `Edit ${milestone.title}` : "New milestone"}
-      description={
-        milestone
-          ? "Update the milestone details below."
-          : "Break the goal into a concrete first step."
-      }
+      title={milestone ? tmpl(t.milestoneEditTitle, { title: milestone.title }) : t.milestoneNewTitle}
+      description={milestone ? t.milestoneEditDescription : t.milestoneNewDescription}
     >
       <form onSubmit={(event) => void handleSubmit(onSubmit)(event)} noValidate className="space-y-4">
-        <Field id="milestone-title" label="Title" required error={errors.title?.message}>
-          <Input data-autofocus placeholder="Finish chapter 1" {...register("title")} />
+        <Field id="milestone-title" label={t.milestoneTitle} required error={errors.title?.message}>
+          <Input data-autofocus placeholder={t.milestoneTitlePlaceholder} {...register("title")} />
         </Field>
 
-        <Field id="milestone-description" label="Description" error={errors.description?.message}>
+        <Field id="milestone-description" label={t.milestoneDescription} error={errors.description?.message}>
           <Textarea
-            placeholder="What does done look like?"
+            placeholder={t.milestoneDescriptionPlaceholder}
             {...register("description", { setValueAs: nullIfEmpty })}
           />
         </Field>
 
         <Field
           id="milestone-targetDate"
-          label="Target date"
-          hint="Optional."
+          label={t.milestoneTargetDate}
+          hint={t.milestoneTargetHint}
           error={errors.targetDate?.message}
         >
           <Input type="date" {...register("targetDate", { setValueAs: nullIfEmpty })} />
@@ -133,10 +132,10 @@ export function MilestoneFormDialog({ open, onClose, goalId, milestone }: Milest
 
         <div className="flex justify-end gap-2">
           <Button variant="secondary" size="lg" onClick={handleClose} disabled={saving}>
-            Cancel
+            {t.cancel}
           </Button>
           <Button type="submit" size="lg" loading={saving}>
-            {milestone ? "Save changes" : "Create milestone"}
+            {milestone ? t.saveMilestone : t.createMilestone}
           </Button>
         </div>
       </form>

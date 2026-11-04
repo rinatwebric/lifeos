@@ -1,4 +1,6 @@
 import type { ProposalAction } from "@/lib/aiProposals";
+import { tmpl } from "@/lib/i18n/format";
+import { useIntlLocale, useMessages } from "@/lib/i18n/I18nContext";
 
 import { describeProposalAction } from "./describeAction";
 
@@ -23,7 +25,11 @@ export function ProposalActionRow({
   timeZone,
   onToggle,
 }: ProposalActionRowProps) {
+  const m = useMessages();
+  const intl = useIntlLocale();
   const labelId = `proposal-action-${index}`;
+  const description = describeProposalAction(action, timeZone, m.assistant, intl);
+
   return (
     <li className="flex items-start gap-3 rounded-control border border-line bg-surface-muted p-3">
       <input
@@ -32,12 +38,12 @@ export function ProposalActionRow({
         checked={checked}
         disabled={disabled}
         onChange={(event) => onToggle(index, event.target.checked)}
-        aria-label={`Select action ${index + 1}: ${describeProposalAction(action, timeZone)}`}
+        aria-label={tmpl(m.assistant.selectAction, { index: index + 1, description })}
         className="mt-1 size-4 shrink-0 accent-current"
       />
       <div className="min-w-0 flex-1 space-y-1">
         <p className="text-ui font-medium text-content text-pretty">
-          {describeProposalAction(action, timeZone)}
+          {description}
         </p>
         <p className="text-micro text-muted">{action.type.replaceAll("_", " ")}</p>
       </div>

@@ -11,6 +11,8 @@ import {
   useReorderMilestones,
   useUpdateMilestone,
 } from "@/features/goals/hooks";
+import { tmpl } from "@/lib/i18n/format";
+import { useMessages } from "@/lib/i18n/I18nContext";
 import type { Milestone } from "@/types/domain";
 
 interface MilestoneListProps {
@@ -28,6 +30,8 @@ function orderedIdsAfterMove(ids: string[], from: number, to: number): string[] 
 }
 
 export function MilestoneList({ goalId, milestones }: MilestoneListProps) {
+  const m = useMessages();
+  const t = m.goals;
   const createMilestone = useCreateMilestone();
   const updateMilestone = useUpdateMilestone();
   const deleteMilestone = useDeleteMilestone();
@@ -68,7 +72,7 @@ export function MilestoneList({ goalId, milestones }: MilestoneListProps) {
       await createMilestone.mutateAsync({ goalId, title });
       setNewTitle("");
     } catch (error) {
-      setAddError(error instanceof Error ? error.message : "Could not add the milestone.");
+      setAddError(error instanceof Error ? error.message : t.milestoneAddError);
     }
   };
 
@@ -77,7 +81,7 @@ export function MilestoneList({ goalId, milestones }: MilestoneListProps) {
       <div className="space-y-4">
         <div className="rounded-card border border-dashed border-line px-6 py-10 text-center">
           <p className="mx-auto max-w-sm text-ui text-muted">
-            No milestones yet. Add the first step — progress will be calculated from them.
+            {t.milestoneEmpty}
           </p>
         </div>
         <form
@@ -85,8 +89,8 @@ export function MilestoneList({ goalId, milestones }: MilestoneListProps) {
           className="flex flex-col gap-2 sm:flex-row"
         >
           <Input
-            aria-label="Add a milestone"
-            placeholder="Add a milestone"
+            aria-label={t.addMilestoneAria}
+            placeholder={t.addMilestonePlaceholder}
             value={newTitle}
             onChange={(event) => {
               setNewTitle(event.target.value);
@@ -95,12 +99,12 @@ export function MilestoneList({ goalId, milestones }: MilestoneListProps) {
           />
           <Button type="submit" loading={createMilestone.isPending} className="shrink-0">
             <Plus className="size-4" aria-hidden="true" />
-            Add
+            {t.addMilestone}
           </Button>
         </form>
-        {addError ?? (createMilestone.isError ? "Could not add the milestone. Please try again." : null) ? (
+        {addError ?? (createMilestone.isError ? t.milestoneAddError : null) ? (
           <p role="alert" className="text-micro text-danger">
-            {addError ?? "Could not add the milestone. Please try again."}
+            {addError ?? t.milestoneAddError}
           </p>
         ) : null}
       </div>
@@ -111,17 +115,17 @@ export function MilestoneList({ goalId, milestones }: MilestoneListProps) {
     <div className="space-y-4">
       {updateMilestone.isError ? (
         <p role="alert" className="text-micro text-danger">
-          Could not update the milestone. Please try again.
+          {t.milestoneUpdateError}
         </p>
       ) : null}
       {reorderMilestones.isError ? (
         <p role="alert" className="text-micro text-danger">
-          Could not reorder milestones. Please try again.
+          {t.milestoneReorderError}
         </p>
       ) : null}
       {deleteMilestone.isError ? (
         <p role="alert" className="text-micro text-danger">
-          Could not delete the milestone. Please try again.
+          {t.milestoneDeleteError}
         </p>
       ) : null}
 
@@ -141,8 +145,8 @@ export function MilestoneList({ goalId, milestones }: MilestoneListProps) {
                   onChange={() => handleToggle(milestone)}
                   aria-label={
                     completed
-                      ? `Mark ${milestone.title} as pending`
-                      : `Mark ${milestone.title} as completed`
+                      ? tmpl(t.markMilestonePending, { title: milestone.title })
+                      : tmpl(t.markMilestoneComplete, { title: milestone.title })
                   }
                   className="mt-0.5 size-4 shrink-0 accent-current"
                 />
@@ -165,7 +169,7 @@ export function MilestoneList({ goalId, milestones }: MilestoneListProps) {
                   variant="ghost"
                   size="sm"
                   className="relative after:absolute after:-inset-1 after:content-['']"
-                  aria-label={`Move ${milestone.title} up`}
+                  aria-label={tmpl(t.moveUp, { title: milestone.title })}
                   disabled={index === 0 || reorderMilestones.isPending}
                   onClick={() => handleMove(index, -1)}
                 >
@@ -175,7 +179,7 @@ export function MilestoneList({ goalId, milestones }: MilestoneListProps) {
                   variant="ghost"
                   size="sm"
                   className="relative after:absolute after:-inset-1 after:content-['']"
-                  aria-label={`Move ${milestone.title} down`}
+                  aria-label={tmpl(t.moveDown, { title: milestone.title })}
                   disabled={index === sorted.length - 1 || reorderMilestones.isPending}
                   onClick={() => handleMove(index, 1)}
                 >
@@ -188,17 +192,17 @@ export function MilestoneList({ goalId, milestones }: MilestoneListProps) {
                   onClick={() => setEditing(milestone)}
                 >
                   <Pencil className="size-3.5" aria-hidden="true" />
-                  Edit
+                  {m.common.edit}
                 </Button>
                 <Button
                   variant="ghost"
                   size="sm"
                   className="relative after:absolute after:-inset-1 after:content-['']"
                   onClick={() => setDeleting(milestone)}
-                  aria-label={`Delete ${milestone.title}`}
+                  aria-label={tmpl(t.deleteAria, { title: milestone.title })}
                 >
                   <Trash2 className="size-3.5" aria-hidden="true" />
-                  Delete
+                  {t.delete}
                 </Button>
               </div>
             </li>
@@ -208,8 +212,8 @@ export function MilestoneList({ goalId, milestones }: MilestoneListProps) {
 
       <form onSubmit={(event) => void handleAdd(event)} className="flex flex-col gap-2 sm:flex-row">
         <Input
-          aria-label="Add a milestone"
-          placeholder="Add a milestone"
+          aria-label={t.addMilestoneAria}
+          placeholder={t.addMilestonePlaceholder}
           value={newTitle}
           onChange={(event) => {
             setNewTitle(event.target.value);
@@ -218,12 +222,12 @@ export function MilestoneList({ goalId, milestones }: MilestoneListProps) {
         />
         <Button type="submit" loading={createMilestone.isPending} className="shrink-0">
           <Plus className="size-4" aria-hidden="true" />
-          Add
+          {t.addMilestone}
         </Button>
       </form>
-      {addError ?? (createMilestone.isError ? "Could not add the milestone. Please try again." : null) ? (
+      {addError ?? (createMilestone.isError ? t.milestoneAddError : null) ? (
         <p role="alert" className="text-micro text-danger">
-          {addError ?? "Could not add the milestone. Please try again."}
+          {addError ?? t.milestoneAddError}
         </p>
       ) : null}
 

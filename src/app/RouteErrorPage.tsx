@@ -4,6 +4,7 @@ import { Link, useRouteError } from "react-router-dom";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { useMessages } from "@/lib/i18n/I18nContext";
 
 /**
  * Route-level error screen (React Router `errorElement`). Without it the router
@@ -16,29 +17,30 @@ import { EmptyState } from "@/components/ui/EmptyState";
  * shown only in development.
  */
 export function RouteErrorPage() {
+  const m = useMessages();
   const error = useRouteError();
   const message = error instanceof Error ? error.message : null;
 
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-2xl flex-col justify-center gap-6 p-4 sm:p-6">
-      <p className="text-micro tracking-wide text-muted uppercase">LifeOS</p>
+      <p className="text-micro tracking-wide text-muted uppercase">{m.routeError.eyebrow}</p>
 
       <Card>
         <EmptyState
           icon={AlertTriangle}
-          title="Something broke on this screen"
-          description="Your data is safe. Reload the page to continue. If it keeps happening, turn off page translation or browser extensions for this site and try again."
+          title={m.routeError.title}
+          description={m.routeError.description}
           action={
             <div className="flex flex-wrap items-center justify-center gap-2">
               <Button size="lg" onClick={() => window.location.reload()}>
                 <RotateCw className="size-4" aria-hidden="true" />
-                Reload page
+                {m.routeError.reload}
               </Button>
               <Link
                 to="/"
                 className="inline-flex min-h-11 items-center rounded-control border border-line px-3 text-ui font-medium text-content hover:bg-surface-muted"
               >
-                Back to dashboard
+                {m.routeError.backToDashboard}
               </Link>
             </div>
           }

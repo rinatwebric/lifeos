@@ -5,9 +5,10 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { AuthAlert, AuthField, AuthSubmit } from "./AuthControls";
 import { resendConfirmation, signIn } from "./api";
 import { DemoSignInButton } from "./DemoSignInButton";
-import { AUTH_ERROR_MESSAGES, AuthServiceError, toAuthError } from "./errors";
+import { translateAuthError, AuthServiceError, toAuthError, type AuthErrorCode } from "./errors";
 import { zodResolver } from "./resolver";
 import { signInSchema, type SignInValues } from "./schemas";
+import { useMessages } from "@/lib/i18n/I18nContext";
 
 export const SIGN_IN_COPY = {
   title: "Welcome back",
@@ -37,13 +38,18 @@ interface SignInLocationState {
 
 /** Email + password sign-in. Unconfirmed emails get a resend hint (no dead end). */
 export function SignInPage() {
+  const m = useMessages();
   const navigate = useNavigate();
   const location = useLocation();
   const state = (location.state ?? null) as SignInLocationState | null;
 
-  const [formError, setFormError] = useState<string | null>(null);
+  // Error code (not text) so an open error re-renders in the new language.
+  const [formErrorCode, setFormErrorCode] = useState<AuthErrorCode | null>(null);
+  const [demoErrorCode, setDemoErrorCode] = useState<AuthErrorCode | null>(null);
   const [unconfirmedEmail, setUnconfirmedEmail] = useState<string | null>(null);
   const [resendStatus, setResendStatus] = useState<"idle" | "sending" | "sent">("idle");
+
+  const t = m.auth.signIn;
 
   const {
     register,
@@ -54,8 +60,11 @@ export function SignInPage() {
     defaultValues: { email: state?.email ?? "", password: "" },
   });
 
+  const formError = formErrorCode ? translateAuthError(formErrorCode, m) : demoErrorCode ? translateAuthError(demoErrorCode, m) : null;
+
   const onSubmit = async (values: SignInValues): Promise<void> => {
-    setFormError(null);
+    setFormErrorCode(null);
+    setDemoErrorCode(null);
     setUnconfirmedEmail(null);
     setResendStatus("idle");
 
@@ -71,7 +80,7 @@ export function SignInPage() {
         return;
       }
 
-      setFormError(AUTH_ERROR_MESSAGES[authError.code]);
+      setFormErrorCode(authError.code);
     }
   };
 
@@ -81,7 +90,7 @@ export function SignInPage() {
     }
 
     setResendStatus("sending");
-    setFormError(null);
+    setFormErrorCode(null);
 
     try {
       await resendConfirmation(unconfirmedEmail);
@@ -89,37 +98,31 @@ export function SignInPage() {
     } catch (error) {
       const authError = error instanceof AuthServiceError ? error : toAuthError(error);
       setResendStatus("idle");
-      setFormError(AUTH_ERROR_MESSAGES[authError.code]);
+      setFormErrorCode(authError.code);
     }
   };
 
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <h1 className="text-heading font-semibold tracking-tight text-content">{SIGN_IN_COPY.title}</h1>
-        <p className="text-ui text-muted">{SIGN_IN_COPY.subtitle}</p>
+        <h1 className="text-heading font-semibold tracking-tight text-content">{t.title}</h1>
+        <p className="text-ui text-muted">{t.subtitle}</p>
       </div>
 
-      {state?.passwordReset ? (
-        <AuthAlert tone="success">{SIGN_IN_COPY.passwordResetSuccess}</AuthAlert>
-      ) : null}
+      {state?.passwordReset ? <AuthAlert tone="success">{t.passwordResetSuccess}</AuthAlert> : null}
 
       {formError ? <AuthAlert tone="error">{formError}</AuthAlert> : null}
 
       {unconfirmedEmail ? (
         <AuthAlert tone="info">
-          <p>{SIGN_IN_COPY.emailNotConfirmed}</p>
+          <p>{t.emailNotConfirmed}</p>
           <button
             type="button"
             onClick={() => void onResend()}
             disabled={resendStatus !== "idle"}
             className="mt-2 inline-flex min-h-11 items-center font-medium text-content underline underline-offset-4 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {resendStatus === "sending"
-              ? SIGN_IN_COPY.resending
-              : resendStatus === "sent"
-                ? SIGN_IN_COPY.resendSent
-                : SIGN_IN_COPY.resend}
+            {resendStatus === "sending" ? t.resending : resendStatus === "sent" ? t.resendSent : t.resend}
           </button>
         </AuthAlert>
       ) : null}
@@ -131,45 +134,45 @@ export function SignInPage() {
       >
         <AuthField
           id="sign-in-email"
-          label={SIGN_IN_COPY.emailLabel}
+          label={t.emailLabel}
           type="email"
           autoComplete="email"
-          placeholder={SIGN_IN_COPY.emailPlaceholder}
+          placeholder={t.emailPlaceholder}
           error={errors.email?.message}
           {...register("email")}
         />
         <AuthField
           id="sign-in-password"
-          label={SIGN_IN_COPY.passwordLabel}
+          label={t.passwordLabel}
           type="password"
           autoComplete="current-password"
           error={errors.password?.message}
           {...register("password")}
         />
-        <AuthSubmit pending={isSubmitting} pendingLabel={SIGN_IN_COPY.submitting}>
-          {SIGN_IN_COPY.submit}
+        <AuthSubmit pending={isSubmitting} pendingLabel={t.submitting}>
+          {t.submit}
         </AuthSubmit>
       </form>
 
-      <DemoSignInButton onError={setFormError} />
+      <DemoSignInButton onError={(code) => setDemoErrorCode(code)} />
 
       <div className="space-y-2 text-center text-ui text-muted">
         <p>
-          {SIGN_IN_COPY.resetPrompt}{" "}
+          {t.resetPrompt}{" "}
           <Link
             to="/reset-password"
             className="font-medium text-content underline-offset-4 hover:underline"
           >
-            {SIGN_IN_COPY.resetLink}
+            {t.resetLink}
           </Link>
         </p>
         <p>
-          {SIGN_IN_COPY.signUpPrompt}{" "}
+          {t.signUpPrompt}{" "}
           <Link
             to="/sign-up"
             className="font-medium text-content underline-offset-4 hover:underline"
           >
-            {SIGN_IN_COPY.signUpLink}
+            {t.signUpLink}
           </Link>
         </p>
       </div>

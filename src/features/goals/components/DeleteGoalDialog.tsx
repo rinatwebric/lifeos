@@ -3,6 +3,8 @@ import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import { useDeleteGoal, useTaskCountForGoal } from "@/features/goals/hooks";
+import { tmpl } from "@/lib/i18n/format";
+import { useMessages } from "@/lib/i18n/I18nContext";
 import type { Goal } from "@/types/domain";
 
 interface DeleteGoalDialogProps {
@@ -13,14 +15,9 @@ interface DeleteGoalDialogProps {
   onDeleted?: () => void;
 }
 
-function taskLine(count: number): string {
-  if (count === 1) {
-    return "1 task will stay but lose the link to this goal. This cannot be undone.";
-  }
-  return `${count} tasks will stay but lose the link to this goal. This cannot be undone.`;
-}
-
 export function DeleteGoalDialog({ open, onClose, goal, onDeleted }: DeleteGoalDialogProps) {
+  const m = useMessages();
+  const t = m.goals;
   const taskCount = useTaskCountForGoal(open ? goal?.id : undefined);
   const deleteGoal = useDeleteGoal();
   const [serverError, setServerError] = useState<string | null>(null);
@@ -35,32 +32,36 @@ export function DeleteGoalDialog({ open, onClose, goal, onDeleted }: DeleteGoalD
       onClose();
       onDeleted?.();
     } catch (error) {
-      setServerError(error instanceof Error ? error.message : "Could not delete the goal.");
+      setServerError(error instanceof Error ? error.message : t.deleteGoalError);
     }
   };
+
+  const count = taskCount.data ?? 0;
 
   return (
     <Dialog
       open={open}
       onClose={onClose}
-      title={goal ? `Delete ${goal.title}?` : "Delete goal?"}
-      description="Linked tasks keep their rows and lose the link (SET NULL); milestones are removed with the goal. No task is ever cascade-deleted."
+      title={goal ? tmpl(t.deleteTitle, { title: goal.title }) : t.deleteGoalTitle}
+      description={t.deleteDescription}
     >
       {taskCount.isLoading ? (
-        <p className="text-ui text-muted">Counting linked tasks…</p>
+        <p className="text-ui text-muted">{t.countingTasks}</p>
       ) : taskCount.isError ? (
         <p role="alert" className="text-micro text-danger">
-          Could not count linked tasks.{" "}
+          {t.countTasksError}{" "}
           <button
             type="button"
             className="cursor-pointer underline"
             onClick={() => void taskCount.refetch()}
           >
-            Retry
+            {m.common.retry}
           </button>
         </p>
       ) : (
-        <p className="text-ui text-content tabular-nums">{taskLine(taskCount.data ?? 0)}</p>
+        <p className="text-ui text-content tabular-nums">
+          {count === 1 ? t.tasksStayOne : tmpl(t.tasksStayMany, { count })}
+        </p>
       )}
 
       {serverError ? (
@@ -71,10 +72,10 @@ export function DeleteGoalDialog({ open, onClose, goal, onDeleted }: DeleteGoalD
 
       <div className="flex justify-end gap-2">
         <Button variant="secondary" size="lg" data-autofocus onClick={onClose} disabled={deleteGoal.isPending}>
-          Cancel
+          {t.cancel}
         </Button>
         <Button variant="danger" size="lg" onClick={() => void handleConfirm()} loading={deleteGoal.isPending}>
-          Delete
+          {t.delete}
         </Button>
       </div>
     </Dialog>

@@ -15,9 +15,23 @@
     <div id="root" class="h-full"></div>
     <script>
       try {
-        var t = localStorage.getItem("lifeos-theme");
+        var rawT = localStorage.getItem("lifeos-theme");
+        var t = rawT;
+        try {
+          var parsedT = JSON.parse(rawT);
+          if (parsedT && typeof parsedT.value === "string") t = parsedT.value;
+        } catch (e) {}
         if (t === "dark" || (!t && matchMedia("(prefers-color-scheme: dark)").matches))
           document.documentElement.classList.add("dark");
+      } catch (e) {}
+      try {
+        var rawL = localStorage.getItem("lifeos-language");
+        var l = rawL;
+        try {
+          var parsedL = JSON.parse(rawL);
+          if (parsedL && typeof parsedL.value === "string") l = parsedL.value;
+        } catch (e) {}
+        if (l === "ru" || l === "en") document.documentElement.lang = l;
       } catch (e) {}
     </script>
     <script type="module" src="/src/main.tsx"></script>

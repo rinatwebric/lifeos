@@ -6,12 +6,13 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { tmpl } from "@/lib/i18n/format";
+import { useLocale, useMessages } from "@/lib/i18n/I18nContext";
 import type { BlockType } from "@/types/domain";
 
 import { formatDurationMinutes } from "./usePlannerDay";
 import {
   formatBlockCount,
-  WEEK_LENGTH,
   type PlannerWeek,
   type PlannerWeekDay,
 } from "./usePlannerWeek";
@@ -30,26 +31,23 @@ import {
  * because the DOM order never changes.
  */
 
-const TYPE_LABELS: Record<BlockType, string> = {
-  task: "Task",
-  break: "Break",
-  personal: "Personal",
-};
-
 const TYPE_ORDER: readonly BlockType[] = ["task", "break", "personal"];
 
-function describeWeekConflicts(week: PlannerWeek): string {
-  const days =
-    week.conflictDays === 1 ? "One day has blocks" : `${week.conflictDays} days have blocks`;
-
-  return `${days} that share the same time or reach outside your waking hours. They are marked below.`;
+function describeWeekConflicts(
+  week: PlannerWeek,
+  t: { conflictOneDay: string; conflictManyDays: string },
+): string {
+  const n = week.conflictDays;
+  return n === 1 ? t.conflictOneDay : tmpl(t.conflictManyDays, { count: n });
 }
 
 function WeekViewSkeleton() {
+  const m = useMessages();
+
   return (
     <Card>
-      <div role="status" aria-label="Loading the week">
-        <span className="sr-only">Loading the week…</span>
+      <div role="status" aria-label={m.planner.loadingWeek}>
+        <span className="sr-only">{m.planner.loadingWeek}</span>
         <div className="space-y-3 motion-safe:animate-pulse" aria-hidden="true">
           <div className="h-4 w-1/3 rounded-control bg-surface-muted" />
           <div className="h-14 w-full rounded-control bg-surface-muted" />
@@ -61,15 +59,17 @@ function WeekViewSkeleton() {
 }
 
 function WeekViewError({ onRetry }: { onRetry: () => void }) {
+  const m = useMessages();
+
   return (
     <Card>
       <div role="alert" className="space-y-3">
-        <p className="text-ui font-medium text-content">Could not load this week</p>
+        <p className="text-ui font-medium text-content">{m.planner.loadWeekError}</p>
         <p className="text-ui text-muted text-pretty">
-          The blocks for this week did not load. Check your connection, then try again.
+          {m.planner.loadWeekHint}
         </p>
         <Button variant="secondary" size="lg" onClick={onRetry}>
-          Try again
+          {m.planner.tryAgain}
         </Button>
       </div>
     </Card>
@@ -82,22 +82,29 @@ function WeekViewError({ onRetry }: { onRetry: () => void }) {
  * otherwise a conflict would only exist as colour and text that the name
  * override hides.
  */
-function dayLinkLabel(day: PlannerWeekDay): string {
-  const markers = [day.isToday ? "today" : null, day.hasConflict ? "has a conflict" : null].filter(
-    (marker): marker is string => marker !== null,
-  );
+function dayLinkLabel(
+  day: PlannerWeekDay,
+  t: { openDayAria: string; openDayToday: string; openDayConflict: string },
+): string {
+  const markers = [
+    day.isToday ? t.openDayToday : null,
+    day.hasConflict ? t.openDayConflict : null,
+  ].filter((marker): marker is string => marker !== null);
 
-  return `Open ${day.weekdayLong}, ${day.dateLabel}${markers.length > 0 ? ` (${markers.join(", ")})` : ""}`;
+  return `${tmpl(t.openDayAria, { weekday: day.weekdayLong, date: day.dateLabel })}${markers.length > 0 ? ` (${markers.join(", ")})` : ""}`;
 }
 
 function WeekDayCard({ day, href }: { day: PlannerWeekDay; href: string }) {
+  const m = useMessages();
+  const t = m.planner;
+  const locale = useLocale();
   const plannedTypes = TYPE_ORDER.filter((type) => day.totals[type] > 0);
 
   return (
     <li>
       <Link
         to={href}
-        aria-label={dayLinkLabel(day)}
+        aria-label={dayLinkLabel(day, t)}
         className="flex h-full min-h-11 flex-col gap-3 rounded-card border border-line bg-surface p-3 text-content transition-[color,background-color,border-color] duration-fast ease-standard hover:border-control hover:bg-surface-muted"
       >
         <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-1">
@@ -105,22 +112,24 @@ function WeekDayCard({ day, href }: { day: PlannerWeekDay; href: string }) {
           <span className="text-micro text-muted tabular-nums">{day.dateLabel}</span>
         </div>
 
-        {day.isToday ? <Badge tone="accent">Today</Badge> : null}
+        {day.isToday ? <Badge tone="accent">{t.today}</Badge> : null}
 
         {day.isEmpty ? (
-          <p className="text-ui text-muted text-pretty">Nothing planned</p>
+          <p className="text-ui text-muted text-pretty">{t.nothingPlanned}</p>
         ) : (
           <div className="space-y-1">
             <p className="text-body font-medium tabular-nums">
-              {formatDurationMinutes(day.totals.scheduled)}
+              {formatDurationMinutes(day.totals.scheduled, locale)}
             </p>
-            <p className="text-micro text-muted tabular-nums">{formatBlockCount(day.blockCount)}</p>
+            <p className="text-micro text-muted tabular-nums">
+              {formatBlockCount(day.blockCount, { blocksOne: t.blocksOne, blocksMany: t.blocksMany })}
+            </p>
             <dl className="space-y-0.5">
               {plannedTypes.map((type) => (
                 <div key={type} className="flex items-baseline justify-between gap-2">
-                  <dt className="text-micro text-muted">{TYPE_LABELS[type]}</dt>
+                  <dt className="text-micro text-muted">{m.enums.blockType[type]}</dt>
                   <dd className="text-micro text-content tabular-nums">
-                    {formatDurationMinutes(day.totals[type])}
+                    {formatDurationMinutes(day.totals[type], locale)}
                   </dd>
                 </div>
               ))}
@@ -131,12 +140,12 @@ function WeekDayCard({ day, href }: { day: PlannerWeekDay; href: string }) {
         {day.hasConflict ? (
           <Badge tone="danger">
             <AlertTriangle className="size-3" aria-hidden="true" />
-            Conflict
+            {t.conflictBadge}
           </Badge>
         ) : null}
 
         <span className="mt-auto inline-flex items-center gap-1 text-micro font-medium text-content underline underline-offset-4">
-          Open day
+          {t.openDay}
           <ChevronRight className="size-3" aria-hidden="true" />
         </span>
       </Link>
@@ -172,6 +181,10 @@ export function WeekView({
   dayHref,
   emptyAction,
 }: WeekViewProps) {
+  const m = useMessages();
+  const t = m.planner;
+  const locale = useLocale();
+
   if (isLoading) {
     return <WeekViewSkeleton />;
   }
@@ -185,8 +198,8 @@ export function WeekView({
       <Card>
         <EmptyState
           icon={CalendarPlus}
-          title="Nothing planned for this week"
-          description="Time blocks appear here once they are scheduled. Open your tasks and choose what to work on next, then come back to see the week fill up."
+          title={t.nothingPlannedWeek}
+          description={t.nothingPlannedWeekHint}
           action={emptyAction}
         />
       </Card>
@@ -197,41 +210,41 @@ export function WeekView({
     <div className="space-y-6">
       <Card className="space-y-4">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h2 className="text-ui font-medium text-content">Week summary</h2>
+          <h2 className="text-ui font-medium text-content">{t.weekSummary}</h2>
           <span className="text-micro text-muted tabular-nums">
-            {formatBlockCount(week.blockCount)}
+            {formatBlockCount(week.blockCount, { blocksOne: t.blocksOne, blocksMany: t.blocksMany })}
           </span>
         </div>
         <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-          <WeekStat label="Scheduled" value={formatDurationMinutes(week.totals.scheduled)} />
-          <WeekStat label="Task" value={formatDurationMinutes(week.totals.task)} />
-          <WeekStat label="Break" value={formatDurationMinutes(week.totals.break)} />
-          <WeekStat label="Personal" value={formatDurationMinutes(week.totals.personal)} />
-          <WeekStat label="Planned days" value={`${week.plannedDays} of ${WEEK_LENGTH}`} />
+          <WeekStat label={t.scheduled} value={formatDurationMinutes(week.totals.scheduled, locale)} />
+          <WeekStat label={t.task} value={formatDurationMinutes(week.totals.task, locale)} />
+          <WeekStat label={t.break} value={formatDurationMinutes(week.totals.break, locale)} />
+          <WeekStat label={t.personal} value={formatDurationMinutes(week.totals.personal, locale)} />
+          <WeekStat label={t.plannedDays} value={tmpl(t.daysOfSeven, { count: week.plannedDays })} />
         </dl>
         <p className="text-micro text-muted tabular-nums">
-          Times shown in {week.timeZone} · week runs Monday to Sunday
+          {tmpl(t.timesIn, { timeZone: week.timeZone })} · {t.weekRuns}
         </p>
         {week.conflictDays > 0 ? (
           <div className="flex items-start gap-2 rounded-control border border-danger-border bg-danger-subtle p-3">
             <AlertTriangle className="mt-0.5 size-4 shrink-0 text-danger" aria-hidden="true" />
             <div className="space-y-1">
-              <p className="text-ui font-medium text-content">Check the schedule</p>
-              <p className="text-ui text-muted text-pretty">{describeWeekConflicts(week)}</p>
+              <p className="text-ui font-medium text-content">{t.weekCheckHint}</p>
+              <p className="text-ui text-muted text-pretty">{describeWeekConflicts(week, t)}</p>
             </div>
           </div>
         ) : null}
       </Card>
 
       <Card className="space-y-4">
-        <h2 className="text-ui font-medium text-content">Days</h2>
+        <h2 className="text-ui font-medium text-content">{t.days}</h2>
         <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-7">
           {week.days.map((day) => (
             <WeekDayCard key={day.dateKey} day={day} href={dayHref(day.dateKey)} />
           ))}
         </ul>
         <p className="text-micro text-muted text-pretty">
-          Open a day to see its blocks and the time still free for planning.
+          {t.openDayHint}
         </p>
       </Card>
     </div>

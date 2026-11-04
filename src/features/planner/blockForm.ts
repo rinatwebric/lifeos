@@ -1,7 +1,8 @@
 import { localDateTimeToIso } from "@/lib/dates";
+import type { Messages } from "@/lib/i18n/I18nContext";
 import type { BlockType } from "@/types/domain";
 
-import { createBlockSchema, type CreateBlockInput } from "./schemas";
+import { createBlockFormSchemas, createBlockSchema, type CreateBlockInput } from "./schemas";
 
 /**
  * Form-to-payload adapter for `TimeBlockDialog` (plan.md Unit 7). Framework
@@ -43,10 +44,6 @@ export interface BlockTaskOption {
 export type BuildBlockInputResult =
   | { ok: true; input: CreateBlockInput }
   | { ok: false; errors: BlockFormErrors };
-
-const MISSING_START = "Choose a start date and time.";
-const MISSING_END = "Choose an end date and time.";
-const MISSING_TASK = "Choose the task this block is for.";
 
 /**
  * Reads a `<input type="datetime-local">` value as wall time in `timeZone` and
@@ -102,8 +99,28 @@ export function resolveBlockTitle(
  */
 export function buildBlockInput(
   values: BlockFormValues,
-  options: { timeZone: string; tasks: readonly BlockTaskOption[] },
+  options: {
+    timeZone: string;
+    tasks: readonly BlockTaskOption[];
+    missingStart?: string;
+    missingEnd?: string;
+    missingTask?: string;
+    v?: Messages["validation"] & Pick<Messages["planner"], "schemaEndAfterStart" | "schemaTaskLink">;
+  },
 ): BuildBlockInputResult {
+  const MISSING_START = options.missingStart ?? "Choose a start date and time.";
+  const MISSING_END = options.missingEnd ?? "Choose an end date and time.";
+  const MISSING_TASK = options.missingTask ?? "Choose the task this block is for.";
+  const schema = options.v
+    ? createBlockFormSchemas({
+        titleRequired: options.v.titleRequired,
+        titleTooLong: options.v.titleTooLong,
+        isoDateTime: options.v.isoDateTime,
+        validTask: options.v.validTask,
+        endAfterStart: options.v.schemaEndAfterStart,
+        taskLink: options.v.schemaTaskLink,
+      }).createBlockSchema
+    : createBlockSchema;
   const errors: BlockFormErrors = {};
   const startTime = wallTimeToIso(values.startLocal, options.timeZone);
   const endTime = wallTimeToIso(values.endLocal, options.timeZone);
@@ -121,7 +138,7 @@ export function buildBlockInput(
   }
 
   const taskId = values.blockType === "task" ? values.taskId.trim() : "";
-  const parsed = createBlockSchema.safeParse({
+  const parsed = schema.safeParse({
     title: resolveBlockTitle(values, options.tasks),
     startTime,
     endTime,

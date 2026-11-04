@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Card } from "@/components/ui/Card";
 import { getPreferences, preferencesQueryKey } from "@/features/settings/api";
 import { isoToLocalDateTime } from "@/lib/dates";
+import { useMessages } from "@/lib/i18n/I18nContext";
 
 import { listBlocks, type BlockRange } from "./api";
 import { describeBlockError } from "./blockMessages";
@@ -49,7 +50,7 @@ export interface PlanAcceptPanelProps {
  * plan. `status`, not `alert`: this is information, not an error — the
  * schedule is exactly as the user left it.
  */
-const NOTHING_NEW_SAVED_COPY = "These tasks are already in your plan — nothing new was saved.";
+
 
 function toEditableSlots(preview: PlanPreviewModel): EditablePlanSlot[] {
   return preview.slots.map((slot) => ({
@@ -112,6 +113,8 @@ function toEditedPreview(
 }
 
 export function PlanAcceptPanel({ dateKey, timeZone, now, onClose }: PlanAcceptPanelProps) {
+  const m = useMessages();
+  const t = m.planner;
   const { preview, isLoading, isError, retry } = usePlanPreview({ dateKey, now });
   const applyPlan = useApplyPlan();
   const [slots, setSlots] = useState<EditablePlanSlot[] | null>(null);
@@ -148,20 +151,23 @@ export function PlanAcceptPanel({ dateKey, timeZone, now, onClose }: PlanAcceptP
 
   const editableSlots = slots ?? [];
   const preferences = preferencesQuery.data;
-  const warnings = collectPlanSlotWarnings({
-    slots: editableSlots,
-    blocks: (blocksQuery.data ?? []).map((block) => ({
-      id: block.id,
-      startTime: block.startTime,
-      endTime: block.endTime,
-    })),
-    now,
-    timeZone,
-    wakeUpTime: readWallTime(preferences?.wakeUpTime),
-    sleepTime: readWallTime(preferences?.sleepTime),
-    workingHours: parseWeeklyAvailability(preferences?.workingHours),
-    studyHours: parseWeeklyAvailability(preferences?.studyHours),
-  });
+  const warnings = collectPlanSlotWarnings(
+    {
+      slots: editableSlots,
+      blocks: (blocksQuery.data ?? []).map((block) => ({
+        id: block.id,
+        startTime: block.startTime,
+        endTime: block.endTime,
+      })),
+      now,
+      timeZone,
+      wakeUpTime: readWallTime(preferences?.wakeUpTime),
+      sleepTime: readWallTime(preferences?.sleepTime),
+      workingHours: parseWeeklyAvailability(preferences?.workingHours),
+      studyHours: parseWeeklyAvailability(preferences?.studyHours),
+    },
+    t,
+  );
 
   // Consent is bound to one exact draft: a different interval or a different
   // warning set needs a fresh decision, so it can never carry over silently.
@@ -199,12 +205,12 @@ export function PlanAcceptPanel({ dateKey, timeZone, now, onClose }: PlanAcceptP
     setSavedNotice(null);
 
     if (hasInvalid) {
-      setSubmitError("Fix the times above before accepting.");
+      setSubmitError(t.fixTimes);
       return;
     }
 
     if (warnings.length > 0 && !acknowledged) {
-      setAckError("Tick the box above to keep this plan at these times.");
+      setAckError(t.tickToKeepPlan);
       return;
     }
 
@@ -224,10 +230,10 @@ export function PlanAcceptPanel({ dateKey, timeZone, now, onClose }: PlanAcceptP
       if (result.blocks.length > 0) {
         onClose();
       } else {
-        setSavedNotice(NOTHING_NEW_SAVED_COPY);
+        setSavedNotice(t.alreadyPlannedNotice);
       }
     } catch (error) {
-      setSubmitError(describeBlockError(error));
+      setSubmitError(describeBlockError(error, t));
     }
   };
 

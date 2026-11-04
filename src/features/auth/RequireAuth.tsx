@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 
 import { useAuth } from "./useAuth";
 import { isSupabaseConfigured } from "@/lib/env";
+import { useMessages } from "@/lib/i18n/I18nContext";
 
 export const REQUIRE_AUTH_COPY = {
   loading: "Loading…",
@@ -19,6 +20,7 @@ interface GuardProps {
  */
 export function RequireAuth({ children }: GuardProps) {
   const { status } = useAuth();
+  const m = useMessages();
   const location = useLocation();
 
   // Without Supabase config auth cannot work: render the shell so the setup
@@ -33,7 +35,7 @@ export function RequireAuth({ children }: GuardProps) {
         role="status"
         className="flex min-h-dvh items-center justify-center text-ui text-muted"
       >
-        {REQUIRE_AUTH_COPY.loading}
+        {m.auth.requireAuthLoading}
       </div>
     );
   }
@@ -51,6 +53,7 @@ export function RequireAuth({ children }: GuardProps) {
  */
 export function RedirectIfAuthed({ children }: GuardProps) {
   const { status } = useAuth();
+  const m = useMessages();
 
   if (!isSupabaseConfigured) {
     return <>{children}</>;
@@ -62,7 +65,7 @@ export function RedirectIfAuthed({ children }: GuardProps) {
         role="status"
         className="flex min-h-dvh items-center justify-center text-ui text-muted"
       >
-        {REQUIRE_AUTH_COPY.loading}
+        {m.auth.requireAuthLoading}
       </div>
     );
   }

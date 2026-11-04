@@ -5,13 +5,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { signIn } from "./api";
 import { DEMO_SIGN_IN_COPY, DemoSignInButton } from "./DemoSignInButton";
-import { AUTH_ERROR_MESSAGES } from "./errors";
 
 vi.mock("./api", () => ({ signIn: vi.fn() }));
 
 const mockedSignIn = vi.mocked(signIn);
 
-function renderDemo(onError: (message: string) => void = vi.fn()) {
+function renderDemo(onError: (code: unknown) => void = vi.fn()) {
   return render(
     <MemoryRouter initialEntries={["/sign-in"]}>
       <Routes>
@@ -80,7 +79,7 @@ describe("DemoSignInButton", () => {
     await user.click(screen.getByRole("button", { name: DEMO_SIGN_IN_COPY.button }));
 
     await vi.waitFor(() => expect(onError).toHaveBeenCalledTimes(1));
-    expect(onError).toHaveBeenCalledWith(AUTH_ERROR_MESSAGES.invalid_credentials);
+    expect(onError).toHaveBeenCalledWith("invalid_credentials");
     expect(screen.queryByText("Home")).not.toBeInTheDocument();
   });
 

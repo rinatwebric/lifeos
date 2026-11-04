@@ -1,18 +1,20 @@
 import { NavLink } from "react-router-dom";
 
-import { PRIMARY_NAV, SECONDARY_NAV } from "@/app/navigation";
+import { usePrimaryNav, useSecondaryNav } from "@/app/navigation";
 import { cn } from "@/lib/cn";
-
-const MOBILE_NAV = [...PRIMARY_NAV, ...SECONDARY_NAV];
+import { useMessages } from "@/lib/i18n/I18nContext";
 
 export function MobileNav() {
+  const m = useMessages();
+  const mobileNav = [...usePrimaryNav(), ...useSecondaryNav()];
+
   return (
     <nav
-      aria-label="Primary"
+      aria-label={m.nav.primary}
       className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden"
     >
       <ul className="flex gap-0.5 overflow-x-auto px-1.5 py-1.5">
-        {MOBILE_NAV.map((entry) => {
+        {mobileNav.map((entry) => {
           const Icon = entry.icon;
 
           return (

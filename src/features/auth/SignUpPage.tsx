@@ -4,9 +4,10 @@ import { Link, useNavigate } from "react-router-dom";
 
 import { AuthAlert, AuthField, AuthSubmit } from "./AuthControls";
 import { signUp } from "./api";
-import { AUTH_ERROR_MESSAGES, AuthServiceError, toAuthError } from "./errors";
+import { translateAuthError, AuthServiceError, toAuthError, type AuthErrorCode } from "./errors";
 import { zodResolver } from "./resolver";
 import { signUpSchema, type SignUpValues } from "./schemas";
+import { useMessages } from "@/lib/i18n/I18nContext";
 
 export const SIGN_UP_COPY = {
   title: "Create your account",
@@ -29,8 +30,10 @@ export const SIGN_UP_COPY = {
  * confirmation OFF goes straight to `/`.
  */
 export function SignUpPage() {
+  const m = useMessages();
   const navigate = useNavigate();
-  const [formError, setFormError] = useState<string | null>(null);
+  const [formErrorCode, setFormErrorCode] = useState<AuthErrorCode | null>(null);
+  const t = m.auth.signUp;
 
   const {
     register,
@@ -42,7 +45,7 @@ export function SignUpPage() {
   });
 
   const onSubmit = async (values: SignUpValues): Promise<void> => {
-    setFormError(null);
+    setFormErrorCode(null);
 
     try {
       const result = await signUp({
@@ -59,18 +62,18 @@ export function SignUpPage() {
       }
     } catch (error) {
       const authError = error instanceof AuthServiceError ? error : toAuthError(error);
-      setFormError(AUTH_ERROR_MESSAGES[authError.code]);
+      setFormErrorCode(authError.code);
     }
   };
 
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <h1 className="text-heading font-semibold tracking-tight text-content">{SIGN_UP_COPY.title}</h1>
-        <p className="text-ui text-muted">{SIGN_UP_COPY.subtitle}</p>
+        <h1 className="text-heading font-semibold tracking-tight text-content">{t.title}</h1>
+        <p className="text-ui text-muted">{t.subtitle}</p>
       </div>
 
-      {formError ? <AuthAlert tone="error">{formError}</AuthAlert> : null}
+      {formErrorCode ? <AuthAlert tone="error">{translateAuthError(formErrorCode, m)}</AuthAlert> : null}
 
       <form
         noValidate
@@ -79,26 +82,26 @@ export function SignUpPage() {
       >
         <AuthField
           id="sign-up-name"
-          label={SIGN_UP_COPY.nameLabel}
+          label={t.nameLabel}
           type="text"
           autoComplete="name"
-          placeholder={SIGN_UP_COPY.namePlaceholder}
+          placeholder={t.namePlaceholder}
           error={errors.fullName?.message}
           {...register("fullName")}
         />
         <AuthField
           id="sign-up-email"
-          label={SIGN_UP_COPY.emailLabel}
+          label={t.emailLabel}
           type="email"
           autoComplete="email"
-          placeholder={SIGN_UP_COPY.emailPlaceholder}
+          placeholder={t.emailPlaceholder}
           error={errors.email?.message}
           {...register("email")}
         />
         <div>
           <AuthField
             id="sign-up-password"
-            label={SIGN_UP_COPY.passwordLabel}
+            label={t.passwordLabel}
             type="password"
             autoComplete="new-password"
             aria-describedby={
@@ -111,19 +114,19 @@ export function SignUpPage() {
           />
           {!errors.password ? (
             <p id="sign-up-password-hint" className="mt-1 text-caption text-muted">
-              {SIGN_UP_COPY.passwordHint}
+              {t.passwordHint}
             </p>
           ) : null}
         </div>
-        <AuthSubmit pending={isSubmitting} pendingLabel={SIGN_UP_COPY.submitting}>
-          {SIGN_UP_COPY.submit}
+        <AuthSubmit pending={isSubmitting} pendingLabel={t.submitting}>
+          {t.submit}
         </AuthSubmit>
       </form>
 
       <p className="text-center text-ui text-muted">
-        {SIGN_UP_COPY.signInPrompt}{" "}
+        {t.signInPrompt}{" "}
         <Link to="/sign-in" className="font-medium text-content underline-offset-4 hover:underline">
-          {SIGN_UP_COPY.signInLink}
+          {t.signInLink}
         </Link>
       </p>
     </div>

@@ -3,7 +3,9 @@ import { Link, Navigate, useLocation } from "react-router-dom";
 
 import { AuthAlert } from "./AuthControls";
 import { resendConfirmation } from "./api";
-import { AUTH_ERROR_MESSAGES, AuthServiceError, toAuthError } from "./errors";
+import { AuthServiceError, toAuthError, translateAuthError, type AuthErrorCode } from "./errors";
+import { useMessages } from "@/lib/i18n/I18nContext";
+import { tmpl } from "@/lib/i18n/format";
 
 export const RESEND_COOLDOWN_SECONDS = 60;
 
@@ -15,7 +17,6 @@ export const CHECK_EMAIL_COPY = {
   resending: "Sending…",
   cooldownPrefix: "Resend available in",
   sent: "If this email is registered, a confirmation message was sent. Check your inbox (and the spam folder).",
-  rateLimited: AUTH_ERROR_MESSAGES.rate_limited,
   backPrompt: "Wrong address or already confirmed?",
   backLink: "Back to sign in",
 } as const;
@@ -29,19 +30,23 @@ interface CheckEmailPageProps {
   cooldownSeconds?: number;
 }
 
+type Result = { tone: "success" | "error"; text: string } | { tone: "success" | "error"; code: AuthErrorCode } | null;
+
 /**
  * Post-signup landing when email confirmation is ON. The email arrives via
  * `location.state` (never the URL); a direct visit without state redirects
  * to `/sign-up`. Result copy is identical for known and unknown addresses.
  */
 export function CheckEmailPage({ cooldownSeconds = RESEND_COOLDOWN_SECONDS }: CheckEmailPageProps) {
+  const m = useMessages();
+  const t = m.auth.checkEmail;
   const location = useLocation();
   const state = (location.state ?? null) as CheckEmailLocationState | null;
   const email = state?.email;
 
   const [cooldown, setCooldown] = useState(0);
   const [sending, setSending] = useState(false);
-  const [result, setResult] = useState<{ tone: "success" | "error"; text: string } | null>(null);
+  const [result, setResult] = useState<Result>(null);
 
   useEffect(() => {
     if (cooldown <= 0) {
@@ -59,6 +64,17 @@ export function CheckEmailPage({ cooldownSeconds = RESEND_COOLDOWN_SECONDS }: Ch
     return <Navigate to="/sign-up" replace />;
   }
 
+  const resultText =
+    result === null
+      ? null
+      : "text" in result
+        ? result.text
+        : "code" in result
+          ? translateAuthError(result.code, m)
+          : t.sent;
+
+  const resultTone = result === null ? "success" : result.tone;
+
   const onResend = async (): Promise<void> => {
     if (sending || cooldown > 0) {
       return;
@@ -70,20 +86,17 @@ export function CheckEmailPage({ cooldownSeconds = RESEND_COOLDOWN_SECONDS }: Ch
     try {
       await resendConfirmation(email);
       setCooldown(cooldownSeconds);
-      setResult({ tone: "success", text: CHECK_EMAIL_COPY.sent });
+      setResult({ tone: "success", text: t.sent });
     } catch (error) {
       const authError = error instanceof AuthServiceError ? error : toAuthError(error);
 
-      if (authError.code === "rate_limited") {
-        setResult({ tone: "error", text: CHECK_EMAIL_COPY.rateLimited });
-      } else if (authError.code === "network") {
-        // A network failure reveals nothing about the account: safe to show.
-        setResult({ tone: "error", text: AUTH_ERROR_MESSAGES.network });
+      if (authError.code === "rate_limited" || authError.code === "network") {
+        setResult({ tone: "error", code: authError.code });
       } else {
         // Unknown / not-found style failures map to the same generic copy so
         // the page never leaks whether the address is registered.
         setCooldown(cooldownSeconds);
-        setResult({ tone: "success", text: CHECK_EMAIL_COPY.sent });
+        setResult({ tone: "success", text: t.sent });
       }
     } finally {
       setSending(false);
@@ -95,17 +108,15 @@ export function CheckEmailPage({ cooldownSeconds = RESEND_COOLDOWN_SECONDS }: Ch
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <h1 className="text-heading font-semibold tracking-tight text-content">
-          {CHECK_EMAIL_COPY.title}
-        </h1>
+        <h1 className="text-heading font-semibold tracking-tight text-content">{t.title}</h1>
         <p className="text-ui text-muted">
-          {CHECK_EMAIL_COPY.sentTo} <span className="font-medium text-content">{email}</span>
+          {t.sentTo} <span className="font-medium text-content">{email}</span>
         </p>
       </div>
 
-      <p className="text-ui text-muted">{CHECK_EMAIL_COPY.spamHint}</p>
+      <p className="text-ui text-muted">{t.spamHint}</p>
 
-      {result ? <AuthAlert tone={result.tone}>{result.text}</AuthAlert> : null}
+      {resultText ? <AuthAlert tone={resultTone}>{resultText}</AuthAlert> : null}
 
       <button
         type="button"
@@ -113,17 +124,13 @@ export function CheckEmailPage({ cooldownSeconds = RESEND_COOLDOWN_SECONDS }: Ch
         disabled={resendDisabled}
         className="h-11 w-full rounded-control bg-accent px-4 py-2 text-ui font-medium text-accent-content transition-[opacity] duration-fast ease-standard hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
       >
-        {sending
-          ? CHECK_EMAIL_COPY.resending
-          : cooldown > 0
-            ? `${CHECK_EMAIL_COPY.cooldownPrefix} ${cooldown}s`
-            : CHECK_EMAIL_COPY.resend}
+        {sending ? t.resending : cooldown > 0 ? tmpl(t.cooldown, { seconds: cooldown }) : t.resend}
       </button>
 
       <p className="text-center text-ui text-muted">
-        {CHECK_EMAIL_COPY.backPrompt}{" "}
+        {t.wrongAddress}{" "}
         <Link to="/sign-in" className="font-medium text-content underline-offset-4 hover:underline">
-          {CHECK_EMAIL_COPY.backLink}
+          {t.backToSignIn}
         </Link>
       </p>
     </div>

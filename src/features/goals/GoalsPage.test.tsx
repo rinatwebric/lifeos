@@ -345,7 +345,7 @@ describe("GoalsPage", () => {
     } as unknown as ReturnType<typeof useGoals>);
     renderGoalsPage();
 
-    expect(screen.getByRole("status", { name: "Loading goals" })).toBeInTheDocument();
+    expect(screen.getByRole("status", { name: "Loading goals…" })).toBeInTheDocument();
   });
 
   it("prefills the edit form with the selected goal", async () => {

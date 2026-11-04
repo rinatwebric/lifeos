@@ -6,33 +6,29 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { cn } from "@/lib/cn";
+import { pluralCategory, tmpl } from "@/lib/i18n/format";
+import { useLocale, useMessages } from "@/lib/i18n/I18nContext";
 import type { BlockType } from "@/types/domain";
 
 import { formatDurationMinutes, type PlannerDay, type PlannerDayBlock } from "./usePlannerDay";
 
-const BLOCK_TYPE_LABELS: Record<BlockType, string> = {
-  task: "Task",
-  break: "Break",
-  personal: "Personal",
-};
-
-function blockCountLabel(count: number): string {
-  return `${count} ${count === 1 ? "block" : "blocks"}`;
+function blockCountLabel(count: number, t: { blocksOne: string; blocksMany: string }, locale: "en" | "ru"): string {
+  if (count === 1) return t.blocksOne;
+  const cat = pluralCategory(locale, count);
+  void cat;
+  return tmpl(t.blocksMany, { count });
 }
 
-function describeConflicts(day: PlannerDay): string {
+function describeConflicts(
+  day: PlannerDay,
+  t: { conflictBoth: string; conflictOverlap: string; conflictSleep: string },
+): string {
   const overlaps = day.overlappingBlocks > 0;
   const sleep = day.sleepBlocks > 0;
 
-  if (overlaps && sleep) {
-    return "Some blocks share the same time, and some sit outside your waking hours. They are marked below.";
-  }
-
-  if (overlaps) {
-    return "Some blocks share the same time. They are marked below.";
-  }
-
-  return "Some blocks sit outside your waking hours. They are marked below.";
+  if (overlaps && sleep) return t.conflictBoth;
+  if (overlaps) return t.conflictOverlap;
+  return t.conflictSleep;
 }
 
 function DayStat({
@@ -44,11 +40,14 @@ function DayStat({
   minutes: number;
   unavailable?: boolean;
 }) {
+  const m = useMessages();
+  const locale = useLocale();
+
   return (
     <div className="space-y-0.5">
       <dt className="text-micro text-muted">{label}</dt>
       <dd className="text-body font-medium text-content tabular-nums">
-        {unavailable ? "Unknown" : formatDurationMinutes(minutes)}
+        {unavailable ? m.planner.unknown : formatDurationMinutes(minutes, locale)}
       </dd>
     </div>
   );
@@ -61,25 +60,28 @@ function DayBlockRow({
   block: PlannerDayBlock;
   onEdit?: (block: PlannerDayBlock) => void;
 }) {
+  const m = useMessages();
+  const t = m.planner;
+  const locale = useLocale();
   const content = (
     <>
       <p className="flex shrink-0 items-baseline gap-1 text-ui text-content tabular-nums sm:min-w-32">
         <time dateTime={block.start}>{block.startLabel}</time>
         <span aria-hidden="true">–</span>
-        <span className="sr-only">to</span>
+        <span className="sr-only">{m.common.to}</span>
         <time dateTime={block.end}>{block.endLabel}</time>
       </p>
       <div className="min-w-0 flex-1 space-y-1.5">
         <p className="text-ui font-medium text-content text-pretty">{block.title}</p>
         <div className="flex flex-wrap items-center gap-1.5">
           <Badge tone={block.blockType === "task" ? "neutral" : "outline"}>
-            {BLOCK_TYPE_LABELS[block.blockType]}
+            {m.enums.blockType[block.blockType]}
           </Badge>
           <span className="text-micro text-muted tabular-nums">
-            {formatDurationMinutes(block.durationMinutes)}
+            {formatDurationMinutes(block.durationMinutes, locale)}
           </span>
-          {block.overlaps ? <Badge tone="danger">Overlaps</Badge> : null}
-          {block.crossesSleep ? <Badge tone="danger">Outside waking hours</Badge> : null}
+          {block.overlaps ? <Badge tone="danger">{t.overlapsBadge}</Badge> : null}
+          {block.crossesSleep ? <Badge tone="danger">{t.outsideBadge}</Badge> : null}
         </div>
       </div>
     </>
@@ -102,7 +104,7 @@ function DayBlockRow({
         <button
           type="button"
           onClick={() => onEdit(block)}
-          aria-label={`Edit ${block.title}, ${block.startLabel} to ${block.endLabel}`}
+          aria-label={tmpl(t.editBlock, { title: block.title, start: block.startLabel, end: block.endLabel })}
           className="absolute inset-0 cursor-pointer rounded-control"
         />
       ) : null}
@@ -111,10 +113,12 @@ function DayBlockRow({
 }
 
 function DayViewSkeleton() {
+  const m = useMessages();
+
   return (
     <Card>
-      <div role="status" aria-label="Loading the day">
-        <span className="sr-only">Loading the day…</span>
+      <div role="status" aria-label={m.planner.loadingDay}>
+        <span className="sr-only">{m.planner.loadingDay}</span>
         <div className="space-y-3 motion-safe:animate-pulse" aria-hidden="true">
           <div className="h-4 w-1/3 rounded-control bg-surface-muted" />
           <div className="h-14 w-full rounded-control bg-surface-muted" />
@@ -126,15 +130,17 @@ function DayViewSkeleton() {
 }
 
 function DayViewError({ onRetry }: { onRetry: () => void }) {
+  const m = useMessages();
+
   return (
     <Card>
       <div role="alert" className="space-y-3">
-        <p className="text-ui font-medium text-content">Could not load this day</p>
+        <p className="text-ui font-medium text-content">{m.planner.loadDayError}</p>
         <p className="text-ui text-muted text-pretty">
-          The blocks for this day did not load. Check your connection, then try again.
+          {m.planner.loadDayHintLong}
         </p>
         <Button variant="secondary" size="lg" onClick={onRetry}>
-          Try again
+          {m.planner.tryAgain}
         </Button>
       </div>
     </Card>
@@ -163,6 +169,11 @@ export function DayView({
   emptyAction,
   onEditBlock,
 }: DayViewProps) {
+  const m = useMessages();
+  const t = m.planner;
+  const locale = useLocale();
+  void locale;
+
   if (isLoading) {
     return <DayViewSkeleton />;
   }
@@ -176,8 +187,8 @@ export function DayView({
       <Card>
         <EmptyState
           icon={CalendarPlus}
-          title="Nothing planned for this day"
-          description="Time blocks appear here once they are scheduled. In the meantime, open your tasks and choose what to work on next."
+          title={t.nothingPlannedDay}
+          description={t.nothingPlannedDayHintLong}
           action={emptyAction}
         />
       </Card>
@@ -187,23 +198,23 @@ export function DayView({
   return (
     <div className="space-y-6">
       <Card className="space-y-4">
-        <h2 className="text-ui font-medium text-content">Day summary</h2>
+        <h2 className="text-ui font-medium text-content">{t.daySummary}</h2>
         <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-          <DayStat label="Scheduled" minutes={day.totals.scheduled} />
-          <DayStat label="Task" minutes={day.totals.task} />
-          <DayStat label="Break" minutes={day.totals.break} />
-          <DayStat label="Personal" minutes={day.totals.personal} />
-          <DayStat label="Free" minutes={day.totals.free} unavailable={!day.hasWakingHours} />
+          <DayStat label={t.scheduled} minutes={day.totals.scheduled} />
+          <DayStat label={t.task} minutes={day.totals.task} />
+          <DayStat label={t.break} minutes={day.totals.break} />
+          <DayStat label={t.personal} minutes={day.totals.personal} />
+          <DayStat label={t.free} minutes={day.totals.free} unavailable={!day.hasWakingHours} />
         </dl>
         <p className="text-micro text-muted tabular-nums">
-          Times shown in {day.timeZone} · day runs {day.scale.startLabel}–{day.scale.endLabel}
+          {tmpl(t.timesIn, { timeZone: day.timeZone })} · {tmpl(t.dayRuns, { start: day.scale.startLabel, end: day.scale.endLabel })}
         </p>
         {day.hasConflicts ? (
           <div className="flex items-start gap-2 rounded-control border border-danger-border bg-danger-subtle p-3">
             <AlertTriangle className="mt-0.5 size-4 shrink-0 text-danger" aria-hidden="true" />
             <div className="space-y-1">
-              <p className="text-ui font-medium text-content">Check the schedule</p>
-              <p className="text-ui text-muted text-pretty">{describeConflicts(day)}</p>
+              <p className="text-ui font-medium text-content">{t.checkSchedule}</p>
+              <p className="text-ui text-muted text-pretty">{describeConflicts(day, t)}</p>
             </div>
           </div>
         ) : null}
@@ -211,9 +222,9 @@ export function DayView({
 
       <Card className="space-y-4">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h2 className="text-ui font-medium text-content">Blocks</h2>
+          <h2 className="text-ui font-medium text-content">{t.blocks}</h2>
           <span className="text-micro text-muted tabular-nums">
-            {blockCountLabel(day.blocks.length)}
+            {blockCountLabel(day.blocks.length, t, locale)}
           </span>
         </div>
         <ol className="space-y-3">
@@ -224,20 +235,19 @@ export function DayView({
       </Card>
 
       <Card className="space-y-3">
-        <h2 className="text-ui font-medium text-content">Free time</h2>
+        <h2 className="text-ui font-medium text-content">{t.freeTime}</h2>
         {!day.hasWakingHours ? (
           <p className="text-ui text-muted text-pretty">
-            Free time is calculated from your waking hours. Set your wake-up and sleep time in
-            Settings to see the free windows for this day.
+            {t.freeTimeNoWaking}
           </p>
         ) : day.free.length === 0 ? (
           <p className="text-ui text-muted text-pretty">
-            No free time left on this day. Your blocks fill every window between wake-up and sleep.
+            {t.freeTimeFull}
           </p>
         ) : (
           <>
             <p className="text-micro text-muted text-pretty">
-              Free time is what remains after your blocks, working hours and study hours.
+              {t.freeTimeRemainsLong}
             </p>
             <ul className="space-y-2">
               {day.free.map((window) => (
@@ -249,7 +259,7 @@ export function DayView({
                     {window.startLabel} – {window.endLabel}
                   </span>
                   <span className="text-micro text-muted tabular-nums">
-                    {formatDurationMinutes(window.durationMinutes)}
+                    {formatDurationMinutes(window.durationMinutes, locale)}
                   </span>
                 </li>
               ))}
@@ -260,3 +270,5 @@ export function DayView({
     </div>
   );
 }
+
+export type { BlockType };

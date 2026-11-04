@@ -13,10 +13,12 @@ import { isTaskOverdue, isoToLocalDateTime } from "@/lib/dates";
 import {
   computeFreeWindows,
   explainSlot,
+  explainSlotParts,
   planDay,
   selectCandidates,
   type PlanBlock,
   type ScoreContext,
+  type SlotReasonParts,
   type WeeklyAvailability,
 } from "@/lib/planner";
 import type { Priority, Task } from "@/types/domain";
@@ -68,6 +70,11 @@ export interface PlanPreviewSlot {
   durationMinutes: number;
   /** Human sentence from `explainSlot`: which task, when, how long, why. */
   reason: string;
+  /**
+   * Structured reason parts for locale rendering (stable keys, no English
+   * comparison). Optional for backward compat — UI falls back to `reason`.
+   */
+  reasonParts?: SlotReasonParts;
 }
 
 export interface PlanPreviewIssue {
@@ -274,6 +281,7 @@ export function buildPlanPreview(input: PlanPreviewInput): PlanPreview {
         Math.round((Date.parse(planned.end) - Date.parse(planned.start)) / MS_PER_MINUTE),
       ),
       reason: explainSlot(task, range, context),
+      reasonParts: explainSlotParts(task, range, context),
     });
   }
 

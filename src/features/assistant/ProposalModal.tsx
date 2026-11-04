@@ -3,8 +3,11 @@ import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import type { AssistantProposal } from "@/lib/aiProposals";
+import { tmpl } from "@/lib/i18n/format";
+import { useMessages } from "@/lib/i18n/I18nContext";
 
-import { ASSISTANT_ERROR_MESSAGES, AssistantServiceError } from "./errors";
+import { translateAssistantError, type AssistantErrorCode } from "./errors";
+import { AssistantServiceError } from "./errors";
 import { useApproveProposal, useRejectProposal } from "./hooks";
 import { ProposalActionRow } from "./ProposalActionRow";
 
@@ -27,17 +30,11 @@ export interface ProposalModalProps {
   onDecided?: (outcome: ProposalDecided) => void;
 }
 
-function errorCopy(error: unknown): { code: string; text: string; showRetry: boolean } {
+function errorCodeOf(error: unknown): AssistantErrorCode {
   if (error instanceof AssistantServiceError) {
-    if (error.code === "expired") {
-      return { code: error.code, text: error.message, showRetry: false };
-    }
-    if (error.code === "already_decided") {
-      return { code: error.code, text: error.message, showRetry: false };
-    }
-    return { code: error.code, text: error.message, showRetry: true };
+    return error.code;
   }
-  return { code: "unknown", text: ASSISTANT_ERROR_MESSAGES.unknown, showRetry: true };
+  return "unknown";
 }
 
 /**
@@ -55,13 +52,16 @@ export function ProposalModal({
   onClose,
   onDecided,
 }: ProposalModalProps) {
+  const m = useMessages();
+  const t = m.assistant;
   const allIndexes = proposal.actions.map((_, index) => index);
   const [selected, setSelected] = useState<Set<number>>(new Set(allIndexes));
   const approveMutation = useApproveProposal();
   const rejectMutation = useRejectProposal();
   const busy = approveMutation.isPending || rejectMutation.isPending;
   const decideError = approveMutation.error ?? rejectMutation.error;
-  const errorInfo = decideError ? errorCopy(decideError) : null;
+  // Code state so open errors re-translate on language switch.
+  const decideErrorCode: AssistantErrorCode | null = decideError ? errorCodeOf(decideError) : null;
 
   const toggle = (index: number, next: boolean): void => {
     setSelected((previous) => {
@@ -110,8 +110,8 @@ export function ProposalModal({
     <Dialog
       open={open}
       onClose={onClose}
-      title="Review proposal"
-      description="Nothing is applied yet. Only the checked actions will be applied — unchecked actions are discarded with the proposal."
+      title={t.reviewTitle}
+      description={t.reviewHint}
     >
       <div className="space-y-4">
         <div className="space-y-1">
@@ -133,18 +133,18 @@ export function ProposalModal({
           ))}
         </ul>
 
-        {errorInfo ? (
+        {decideErrorCode ? (
           <div role="alert" className="space-y-2">
             <p className="text-ui font-medium text-content">
-              {errorInfo.code === "expired" ? "Proposal expired" : "Could not decide the proposal"}
+              {decideErrorCode === "expired" ? t.proposalExpired : t.proposalUndecided}
             </p>
-            <p className="text-ui text-muted">{errorInfo.text}</p>
-            {errorInfo.code === "expired" ? (
+            <p className="text-ui text-muted">{translateAssistantError(decideErrorCode, m)}</p>
+            {decideErrorCode === "expired" ? (
               <p className="text-ui text-muted">
-                Start a new conversation for a fresh suggestion.
+                {t.startNewConversation}
               </p>
             ) : null}
-            {errorInfo.showRetry ? (
+            {decideErrorCode === "expired" || decideErrorCode === "already_decided" ? null : (
               <Button
                 variant="secondary"
                 size="lg"
@@ -154,15 +154,15 @@ export function ProposalModal({
                   rejectMutation.reset();
                 }}
               >
-                Dismiss
+                {t.dismiss}
               </Button>
-            ) : null}
+            )}
           </div>
         ) : null}
 
         <div className="flex flex-wrap items-center gap-2">
           <Button size="lg" disabled={busy} onClick={() => void handleAcceptAll()}>
-            Accept all
+            {t.acceptAll}
           </Button>
           <Button
             variant="secondary"
@@ -170,7 +170,7 @@ export function ProposalModal({
             disabled={busy || selected.size === 0}
             onClick={() => void handleAcceptSelected()}
           >
-            Accept selected ({selected.size})
+            {tmpl(t.acceptSelected, { count: selected.size })}
           </Button>
           <Button
             variant="ghost"
@@ -179,12 +179,11 @@ export function ProposalModal({
             data-autofocus
             onClick={() => void handleReject()}
           >
-            Reject
+            {t.reject}
           </Button>
         </div>
         <p className="text-micro text-muted">
-          Accept applies only the checked actions. Unchecked actions are discarded with the
-          proposal. Reject discards the whole proposal.
+          {t.acceptHint}
         </p>
       </div>
     </Dialog>

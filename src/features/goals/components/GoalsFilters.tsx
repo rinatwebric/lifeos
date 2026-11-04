@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import type { GoalFilters } from "@/features/goals/api";
-import { humanize } from "@/lib/strings";
+import { useMessages } from "@/lib/i18n/I18nContext";
 import { useDebouncedValue } from "@/lib/useDebouncedValue";
 import {
   GOAL_CATEGORIES,
@@ -26,6 +26,8 @@ function toOptional(value: string): string | undefined {
 }
 
 export function GoalsFilters({ filters, onChange }: GoalsFiltersProps) {
+  const m = useMessages();
+  const t = m.goals;
   const [search, setSearch] = useState(filters.search ?? "");
   const debouncedSearch = useDebouncedValue(search, 300);
 
@@ -58,7 +60,7 @@ export function GoalsFilters({ filters, onChange }: GoalsFiltersProps) {
     <div className="grid gap-3 rounded-card border border-line bg-surface p-4 sm:grid-cols-2 lg:grid-cols-4">
       <div className="space-y-1.5">
         <label htmlFor="goals-filter-status" className="block text-ui font-medium text-content">
-          Status
+          {t.filtersStatus}
         </label>
         <Select
           id="goals-filter-status"
@@ -67,10 +69,10 @@ export function GoalsFilters({ filters, onChange }: GoalsFiltersProps) {
             onChange({ ...filters, status: toOptional(event.target.value) as GoalStatus | undefined })
           }
         >
-          <option value="">All statuses</option>
+          <option value="">{t.allStatuses}</option>
           {GOAL_STATUSES.map((status) => (
             <option key={status} value={status}>
-              {humanize(status)}
+              {m.enums.status[status]}
             </option>
           ))}
         </Select>
@@ -78,7 +80,7 @@ export function GoalsFilters({ filters, onChange }: GoalsFiltersProps) {
 
       <div className="space-y-1.5">
         <label htmlFor="goals-filter-category" className="block text-ui font-medium text-content">
-          Category
+          {t.filtersCategory}
         </label>
         <Select
           id="goals-filter-category"
@@ -90,10 +92,10 @@ export function GoalsFilters({ filters, onChange }: GoalsFiltersProps) {
             })
           }
         >
-          <option value="">All categories</option>
+          <option value="">{t.allCategories}</option>
           {GOAL_CATEGORIES.map((category) => (
             <option key={category} value={category}>
-              {humanize(category)}
+              {m.enums.category[category]}
             </option>
           ))}
         </Select>
@@ -101,7 +103,7 @@ export function GoalsFilters({ filters, onChange }: GoalsFiltersProps) {
 
       <div className="space-y-1.5">
         <label htmlFor="goals-filter-priority" className="block text-ui font-medium text-content">
-          Priority
+          {t.filtersPriority}
         </label>
         <Select
           id="goals-filter-priority"
@@ -110,10 +112,10 @@ export function GoalsFilters({ filters, onChange }: GoalsFiltersProps) {
             onChange({ ...filters, priority: toOptional(event.target.value) as Priority | undefined })
           }
         >
-          <option value="">All priorities</option>
+          <option value="">{t.allPriorities}</option>
           {PRIORITIES.map((priority) => (
             <option key={priority} value={priority}>
-              {humanize(priority)}
+              {m.enums.priority[priority]}
             </option>
           ))}
         </Select>
@@ -121,12 +123,12 @@ export function GoalsFilters({ filters, onChange }: GoalsFiltersProps) {
 
       <div className="space-y-1.5">
         <label htmlFor={SEARCH_INPUT_ID} className="block text-ui font-medium text-content">
-          Search
+          {t.filtersSearch}
         </label>
         <Input
           id={SEARCH_INPUT_ID}
           type="search"
-          placeholder="Search goals…"
+          placeholder={t.searchGoals}
           value={search}
           onChange={(event) => setSearch(event.target.value)}
         />

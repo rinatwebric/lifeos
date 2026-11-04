@@ -87,3 +87,56 @@ export const updateTaskSchema = taskBaseSchema.partial().refine(hasValidSchedule
 });
 
 export type UpdateTaskInput = z.infer<typeof updateTaskSchema>;
+
+export interface TaskValidationMessages {
+  titleRequired: string;
+  titleTooLong: string;
+  descriptionTooLong: string;
+  dateFormat: string;
+  isoDateTime: string;
+  scheduledEndAfterStart: string;
+  durationPositive: string;
+  validGoal: string;
+  validMilestone: string;
+}
+
+/** Localized factories for forms; static exports above stay English for tests. */
+export function createTaskFormSchemas(v: TaskValidationMessages) {
+  const titleField = z.string().trim().min(1, v.titleRequired).max(200, v.titleTooLong);
+  const descriptionField = z
+    .string()
+    .trim()
+    .max(2000, v.descriptionTooLong)
+    .nullable()
+    .optional();
+  const dateKeyField = z.iso.date({ error: v.dateFormat });
+  const optionalDateKeyField = dateKeyField.nullable().optional();
+  const datetimeField = z.iso.datetime({ error: v.isoDateTime });
+  const optionalDatetimeField = datetimeField.nullable().optional();
+  const base = z.object({
+    title: titleField,
+    description: descriptionField,
+    priority: z.enum(PRIORITIES),
+    status: z.enum(TASK_STATUSES),
+    dueDate: optionalDateKeyField,
+    scheduledStart: optionalDatetimeField,
+    scheduledEnd: optionalDatetimeField,
+    estimatedDurationMinutes: z
+      .number()
+      .int()
+      .positive(v.durationPositive)
+      .nullable()
+      .optional(),
+    goalId: z.string().uuid(v.validGoal).nullable().optional(),
+    milestoneId: z.string().uuid(v.validMilestone).nullable().optional(),
+  });
+  const createTaskSchema = base.refine(hasValidSchedule, {
+    message: v.scheduledEndAfterStart,
+    path: ["scheduledEnd"],
+  });
+  const updateTaskSchema = base.partial().refine(hasValidSchedule, {
+    message: v.scheduledEndAfterStart,
+    path: ["scheduledEnd"],
+  });
+  return { createTaskSchema, updateTaskSchema };
+}

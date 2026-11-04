@@ -444,7 +444,7 @@ describe("TasksPage", () => {
     } as unknown as ReturnType<typeof useTasks>);
     renderTasksPage();
 
-    expect(screen.getByRole("status", { name: "Loading tasks" })).toBeInTheDocument();
+    expect(screen.getByRole("status", { name: "Loading tasks…" })).toBeInTheDocument();
   });
 
   it("prefills the edit form with the selected task", async () => {

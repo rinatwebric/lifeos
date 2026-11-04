@@ -11,7 +11,8 @@ import { useDashboardData } from "@/features/dashboard/useDashboardData";
 import { ScheduleCard } from "@/features/dashboard/ScheduleCard";
 import { useSetTaskStatus } from "@/features/tasks/hooks";
 import { formatLongDate } from "@/lib/dates";
-import { humanize } from "@/lib/strings";
+import { pluralCategory, tmpl } from "@/lib/i18n/format";
+import { useIntlLocale, useLocale, useMessages } from "@/lib/i18n/I18nContext";
 import { cn } from "@/lib/cn";
 import type { Task } from "@/types/domain";
 
@@ -29,23 +30,25 @@ function BlockSkeleton({ label }: { label: string }) {
 }
 
 function BlockError({ message, onRetry }: { message: string; onRetry: () => void }) {
+  const m = useMessages();
+
   return (
     <div role="alert" className="rounded-control border border-line bg-surface p-4">
       <p className="text-ui text-content">{message}</p>
       <div className="mt-3">
         <Button variant="secondary" size="sm" onClick={onRetry}>
-          Retry
+          {m.common.retry}
         </Button>
       </div>
     </div>
   );
 }
 
-function formatTaskTime(task: Task, timeZone: string): string | null {
+function formatTaskTime(task: Task, timeZone: string, intl: string): string | null {
   if (task.scheduledStart) {
     const date = new Date(task.scheduledStart);
     if (!Number.isNaN(date.getTime())) {
-      return new Intl.DateTimeFormat("en-US", {
+      return new Intl.DateTimeFormat(intl, {
         timeZone,
         hour: "2-digit",
         minute: "2-digit",
@@ -64,14 +67,15 @@ function DashboardTaskRow({
   timeZone: string;
   goalTitle: string | null;
 }) {
+  const m = useMessages();
+  const t = m.dashboard;
+  const intl = useIntlLocale();
   const setStatus = useSetTaskStatus();
   const completed = task.status === "completed";
   const showPriorityBadge = task.priority === "high" || task.priority === "critical";
 
   const handleToggle = (): void => {
-    if (setStatus.isPending) {
-      return;
-    }
+    if (setStatus.isPending) return;
     setStatus.mutate({ id: task.id, status: completed ? "todo" : "completed" });
   };
 
@@ -86,7 +90,11 @@ function DashboardTaskRow({
           type="checkbox"
           checked={completed}
           onChange={handleToggle}
-          aria-label={completed ? `Mark ${task.title} as not completed` : `Mark ${task.title} as completed`}
+          aria-label={
+            completed
+              ? tmpl(t.markIncomplete, { title: task.title })
+              : tmpl(t.markComplete, { title: task.title })
+          }
           className="mt-0.5 size-4 shrink-0 accent-current"
         />
       </label>
@@ -102,12 +110,16 @@ function DashboardTaskRow({
         </p>
         <div className="flex flex-wrap items-center gap-1.5">
           {showPriorityBadge ? (
-            <Badge tone="outline">{humanize(task.priority)} priority</Badge>
+            <Badge tone="outline">
+              {tmpl(t.priorityBadge, { priority: m.enums.priority[task.priority] })}
+            </Badge>
           ) : null}
-          {formatTaskTime(task, timeZone) ? (
-            <span className="text-micro text-muted tabular-nums">{formatTaskTime(task, timeZone)}</span>
+          {formatTaskTime(task, timeZone, intl) ? (
+            <span className="text-micro text-muted tabular-nums">
+              {formatTaskTime(task, timeZone, intl)}
+            </span>
           ) : null}
-          <span className="text-micro text-muted">{humanize(task.status)}</span>
+          <span className="text-micro text-muted">{m.enums.status[task.status]}</span>
           {task.goalId && goalTitle ? (
             <Link
               to={`/goals/${task.goalId}`}
@@ -119,7 +131,7 @@ function DashboardTaskRow({
         </div>
         {setStatus.isError ? (
           <p role="alert" className="text-micro text-danger">
-            Could not update the status. Please try again.
+            {t.updateStatusError}
           </p>
         ) : null}
       </div>
@@ -128,6 +140,10 @@ function DashboardTaskRow({
 }
 
 export function DashboardPage() {
+  const m = useMessages();
+  const t = m.dashboard;
+  const locale = useLocale();
+  const intl = useIntlLocale();
   const data = useDashboardData();
   const {
     now,
@@ -146,57 +162,61 @@ export function DashboardPage() {
     goalTitleById,
   } = data;
 
-  const welcome = displayName ? `Welcome back, ${displayName}` : "Welcome back";
+  const welcome = displayName ? tmpl(t.welcomeWithName, { name: displayName }) : t.welcomeBack;
   const goalsLoading = goalsQuery.isLoading || milestonesQuery.isLoading;
   const goalsError = goalsQuery.isError || milestonesQuery.isError;
   const insightsLoading =
     todayQuery.isLoading || overdueQuery.isLoading || goalsQuery.isLoading || milestonesQuery.isLoading;
 
   const retryGoals = (): void => {
-    if (goalsQuery.isError) {
-      void goalsQuery.refetch();
-    }
-    if (milestonesQuery.isError) {
-      void milestonesQuery.refetch();
-    }
+    if (goalsQuery.isError) void goalsQuery.refetch();
+    if (milestonesQuery.isError) void milestonesQuery.refetch();
+  };
+
+  const milestonesText = (remaining: number, total: number): string => {
+    const cat = pluralCategory(locale, remaining);
+    const tpl =
+      cat === "one"
+        ? t.milestonesRemainingOne
+        : cat === "few"
+          ? t.milestonesRemainingFew
+          : t.milestonesRemainingMany;
+    return tmpl(tpl, { remaining, total });
   };
 
   return (
     <div className="space-y-6">
       <PageHeader
         title={welcome}
-        description={`${formatLongDate(now, timeZone)} · times shown in ${timeZone}`}
+        description={`${formatLongDate(now, timeZone, intl)} · ${tmpl(t.timesShownIn, { timeZone })}`}
       />
 
       <div className="grid gap-4 md:grid-cols-3">
         <Card className="space-y-3">
-          <h2 className="text-ui font-medium text-content">Today&apos;s progress</h2>
+          <h2 className="text-ui font-medium text-content">{t.todayProgress}</h2>
           {todayQuery.isLoading ? (
-            <BlockSkeleton label="Loading today's progress" />
+            <BlockSkeleton label={t.loadingTodayProgress} />
           ) : todayQuery.isError ? (
-            <BlockError
-              message="Could not load today's tasks. Please try again."
-              onRetry={() => void todayQuery.refetch()}
-            />
+            <BlockError message={t.loadTodayError} onRetry={() => void todayQuery.refetch()} />
           ) : dailyProgress === null ? (
             <div className="space-y-3">
-              <p className="text-ui text-muted">
-                Nothing planned for today — add a task to get started
-              </p>
+              <p className="text-ui text-muted">{t.emptyToday}</p>
               <Link
                 to="/tasks"
                 className="inline-flex items-center gap-1.5 text-ui font-medium text-content underline-offset-4 hover:underline"
               >
-                Open tasks
+                {t.openTasks}
               </Link>
             </div>
           ) : (
             <div className="space-y-2">
-              <ProgressBar value={dailyProgress} label="Today's progress" />
+              <ProgressBar value={dailyProgress} label={t.todayProgress} />
               <p className="text-ui text-muted tabular-nums">
-                Completed {completedToday} of {totalToday} tasks today
+                {tmpl(t.completedOf, { completed: completedToday, total: totalToday })}
               </p>
-              <p className="text-micro text-muted tabular-nums">{dailyProgress}% complete</p>
+              <p className="text-micro text-muted tabular-nums">
+                {tmpl(t.percentComplete, { percent: dailyProgress })}
+              </p>
             </div>
           )}
         </Card>
@@ -205,12 +225,12 @@ export function DashboardPage() {
 
         {insightsLoading ? (
           <Card className="space-y-3">
-            <h2 className="text-ui font-medium text-content">Insights</h2>
-            <BlockSkeleton label="Loading insights" />
+            <h2 className="text-ui font-medium text-content">{t.insights}</h2>
+            <BlockSkeleton label={t.loadingInsights} />
           </Card>
         ) : insights.length > 0 ? (
           <Card className="space-y-3">
-            <h2 className="text-ui font-medium text-content">Insights</h2>
+            <h2 className="text-ui font-medium text-content">{t.insights}</h2>
             <ul className="list-disc space-y-1.5 pl-5 text-ui text-muted">
               {insights.map((line) => (
                 <li key={line}>{line}</li>
@@ -223,27 +243,24 @@ export function DashboardPage() {
       <div className="grid gap-4 lg:grid-cols-2">
         <Card className="space-y-4">
           <div className="flex items-center justify-between gap-2">
-            <h2 className="text-ui font-medium text-content">Active goals</h2>
+            <h2 className="text-ui font-medium text-content">{t.activeGoals}</h2>
             <Target className="size-4.5 text-muted" aria-hidden="true" />
           </div>
           {goalsLoading ? (
-            <BlockSkeleton label="Loading goals" />
+            <BlockSkeleton label={t.loadingGoals} />
           ) : goalsError ? (
-            <BlockError
-              message="Could not load goals. Please try again."
-              onRetry={retryGoals}
-            />
+            <BlockError message={t.loadGoalsError} onRetry={retryGoals} />
           ) : activeGoals.length === 0 ? (
             <EmptyState
               icon={Target}
-              title="No active goals yet"
-              description="Create a long-term goal and break it into milestones to see progress here."
+              title={t.noActiveGoals}
+              description={t.noActiveGoalsHint}
               action={
                 <Link
                   to="/goals"
                   className="inline-flex items-center gap-1.5 text-ui font-medium text-content underline-offset-4 hover:underline"
                 >
-                  Go to goals
+                  {t.goToGoals}
                 </Link>
               }
             />
@@ -258,15 +275,18 @@ export function DashboardPage() {
                     >
                       {item.goal.title}
                     </Link>
-                    <Badge>{humanize(item.goal.category)}</Badge>
+                    <Badge>{m.enums.category[item.goal.category]}</Badge>
                   </div>
-                  <ProgressBar value={item.progress} label={`Progress for ${item.goal.title}`} />
+                  <ProgressBar
+                    value={item.progress}
+                    label={tmpl(t.goalProgressLabel, { title: item.goal.title })}
+                  />
                   <p className="text-micro text-muted tabular-nums">
-                    {item.progress}% complete ·{" "}
-                    {item.goal.targetDate ? `Due ${item.goal.targetDate}` : "No deadline"} ·{" "}
+                    {tmpl(t.percentComplete, { percent: item.progress })} ·{" "}
+                    {item.goal.targetDate ? tmpl(t.due, { date: item.goal.targetDate }) : t.noDeadline} ·{" "}
                     {item.totalMilestones === 0
-                      ? "No milestones yet"
-                      : `${item.remainingMilestones} of ${item.totalMilestones} milestones remaining`}
+                      ? t.noMilestones
+                      : milestonesText(item.remainingMilestones, item.totalMilestones)}
                   </p>
                 </li>
               ))}
@@ -276,27 +296,24 @@ export function DashboardPage() {
 
         <Card className="space-y-4">
           <div className="flex items-center justify-between gap-2">
-            <h2 className="text-ui font-medium text-content">Today&apos;s tasks</h2>
+            <h2 className="text-ui font-medium text-content">{t.todayTasks}</h2>
             <ListChecks className="size-4.5 text-muted" aria-hidden="true" />
           </div>
           {todayQuery.isLoading ? (
-            <BlockSkeleton label="Loading today's tasks" />
+            <BlockSkeleton label={t.loadingTodayTasks} />
           ) : todayQuery.isError ? (
-            <BlockError
-              message="Could not load today's tasks. Please try again."
-              onRetry={() => void todayQuery.refetch()}
-            />
+            <BlockError message={t.loadTodayError} onRetry={() => void todayQuery.refetch()} />
           ) : todayTasks.length === 0 ? (
             <EmptyState
               icon={ListChecks}
-              title="No tasks due today"
-              description="Plan a task for today to see it here with its priority and goal."
+              title={t.noTasksToday}
+              description={t.noTasksTodayHint}
               action={
                 <Link
                   to="/tasks"
                   className="inline-flex items-center gap-1.5 text-ui font-medium text-content underline-offset-4 hover:underline"
                 >
-                  Open tasks
+                  {t.openTasks}
                 </Link>
               }
             />

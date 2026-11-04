@@ -11,6 +11,7 @@ import {
 } from "./api";
 import { useAuth } from "@/features/auth/useAuth";
 import { isSupabaseConfigured } from "@/lib/env";
+import { useMessages } from "@/lib/i18n/I18nContext";
 import { toWallTime } from "@/lib/dates";
 import { Button } from "@/components/ui/Button";
 
@@ -32,6 +33,8 @@ export const ONBOARDING_COPY = {
  * Escape acts as Skip. No focus trap: tab navigation keeps working.
  */
 export function OnboardingDialog() {
+  const m = useMessages();
+  const t = m.onboarding;
   const { status } = useAuth();
   const queryClient = useQueryClient();
   const [dismissed, setDismissed] = useState(false);
@@ -66,7 +69,7 @@ export function OnboardingDialog() {
       await queryClient.invalidateQueries({ queryKey: profileQueryKey });
       setDismissed(true);
     } catch (error) {
-      setSkipError(error instanceof Error ? error.message : "Please try again.");
+      setSkipError(error instanceof Error ? error.message : t.fallbackError);
     } finally {
       setSkipping(false);
     }
@@ -109,18 +112,18 @@ export function OnboardingDialog() {
     >
       <div className="w-full max-w-md rounded-card border border-line bg-surface p-6 shadow-overlay">
         <h2 id="onboarding-title" className="text-heading font-semibold tracking-tight text-content">
-          {ONBOARDING_COPY.title}
+          {t.title}
         </h2>
-        <p className="mt-1 text-ui text-muted">{ONBOARDING_COPY.description}</p>
+        <p className="mt-1 text-ui text-muted">{t.description}</p>
 
         <div className="mt-4">
           {loading ? (
             <p role="status" className="text-ui text-muted">
-              {ONBOARDING_COPY.loading}
+              {t.loading}
             </p>
           ) : loadFailed ? (
             <p role="alert" className="text-ui text-danger">
-              {ONBOARDING_COPY.loadError}
+              {t.loadError}
             </p>
           ) : (
             <PreferencesForm
@@ -130,7 +133,7 @@ export function OnboardingDialog() {
                 wakeUpTime,
                 sleepTime,
               }}
-              submitLabel={ONBOARDING_COPY.save}
+              submitLabel={t.save}
               idPrefix="onboarding"
               onSaved={async () => {
                 await markOnboarded();
@@ -155,7 +158,7 @@ export function OnboardingDialog() {
             disabled={skipping}
             loading={skipping}
           >
-            {skipping ? ONBOARDING_COPY.skipping : ONBOARDING_COPY.skip}
+            {skipping ? t.skipping : t.skip}
           </Button>
         </div>
       </div>

@@ -4,7 +4,7 @@ import { Link, useNavigate } from "react-router-dom";
 
 import { AuthAlert, AuthField, AuthSubmit } from "./AuthControls";
 import { resetPassword, signOut, updatePassword } from "./api";
-import { AUTH_ERROR_MESSAGES, AuthServiceError, toAuthError } from "./errors";
+import { translateAuthError, AuthServiceError, toAuthError, type AuthErrorCode } from "./errors";
 import { zodResolver } from "./resolver";
 import {
   requestResetSchema,
@@ -12,6 +12,7 @@ import {
   type RequestResetValues,
   type SetNewPasswordValues,
 } from "./schemas";
+import { useMessages } from "@/lib/i18n/I18nContext";
 
 export type ResetPasswordMode = "request" | "update";
 
@@ -47,9 +48,12 @@ interface ResetPasswordPageProps {
  * stale link (`session_missing`) falls back to the request form.
  */
 export function ResetPasswordPage({ initialMode = "request" }: ResetPasswordPageProps) {
+  const m = useMessages();
+  const t = m.auth.resetPassword;
   const navigate = useNavigate();
   const [mode, setMode] = useState<ResetPasswordMode>(initialMode);
-  const [formError, setFormError] = useState<string | null>(null);
+  // Code state so open errors re-translate on language switch.
+  const [formErrorCode, setFormErrorCode] = useState<AuthErrorCode | null>(null);
   const [requestSent, setRequestSent] = useState(false);
   const [expiredLink, setExpiredLink] = useState(false);
 
@@ -64,19 +68,19 @@ export function ResetPasswordPage({ initialMode = "request" }: ResetPasswordPage
   });
 
   const onRequest = async (values: RequestResetValues): Promise<void> => {
-    setFormError(null);
+    setFormErrorCode(null);
 
     try {
       await resetPassword(values.email);
       setRequestSent(true);
     } catch (error) {
       const authError = error instanceof AuthServiceError ? error : toAuthError(error);
-      setFormError(AUTH_ERROR_MESSAGES[authError.code]);
+      setFormErrorCode(authError.code);
     }
   };
 
   const onUpdate = async (values: SetNewPasswordValues): Promise<void> => {
-    setFormError(null);
+    setFormErrorCode(null);
     setExpiredLink(false);
 
     try {
@@ -92,7 +96,7 @@ export function ResetPasswordPage({ initialMode = "request" }: ResetPasswordPage
         return;
       }
 
-      setFormError(AUTH_ERROR_MESSAGES[authError.code]);
+      setFormErrorCode(authError.code);
     }
   };
 
@@ -100,13 +104,13 @@ export function ResetPasswordPage({ initialMode = "request" }: ResetPasswordPage
     return (
       <div className="space-y-6">
         <div className="space-y-1">
-          <h1 className="text-heading font-semibold tracking-tight text-content">
-            {RESET_PASSWORD_COPY.updateTitle}
-          </h1>
-          <p className="text-ui text-muted">{RESET_PASSWORD_COPY.updateSubtitle}</p>
+          <h1 className="text-heading font-semibold tracking-tight text-content">{t.chooseTitle}</h1>
+          <p className="text-ui text-muted">{t.chooseHint}</p>
         </div>
 
-        {formError ? <AuthAlert tone="error">{formError}</AuthAlert> : null}
+        {formErrorCode ? (
+          <AuthAlert tone="error">{translateAuthError(formErrorCode, m)}</AuthAlert>
+        ) : null}
 
         <form
           noValidate
@@ -115,7 +119,7 @@ export function ResetPasswordPage({ initialMode = "request" }: ResetPasswordPage
         >
           <AuthField
             id="reset-new-password"
-            label={RESET_PASSWORD_COPY.passwordLabel}
+            label={t.newPasswordLabel}
             type="password"
             autoComplete="new-password"
             error={updateForm.formState.errors.password?.message}
@@ -123,17 +127,14 @@ export function ResetPasswordPage({ initialMode = "request" }: ResetPasswordPage
           />
           <AuthField
             id="reset-confirm-password"
-            label={RESET_PASSWORD_COPY.confirmLabel}
+            label={t.confirmLabel}
             type="password"
             autoComplete="new-password"
             error={updateForm.formState.errors.confirmPassword?.message}
             {...updateForm.register("confirmPassword")}
           />
-          <AuthSubmit
-            pending={updateForm.formState.isSubmitting}
-            pendingLabel={RESET_PASSWORD_COPY.updating}
-          >
-            {RESET_PASSWORD_COPY.updateSubmit}
+          <AuthSubmit pending={updateForm.formState.isSubmitting} pendingLabel={t.saving}>
+            {t.saveNew}
           </AuthSubmit>
         </form>
       </div>
@@ -143,15 +144,15 @@ export function ResetPasswordPage({ initialMode = "request" }: ResetPasswordPage
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <h1 className="text-heading font-semibold tracking-tight text-content">
-          {RESET_PASSWORD_COPY.requestTitle}
-        </h1>
-        <p className="text-ui text-muted">{RESET_PASSWORD_COPY.requestSubtitle}</p>
+        <h1 className="text-heading font-semibold tracking-tight text-content">{t.requestTitle}</h1>
+        <p className="text-ui text-muted">{t.requestDescription}</p>
       </div>
 
-      {expiredLink ? <AuthAlert tone="error">{RESET_PASSWORD_COPY.expiredLink}</AuthAlert> : null}
-      {formError ? <AuthAlert tone="error">{formError}</AuthAlert> : null}
-      {requestSent ? <AuthAlert tone="success">{RESET_PASSWORD_COPY.requestSent}</AuthAlert> : null}
+      {expiredLink ? <AuthAlert tone="error">{t.invalidLink}</AuthAlert> : null}
+      {formErrorCode ? (
+        <AuthAlert tone="error">{translateAuthError(formErrorCode, m)}</AuthAlert>
+      ) : null}
+      {requestSent ? <AuthAlert tone="success">{t.sentHint}</AuthAlert> : null}
 
       <form
         noValidate
@@ -160,24 +161,21 @@ export function ResetPasswordPage({ initialMode = "request" }: ResetPasswordPage
       >
         <AuthField
           id="reset-email"
-          label={RESET_PASSWORD_COPY.emailLabel}
+          label={t.emailLabel}
           type="email"
           autoComplete="email"
-          placeholder={RESET_PASSWORD_COPY.emailPlaceholder}
+          placeholder={t.emailPlaceholder}
           error={requestForm.formState.errors.email?.message}
           {...requestForm.register("email")}
         />
-        <AuthSubmit
-          pending={requestForm.formState.isSubmitting}
-          pendingLabel={RESET_PASSWORD_COPY.requesting}
-        >
-          {requestSent ? RESET_PASSWORD_COPY.requestNewLink : RESET_PASSWORD_COPY.requestSubmit}
+        <AuthSubmit pending={requestForm.formState.isSubmitting} pendingLabel={t.sending}>
+          {requestSent ? t.requestNew : t.sendLink}
         </AuthSubmit>
       </form>
 
       <p className="text-center text-ui text-muted">
         <Link to="/sign-in" className="font-medium text-content underline-offset-4 hover:underline">
-          {RESET_PASSWORD_COPY.backToSignIn}
+          {t.backToSignIn}
         </Link>
       </p>
     </div>
