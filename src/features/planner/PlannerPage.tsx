@@ -8,6 +8,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { getProfile, profileQueryKey } from "@/features/settings/api";
 import { cn } from "@/lib/cn";
 import { formatLongDate, localDateTimeToIso, toDateKey } from "@/lib/dates";
+import { useIntlLocale, useMessages } from "@/lib/i18n/I18nContext";
 
 import { DayView } from "./DayView";
 import { DeleteBlockDialog, type DeleteBlockTarget } from "./DeleteBlockDialog";
@@ -29,9 +30,9 @@ const VIEW_PARAM = "view";
 
 export type PlannerView = "day" | "week";
 
-const VIEW_OPTIONS: readonly { value: PlannerView; label: string }[] = [
-  { value: "day", label: "Day" },
-  { value: "week", label: "Week" },
+const VIEW_OPTIONS: readonly { value: PlannerView; labelKey: "day" | "week" }[] = [
+  { value: "day", labelKey: "day" },
+  { value: "week", labelKey: "week" },
 ];
 
 /** Anything that is not an explicit `week` is the day view (the default). */
@@ -44,9 +45,11 @@ function plannerHref(view: PlannerView, dateKey: string): string {
 }
 
 function ViewSwitch({ view, dateKey }: { view: PlannerView; dateKey: string }) {
+  const m = useMessages();
+
   return (
     <nav
-      aria-label="Planner view"
+      aria-label={m.planner.viewLabel}
       className="flex items-center gap-1 rounded-control bg-surface-muted p-1"
     >
       {VIEW_OPTIONS.map((option) => {
@@ -65,7 +68,7 @@ function ViewSwitch({ view, dateKey }: { view: PlannerView; dateKey: string }) {
                 : "font-medium text-muted hover:bg-surface hover:text-content",
             )}
           >
-            {option.label}
+            {m.planner[option.labelKey]}
           </Link>
         );
       })}
@@ -75,12 +78,14 @@ function ViewSwitch({ view, dateKey }: { view: PlannerView; dateKey: string }) {
 
 /** Next step offered by both empty states (PRD §9.4). */
 function OpenTasksLink() {
+  const m = useMessages();
+
   return (
     <Link
       to="/tasks"
       className="inline-flex min-h-11 items-center gap-1.5 rounded-control px-2 text-ui font-medium text-content underline underline-offset-4 hover:bg-surface-muted"
     >
-      Open tasks
+      {m.planner.openTasks}
     </Link>
   );
 }
@@ -146,6 +151,9 @@ function PlannerWeekSection({ dateKey, now }: PlannerSectionProps) {
 }
 
 export function PlannerPage() {
+  const m = useMessages();
+  const t = m.planner;
+  const intl = useIntlLocale();
   const [searchParams, setSearchParams] = useSearchParams();
   const [blockDialog, setBlockDialog] = useState<BlockDialogState>(null);
   const [deleteTarget, setDeleteTarget] = useState<DeleteBlockTarget | null>(null);
@@ -172,16 +180,15 @@ export function PlannerPage() {
   // A day steps one day, a week steps seven: the arrow keeps the meaning the
   // header promises ("previous day" / "previous week").
   const stepDays = view === "week" ? 7 : 1;
-  const period = view === "week" ? "week" : "day";
 
   // Noon probe: the calendar date rendered in `timeZone`, never shifted by DST.
   const selectedDate = new Date(localDateTimeToIso(`${dateKey}T12:00`, timeZone));
   const title =
-    view === "week" ? plannerWeekLabel(dateKey, timeZone) : formatLongDate(selectedDate, timeZone);
-  const description =
-    view === "week"
-      ? "Seven days at a glance: how much each day holds and where the blocks collide."
-      : "Everything scheduled on this day, with the time still free for planning.";
+    view === "week" ? plannerWeekLabel(dateKey, timeZone, intl) : formatLongDate(selectedDate, timeZone, intl);
+  const description = view === "week" ? t.weekDescription : t.dayDescription;
+
+  const prevLabel = view === "week" ? t.prevWeek : t.prevDay;
+  const nextLabel = view === "week" ? t.nextWeek : t.nextDay;
 
   return (
     <div className="space-y-6">
@@ -192,17 +199,17 @@ export function PlannerPage() {
           <div className="flex flex-wrap items-center gap-2">
             <Button size="lg" onClick={() => setBlockDialog({ mode: "create" })}>
               <Plus className="size-4" aria-hidden="true" />
-              Add block
+              {t.addBlock}
             </Button>
             <Button size="lg" variant="secondary" onClick={() => setPreviewOpen(true)}>
-              Generate plan
+              {t.generatePlan}
             </Button>
             <ViewSwitch view={view} dateKey={dateKey} />
             <div className="flex flex-wrap items-center gap-2">
               <Button
                 variant="secondary"
                 size="lg"
-                aria-label={`Previous ${period}`}
+                aria-label={prevLabel}
                 onClick={() => goTo(view, shiftDateKey(dateKey, -stepDays))}
               >
                 <ChevronLeft className="size-4" aria-hidden="true" />
@@ -210,7 +217,7 @@ export function PlannerPage() {
               <Button
                 variant="secondary"
                 size="lg"
-                aria-label={`Next ${period}`}
+                aria-label={nextLabel}
                 onClick={() => goTo(view, shiftDateKey(dateKey, stepDays))}
               >
                 <ChevronRight className="size-4" aria-hidden="true" />
@@ -221,7 +228,7 @@ export function PlannerPage() {
                 disabled={isToday}
                 onClick={() => goTo(view, todayKey)}
               >
-                Today
+                {t.today}
               </Button>
             </div>
           </div>

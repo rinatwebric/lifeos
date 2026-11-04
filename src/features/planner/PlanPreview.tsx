@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { formatLongDate, localDateTimeToIso } from "@/lib/dates";
+import { tmpl } from "@/lib/i18n/format";
+import { useIntlLocale, useMessages } from "@/lib/i18n/I18nContext";
 import type { Priority } from "@/types/domain";
 
 import { formatDurationMinutes } from "./usePlannerDay";
@@ -20,25 +22,18 @@ import type {
  * Plan preview panel (iteration 4, unit 8). It renders a proposal and nothing
  * else: Accept, Regenerate and Cancel only call the callbacks they are given.
  * No API call, no cache write, no optimistic block — unit 9 owns the write.
- *
- * Copy follows the project voice (see `.agents/skills/better-writing`): the
- * reader is addressed directly, every empty state names the next step, and no
- * screen shows a raw reason code (`no-window`, `too-long`).
  */
 
-const PRIORITY_LABELS: Record<Priority, string> = {
-  low: "Low priority",
-  medium: "Medium priority",
-  high: "High priority",
-  critical: "Critical priority",
-};
-
-function slotCountLabel(count: number): string {
-  return count === 1 ? "1 slot" : `${count} slots`;
+function priorityLabel(priority: Priority, t: Record<Priority, string>): string {
+  return t[priority];
 }
 
-function taskCountLabel(count: number): string {
-  return count === 1 ? "1 task" : `${count} tasks`;
+function slotCountLabel(count: number, t: { slotsOne: string; slotsMany: string }): string {
+  return count === 1 ? t.slotsOne : tmpl(t.slotsMany, { count });
+}
+
+function taskCountLabel(count: number, t: { tasksOne: string; tasksMany: string }): string {
+  return count === 1 ? t.tasksOne : tmpl(t.tasksMany, { count });
 }
 
 export interface PlanPreviewProps {
@@ -72,23 +67,32 @@ function PreviewNotice({ children }: { children: ReactNode }) {
 }
 
 function SlotRow({ slot }: { slot: PlanPreviewSlot }) {
+  const m = useMessages();
+  const t = m.planner;
+  const priorityLabels: Record<Priority, string> = {
+    low: t.lowPriority,
+    medium: t.mediumPriority,
+    high: t.highPriority,
+    critical: t.criticalPriority,
+  };
+
   return (
     <li className="flex flex-col gap-2 rounded-control border border-line bg-surface-muted p-3 sm:flex-row sm:items-start sm:gap-4">
       <p className="flex shrink-0 items-baseline gap-1 text-ui text-content tabular-nums sm:min-w-32">
         <time dateTime={slot.start}>{slot.startLabel}</time>
         <span aria-hidden="true">–</span>
-        <span className="sr-only">to</span>
+        <span className="sr-only">{m.common.to}</span>
         <time dateTime={slot.end}>{slot.endLabel}</time>
       </p>
       <div className="min-w-0 flex-1 space-y-1.5">
         <p className="text-ui font-medium text-content text-pretty">{slot.taskTitle}</p>
         <div className="flex flex-wrap items-center gap-1.5">
-          <Badge tone="outline">{PRIORITY_LABELS[slot.priority]}</Badge>
+          <Badge tone="outline">{priorityLabel(slot.priority, priorityLabels)}</Badge>
           <span className="text-micro text-muted tabular-nums">
             {formatDurationMinutes(slot.durationMinutes)}
           </span>
-          {slot.overdue ? <Badge tone="danger">Overdue</Badge> : null}
-          {slot.crossesMidnight ? <Badge tone="outline">Ends after midnight</Badge> : null}
+          {slot.overdue ? <Badge tone="danger">{m.enums.overdue}</Badge> : null}
+          {slot.crossesMidnight ? <Badge tone="outline">{t.endsAfterMidnight}</Badge> : null}
         </div>
         <p className="text-ui text-muted text-pretty">{slot.reason}</p>
       </div>
@@ -97,6 +101,8 @@ function SlotRow({ slot }: { slot: PlanPreviewSlot }) {
 }
 
 function AlreadyPlannedRow({ entry }: { entry: PlanPreviewAlreadyPlanned }) {
+  const m = useMessages();
+
   return (
     <li className="flex flex-col gap-1 rounded-control border border-line bg-surface-muted p-3">
       <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
@@ -104,12 +110,12 @@ function AlreadyPlannedRow({ entry }: { entry: PlanPreviewAlreadyPlanned }) {
         <p className="flex shrink-0 items-baseline gap-1 text-ui text-muted tabular-nums">
           <time dateTime={entry.start}>{entry.startLabel}</time>
           <span aria-hidden="true">–</span>
-          <span className="sr-only">to</span>
+          <span className="sr-only">{m.common.to}</span>
           <time dateTime={entry.end}>{entry.endLabel}</time>
         </p>
         {entry.estimatedDurationMinutes === null ? null : (
           <span className="text-micro text-muted tabular-nums">
-            Estimate: {formatDurationMinutes(entry.estimatedDurationMinutes)}
+            {tmpl(m.planner.estimate, { duration: formatDurationMinutes(entry.estimatedDurationMinutes) })}
           </span>
         )}
       </div>
@@ -119,13 +125,15 @@ function AlreadyPlannedRow({ entry }: { entry: PlanPreviewAlreadyPlanned }) {
 }
 
 function IssueRow({ issue }: { issue: PlanPreviewIssue }) {
+  const m = useMessages();
+
   return (
     <li className="space-y-1.5 rounded-control border border-line bg-surface-muted p-3">
       <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
         <p className="text-ui font-medium text-content text-pretty">{issue.taskTitle}</p>
         {issue.estimatedDurationMinutes === null ? null : (
           <span className="text-micro text-muted tabular-nums">
-            Estimate: {formatDurationMinutes(issue.estimatedDurationMinutes)}
+            {tmpl(m.planner.estimate, { duration: formatDurationMinutes(issue.estimatedDurationMinutes) })}
           </span>
         )}
       </div>
@@ -165,35 +173,24 @@ function IssueGroup({
 }
 
 function PreviewSlotList({ preview }: { preview: PlanPreview }) {
+  const m = useMessages();
+  const t = m.planner;
+
   if (!preview.summary.hasFreeWindows) {
-    return (
-      <PreviewNotice>
-        There is no free time left on this day. Free up time or pick another day, then build the
-        plan again.
-      </PreviewNotice>
-    );
+    return <PreviewNotice>{t.noFreeTime}</PreviewNotice>;
   }
 
   if (preview.slots.length === 0) {
     if (preview.alreadyPlanned.length > 0) {
-      return (
-        <p className="text-ui text-muted text-pretty">
-          No new slots were suggested. Tasks that still need a place are listed below; tasks
-          already in your plan follow them.
-        </p>
-      );
+      return <p className="text-ui text-muted text-pretty">{t.noSlots}</p>;
     }
 
-    return (
-      <p className="text-ui text-muted text-pretty">
-        No slot fits into this day. The tasks that could not be placed are listed below.
-      </p>
-    );
+    return <p className="text-ui text-muted text-pretty">{t.noSlotFits}</p>;
   }
 
   return (
     <>
-      <p className="text-micro text-muted">Times shown in {preview.timeZone}.</p>
+      <p className="text-micro text-muted">{tmpl(t.timesIn, { timeZone: preview.timeZone })}.</p>
       <ol className="space-y-3">
         {preview.slots.map((slot) => (
           <SlotRow key={`${slot.taskId}-${slot.start}`} slot={slot} />
@@ -213,6 +210,10 @@ export function PlanPreview({
   onCancel,
   isSaving = false,
 }: PlanPreviewProps) {
+  const m = useMessages();
+  const t = m.planner;
+  const intl = useIntlLocale();
+
   if (isLoading) {
     return <PlanPreviewSkeleton />;
   }
@@ -230,70 +231,71 @@ export function PlanPreview({
   const planDate = formatLongDate(
     new Date(localDateTimeToIso(`${preview.dateKey}T12:00`, preview.timeZone)),
     preview.timeZone,
+    intl,
   );
 
   return (
     <Card className="space-y-6">
       <header className="space-y-1">
-        <h2 className="text-heading text-content">Plan preview</h2>
-        <p className="text-ui text-muted text-pretty">Plan for {planDate}.</p>
-        <p className="text-ui text-muted text-pretty">Nothing is saved until you accept.</p>
+        <h2 className="text-heading text-content">{t.planPreview}</h2>
+        <p className="text-ui text-muted text-pretty">{tmpl(t.planFor, { date: planDate })}</p>
+        <p className="text-ui text-muted text-pretty">{t.notSavedHint}</p>
       </header>
 
       {!summary.hasWakingHours ? (
         <EmptyState
           icon={Clock}
-          title="Set your waking hours first"
-          description="The plan is built between your wake-up and sleep time. Add both in Settings, then build the plan again."
+          title={t.setWakingFirst}
+          description={t.wakingHint}
         />
       ) : hasNothingToPlan ? (
         <EmptyState
           icon={ListChecks}
-          title="No open tasks to plan"
-          description="Add a task with a time estimate, then build the plan again."
+          title={t.noOpenTasks}
+          description={t.noOpenTasksHint}
         />
       ) : (
         <>
           <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-            <PreviewStat label="Planned" value={formatDurationMinutes(summary.plannedMinutes)} />
+            <PreviewStat label={t.planned} value={formatDurationMinutes(summary.plannedMinutes)} />
             <PreviewStat
-              label="Left to place"
+              label={t.leftToPlace}
               value={
                 summary.unplacedMinutes > 0
                   ? formatDurationMinutes(summary.unplacedMinutes)
-                  : "None"
+                  : t.none
               }
             />
             <PreviewStat
-              label="Needs an estimate"
+              label={t.needsEstimate}
               value={
-                summary.needsEstimateCount > 0 ? taskCountLabel(summary.needsEstimateCount) : "None"
+                summary.needsEstimateCount > 0 ? taskCountLabel(summary.needsEstimateCount, t) : t.none
               }
             />
           </dl>
 
           <section className="space-y-3">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <h3 className="text-ui font-medium text-content">Suggested slots</h3>
+              <h3 className="text-ui font-medium text-content">{t.suggestedSlots}</h3>
               <span className="text-micro text-muted tabular-nums">
-                {slotCountLabel(summary.slotCount)}
+                {slotCountLabel(summary.slotCount, t)}
               </span>
             </div>
             <PreviewSlotList preview={preview} />
           </section>
 
           <IssueGroup
-            title="Not placed today"
-            intro="These tasks have an estimate but found no room on this day."
-            empty="Every task with an estimate fits into this day."
+            title={t.notPlaced}
+            intro={t.notPlacedHint}
+            empty={t.allFit}
             issues={preview.doesNotFit}
           />
 
           {preview.alreadyPlanned.length > 0 ? (
             <section className="space-y-3">
-              <h3 className="text-ui font-medium text-content">Already in your plan</h3>
+              <h3 className="text-ui font-medium text-content">{t.alreadyPlanned}</h3>
               <p className="text-ui text-muted text-pretty">
-                These tasks already have a block on this day, so the plan leaves them untouched.
+                {t.alreadyPlannedHint}
               </p>
               <ul className="space-y-3">
                 {preview.alreadyPlanned.map((entry) => (
@@ -304,9 +306,9 @@ export function PlanPreview({
           ) : null}
 
           <IssueGroup
-            title="Needs an estimate"
-            intro="The planner reserves time only for tasks with an estimate."
-            empty="Every open task has an estimate."
+            title={t.needsEstimate}
+            intro={t.needsEstimateHint}
+            empty={t.allEstimated}
             issues={preview.needsEstimate}
           />
         </>
@@ -320,19 +322,18 @@ export function PlanPreview({
             disabled={!preview.canAccept || isSaving}
             loading={isSaving}
           >
-            Accept plan
+            {t.acceptPlan}
           </Button>
           <Button size="lg" variant="secondary" onClick={onRegenerate} disabled={isSaving}>
-            Regenerate
+            {t.regenerate}
           </Button>
           <Button size="lg" variant="ghost" onClick={onCancel}>
-            Cancel
+            {t.cancel}
           </Button>
         </div>
         {preview.canAccept ? null : (
           <p className="text-micro text-muted text-pretty">
-            Accept stays off while no slot is planned. Regenerate after changing the day, or cancel
-            to leave the schedule as it is.
+            {t.acceptDisabledHint}
           </p>
         )}
       </footer>
@@ -341,10 +342,12 @@ export function PlanPreview({
 }
 
 function PlanPreviewSkeleton() {
+  const m = useMessages();
+
   return (
     <Card>
-      <div role="status" aria-label="Building the plan">
-        <span className="sr-only">Building the plan…</span>
+      <div role="status" aria-label={m.planner.buildingPlan}>
+        <span className="sr-only">{m.planner.buildingPlan}</span>
         <div className="space-y-3 motion-safe:animate-pulse" aria-hidden="true">
           <div className="h-4 w-1/3 rounded-control bg-surface-muted" />
           <div className="h-14 w-full rounded-control bg-surface-muted" />
@@ -356,18 +359,20 @@ function PlanPreviewSkeleton() {
 }
 
 function PlanPreviewError({ onRetry }: { onRetry?: () => void }) {
+  const m = useMessages();
+
   return (
     <Card>
       <div role="alert" className="flex items-start gap-2">
         <AlertTriangle className="mt-0.5 size-4 shrink-0 text-danger" aria-hidden="true" />
         <div className="space-y-1">
-          <p className="text-ui font-medium text-content">Could not build the plan</p>
+          <p className="text-ui font-medium text-content">{m.planner.buildPlanError}</p>
           <p className="text-ui text-muted text-pretty">
-            The tasks and blocks for this day did not load. Check your connection, then try again.
+            {m.planner.buildPlanHint}
           </p>
           {onRetry ? (
             <Button variant="secondary" size="lg" className="mt-1" onClick={onRetry}>
-              Try again
+              {m.planner.tryAgain}
             </Button>
           ) : null}
         </div>

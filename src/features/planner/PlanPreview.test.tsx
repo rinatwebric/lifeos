@@ -153,7 +153,7 @@ describe("PlanPreview", () => {
   it("shows a loading status instead of an empty plan", () => {
     renderPreview(makePreview({}), { isLoading: true });
 
-    expect(screen.getByRole("status", { name: "Building the plan" })).toBeInTheDocument();
+    expect(screen.getByRole("status", { name: "Building the plan…" })).toBeInTheDocument();
     expect(screen.queryByText("Plan preview")).not.toBeInTheDocument();
   });
 

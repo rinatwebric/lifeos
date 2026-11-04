@@ -174,3 +174,34 @@ export const applyPlanSchema = z.object({
 });
 
 export type ApplyPlanInput = z.infer<typeof applyPlanSchema>;
+
+export interface PlannerValidationMessages {
+  titleRequired: string;
+  titleTooLong: string;
+  isoDateTime: string;
+  validTask: string;
+  endAfterStart: string;
+  taskLink: string;
+  tooManySlots?: string;
+  calendarDate?: string;
+  timezoneRequired?: string;
+}
+
+/** Localized factories for forms; static exports above stay English for tests. */
+export function createBlockFormSchemas(v: PlannerValidationMessages) {
+  const titleField = z.string().trim().min(1, v.titleRequired).max(200, v.titleTooLong);
+  const datetimeField = z.iso.datetime({ error: v.isoDateTime });
+  const blockTypeField = z.enum(BLOCK_TYPES);
+  const taskIdField = z.string().uuid(v.validTask).nullable().optional();
+  const createBlockSchema = z
+    .object({
+      title: titleField,
+      startTime: datetimeField,
+      endTime: datetimeField,
+      blockType: blockTypeField,
+      taskId: taskIdField,
+    })
+    .refine(hasValidInterval, { message: v.endAfterStart, path: ["endTime"] })
+    .refine(hasValidTaskLink, { message: v.taskLink, path: ["taskId"] });
+  return { createBlockSchema };
+}

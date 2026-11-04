@@ -3,6 +3,9 @@ import { AlertTriangle } from "lucide-react";
 import { Field } from "@/components/ui/Field";
 import { Input } from "@/components/ui/Input";
 import { isoToLocalDateTime, localDateTimeToIso } from "@/lib/dates";
+import { tmpl } from "@/lib/i18n/format";
+import { useMessages } from "@/lib/i18n/I18nContext";
+import type { Messages } from "@/lib/i18n/I18nContext";
 import { findConflicts, type PlanBlock, type WeeklyAvailability } from "@/lib/planner";
 
 import { formatDurationMinutes } from "./usePlannerDay";
@@ -62,7 +65,8 @@ const OVERLAP_MESSAGE =
 const PAST_MESSAGE =
   "This planned time is in the past. It stays as a record of what already happened.";
 
-function sleepMessage(wakeUpTime: string, sleepTime: string): string {
+function sleepMessage(wakeUpTime: string, sleepTime: string, t?: Messages["planner"]): string {
+  if (t) return tmpl(t.plannedOutside, { start: wakeUpTime, end: sleepTime });
   return `This planned time runs outside your waking hours (${wakeUpTime}–${sleepTime}).`;
 }
 
@@ -71,7 +75,10 @@ function sleepMessage(wakeUpTime: string, sleepTime: string): string {
  * overlap, then waking hours, then past. `work` intersections stay out —
  * they are the scheduler's soft hint, not an accept-time decision (Д2).
  */
-export function collectPlanSlotWarnings(input: PlanSlotWarningsInput): PlanSlotWarning[] {
+export function collectPlanSlotWarnings(
+  input: PlanSlotWarningsInput,
+  t?: Messages["planner"],
+): PlanSlotWarning[] {
   const hasWakingHours = input.wakeUpTime !== null && input.sleepTime !== null;
   const drafts = new Map<string, EditablePlanSlot>();
   const combined: PlanBlock[] = [...input.blocks];
@@ -137,7 +144,7 @@ export function collectPlanSlotWarnings(input: PlanSlotWarningsInput): PlanSlotW
     const endMs = Date.parse(slot.end);
 
     if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) {
-      warnings.push({ taskId: slot.taskId, kind: "invalid", message: INVALID_MESSAGE });
+      warnings.push({ taskId: slot.taskId, kind: "invalid", message: t?.plannedEndsBeforeStart ?? INVALID_MESSAGE });
       continue;
     }
 
@@ -148,7 +155,7 @@ export function collectPlanSlotWarnings(input: PlanSlotWarningsInput): PlanSlotW
     }
 
     if (kinds.has("overlap")) {
-      warnings.push({ taskId: slot.taskId, kind: "overlap", message: OVERLAP_MESSAGE });
+      warnings.push({ taskId: slot.taskId, kind: "overlap", message: t?.plannedOverlap ?? OVERLAP_MESSAGE });
     }
 
     if (
@@ -159,12 +166,12 @@ export function collectPlanSlotWarnings(input: PlanSlotWarningsInput): PlanSlotW
       warnings.push({
         taskId: slot.taskId,
         kind: "sleep",
-        message: sleepMessage(input.wakeUpTime, input.sleepTime),
+        message: sleepMessage(input.wakeUpTime, input.sleepTime, t),
       });
     }
 
     if (kinds.has("past")) {
-      warnings.push({ taskId: slot.taskId, kind: "past", message: PAST_MESSAGE });
+      warnings.push({ taskId: slot.taskId, kind: "past", message: t?.plannedPast ?? PAST_MESSAGE });
     }
   }
 
@@ -234,6 +241,9 @@ export function PlanSlotEditor({
   onAcknowledgeChange,
   onChangeSlot,
 }: PlanSlotEditorProps) {
+  const m = useMessages();
+  const t = m.planner;
+
   if (slots.length === 0) {
     return null;
   }
@@ -253,9 +263,9 @@ export function PlanSlotEditor({
   return (
     <div className="space-y-4">
       <div className="space-y-1">
-        <h3 className="text-ui font-medium text-content">Adjust the times</h3>
+        <h3 className="text-ui font-medium text-content">{t.adjustTimes}</h3>
         <p className="text-ui text-muted text-pretty">
-          Edit any time before accepting. Nothing is written until you accept the plan.
+          {t.adjustHint}
         </p>
       </div>
 
@@ -274,20 +284,20 @@ export function PlanSlotEditor({
                 <span className="text-micro text-muted tabular-nums">
                   {Number.isFinite(durationMs) && durationMs > 0
                     ? formatDurationMinutes(Math.round(durationMs / 60_000))
-                    : "Duration: not set yet."}
+                    : t.durationUnset}
                 </span>
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 <SlotTimeField
                   id={`plan-slot-start-${slot.taskId}`}
-                  label={`Starts for ${slot.taskTitle}`}
+                  label={tmpl(t.startsFor, { title: slot.taskTitle })}
                   valueIso={slot.start}
                   timeZone={timeZone}
                   onCommit={(start) => onChangeSlot(slot.taskId, { start })}
                 />
                 <SlotTimeField
                   id={`plan-slot-end-${slot.taskId}`}
-                  label={`Ends for ${slot.taskTitle}`}
+                  label={tmpl(t.endsFor, { title: slot.taskTitle })}
                   valueIso={slot.end}
                   timeZone={timeZone}
                   onCommit={(end) => onChangeSlot(slot.taskId, { end })}
@@ -310,7 +320,7 @@ export function PlanSlotEditor({
           <div className="flex items-start gap-2">
             <AlertTriangle className="mt-0.5 size-4 shrink-0 text-danger" aria-hidden="true" />
             <p className="text-ui font-medium text-content">
-              Check these times before accepting
+              {t.checkTimes}
             </p>
           </div>
           <label className="flex min-h-11 cursor-pointer items-center gap-2 text-ui font-medium text-content">
@@ -320,7 +330,7 @@ export function PlanSlotEditor({
               checked={acknowledged}
               onChange={(event) => onAcknowledgeChange(event.target.checked)}
             />
-            Keep this plan at these times anyway
+            {t.keepPlanAnyway}
           </label>
           {ackError ? (
             <p role="alert" className="text-micro text-danger">

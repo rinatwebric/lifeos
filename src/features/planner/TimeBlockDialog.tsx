@@ -11,6 +11,8 @@ import { getPreferences, preferencesQueryKey } from "@/features/settings/api";
 import { listTasks } from "@/features/tasks/api";
 import { tasks as taskKeys } from "@/features/tasks/queryKeys";
 import { isoToLocalDateTime } from "@/lib/dates";
+import { tmpl } from "@/lib/i18n/format";
+import { useLocale, useMessages } from "@/lib/i18n/I18nContext";
 import { BLOCK_TYPES, type BlockType } from "@/types/domain";
 
 import { listBlocks } from "./api";
@@ -46,18 +48,6 @@ import { formatDurationMinutes, plannerDayBounds, readWallTime } from "./usePlan
  * - Deleting is a separate dialog: this one asks the page to open it, so two
  *   modals never stack.
  */
-
-const BLOCK_TYPE_LABELS: Record<BlockType, string> = {
-  task: "Task",
-  break: "Break",
-  personal: "Personal",
-};
-
-const BLOCK_TYPE_HINTS: Record<BlockType, string> = {
-  task: "Time set aside for one task. The block is named after that task.",
-  break: "A pause. The plan treats it as busy time, so nothing is scheduled over it.",
-  personal: "Anything that is not a task: commute, family, study, appointments.",
-};
 
 /** A new block starts at 09:00 local on the selected day; one hour long. */
 const DEFAULT_START_TIME = "T09:00";
@@ -120,6 +110,9 @@ export function TimeBlockDialog({
   onRequestDelete,
   now,
 }: TimeBlockDialogProps) {
+  const m = useMessages();
+  const t = m.planner;
+  const locale = useLocale();
   const createBlock = useCreateBlock();
   const updateBlock = useUpdateBlock();
 
@@ -173,28 +166,35 @@ export function TimeBlockDialog({
   // A block always points at a live task (cascade delete), but the task list is
   // capped: keep the linked task selectable even when it falls outside it.
   if (linkedTaskId !== null && !taskOptions.some((task) => task.id === linkedTaskId)) {
-    taskOptions.unshift({ id: linkedTaskId, title: block?.title ?? "Linked task" });
+    taskOptions.unshift({ id: linkedTaskId, title: block?.title ?? t.linkedTaskFallback });
   }
+
+  const blockTypeHint =
+    form.blockType === "task" ? t.taskBlockHint : form.blockType === "break" ? t.breakHint : t.personalHint;
 
   const startIso = wallTimeToIso(form.startLocal, timeZone);
   const endIso = wallTimeToIso(form.endLocal, timeZone);
   const durationMinutes = draftDurationMinutes(form, timeZone);
   const warnings =
     startIso !== null && endIso !== null
-      ? collectBlockWarnings({
-          startTime: startIso,
-          endTime: endIso,
-          blocks: (blocksQuery.data ?? []).map((other) => ({
-            id: other.id,
-            start: other.startTime,
-            end: other.endTime,
-          })),
-          editedBlockId: block?.id ?? null,
-          now: now ?? new Date(),
-          timeZone,
-          wakeUpTime: readWallTime(preferencesQuery.data?.wakeUpTime),
-          sleepTime: readWallTime(preferencesQuery.data?.sleepTime),
-        })
+      ? collectBlockWarnings(
+          {
+            startTime: startIso,
+            endTime: endIso,
+            blocks: (blocksQuery.data ?? []).map((other) => ({
+              id: other.id,
+              start: other.startTime,
+              end: other.endTime,
+            })),
+            editedBlockId: block?.id ?? null,
+            now: now ?? new Date(),
+            timeZone,
+            wakeUpTime: readWallTime(preferencesQuery.data?.wakeUpTime),
+            sleepTime: readWallTime(preferencesQuery.data?.sleepTime),
+          },
+          t,
+          locale,
+        )
       : [];
 
   // Consent is bound to one exact draft: a different interval or a different
@@ -225,7 +225,14 @@ export function TimeBlockDialog({
     setServerError(null);
     setAckError(null);
 
-    const result = buildBlockInput(form, { timeZone, tasks: taskOptions });
+    const result = buildBlockInput(form, {
+      timeZone,
+      tasks: taskOptions,
+      missingStart: t.chooseStart,
+      missingEnd: t.chooseEnd,
+      missingTask: t.chooseTask,
+      v: { ...m.validation, schemaEndAfterStart: t.schemaEndAfterStart, schemaTaskLink: t.schemaTaskLink },
+    });
 
     if (!result.ok) {
       setFieldErrors(result.errors);
@@ -235,7 +242,7 @@ export function TimeBlockDialog({
     setFieldErrors({});
 
     if (warnings.length > 0 && !acknowledged) {
-      setAckError("Tick the box above to keep this block at this time.");
+      setAckError(t.tickToKeep);
       return;
     }
 
@@ -252,7 +259,7 @@ export function TimeBlockDialog({
 
       onClose();
     } catch (error) {
-      setServerError(describeBlockError(error));
+      setServerError(describeBlockError(error, t));
     }
   };
 
@@ -260,15 +267,15 @@ export function TimeBlockDialog({
     <Dialog
       open={open}
       onClose={onClose}
-      title={block ? "Edit block" : "Add a time block"}
-      description={`Choose what the time is for. All times are in ${timeZone}.`}
+      title={block ? t.editBlockTitle : t.addBlockTitle}
+      description={tmpl(t.chooseTimeHint, { timeZone })}
     >
       <form className="space-y-4" noValidate onSubmit={(event) => void handleSubmit(event)}>
         <Field
           id="block-type"
-          label="Block type"
+          label={t.blockType}
           required
-          hint={BLOCK_TYPE_HINTS[form.blockType]}
+          hint={blockTypeHint}
         >
           <Select
             data-autofocus
@@ -278,20 +285,20 @@ export function TimeBlockDialog({
           >
             {BLOCK_TYPES.map((type) => (
               <option key={type} value={type}>
-                {BLOCK_TYPE_LABELS[type]}
+                {m.enums.blockType[type]}
               </option>
             ))}
           </Select>
         </Field>
 
         {form.blockType === "task" ? (
-          <Field id="block-task" label="Task" required error={fieldErrors.taskId}>
+          <Field id="block-task" label={t.linkedTask} required error={fieldErrors.taskId}>
             <Select
               className="min-h-11"
               value={form.taskId}
               onChange={(event) => updateField("taskId", event.target.value)}
             >
-              <option value="">Choose a task</option>
+              <option value="">{t.chooseTaskOption}</option>
               {taskOptions.map((task) => (
                 <option key={task.id} value={task.id}>
                   {task.title}
@@ -302,9 +309,9 @@ export function TimeBlockDialog({
         ) : (
           <Field
             id="block-title"
-            label="Title"
+            label={t.blockTitle}
             required
-            hint="Shown in your plan exactly as written."
+            hint={t.blockTitleHint}
             error={fieldErrors.title}
           >
             <Input
@@ -317,7 +324,7 @@ export function TimeBlockDialog({
         )}
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field id="block-start" label="Starts" required error={fieldErrors.startTime}>
+          <Field id="block-start" label={t.starts} required error={fieldErrors.startTime}>
             <Input
               type="datetime-local"
               className="min-h-11 tabular-nums"
@@ -325,7 +332,7 @@ export function TimeBlockDialog({
               onChange={(event) => updateField("startLocal", event.target.value)}
             />
           </Field>
-          <Field id="block-end" label="Ends" required error={fieldErrors.endTime}>
+          <Field id="block-end" label={t.ends} required error={fieldErrors.endTime}>
             <Input
               type="datetime-local"
               className="min-h-11 tabular-nums"
@@ -337,13 +344,13 @@ export function TimeBlockDialog({
 
         <p className="text-caption text-muted tabular-nums">
           {durationMinutes === null
-            ? "Duration: not set yet."
-            : `Duration: ${formatDurationMinutes(durationMinutes)}.`}
+            ? t.durationUnset
+            : tmpl(t.durationSet, { duration: formatDurationMinutes(durationMinutes) })}
         </p>
 
         {form.blockType === "task" && form.taskId !== "" ? (
           <p className="text-caption text-muted text-pretty">
-            The block is saved as “{resolveBlockTitle(form, taskOptions)}”.
+            {tmpl(t.blockSavedAs, { title: resolveBlockTitle(form, taskOptions) })}
           </p>
         ) : null}
 
@@ -352,7 +359,7 @@ export function TimeBlockDialog({
             <div className="flex items-start gap-2">
               <AlertTriangle className="mt-0.5 size-4 shrink-0 text-danger" aria-hidden="true" />
               <div className="space-y-1">
-                <p className="text-ui font-medium text-content">Check this block before saving</p>
+                <p className="text-ui font-medium text-content">{t.checkBlock}</p>
                 <div role="status">
                   <ul className="list-disc space-y-1 ps-4 text-ui text-muted text-pretty">
                     {warnings.map((warning) => (
@@ -372,7 +379,7 @@ export function TimeBlockDialog({
                     setAcknowledgedKey(event.target.checked ? warningsKey : null)
                   }
                 />
-                Keep this block at this time anyway
+                {t.keepAnyway}
               </label>
               {ackError ? (
                 <p role="alert" className="text-micro text-danger">
@@ -398,17 +405,17 @@ export function TimeBlockDialog({
               onClick={() => onRequestDelete(block)}
             >
               <Trash2 className="size-4" aria-hidden="true" />
-              Delete block
+              {t.deleteBlock}
             </Button>
           ) : (
             <span aria-hidden="true" />
           )}
           <div className="flex flex-wrap items-center justify-end gap-2">
             <Button variant="secondary" size="lg" disabled={saving} onClick={onClose}>
-              Cancel
+              {t.cancel}
             </Button>
             <Button type="submit" size="lg" loading={saving}>
-              {block ? "Save changes" : "Add block"}
+              {block ? t.saveChanges : t.addBlockSubmit}
             </Button>
           </div>
         </div>
