@@ -90,6 +90,10 @@ src/types        domain types and constant unions that mirror the database
 3. Implement the smallest change that fully satisfies the task.
 4. Run typecheck, lint, unit tests; add tests for calculations, access rules and edge cases.
 5. Report exactly what changed, what was verified, and what remains.
+6. Before calling a UI migration finished, grep `src/` for leftovers
+   (`rounded-lg|rounded-xl|text-xs|text-sm|min-h-screen|text-red-|text-green-|transition-all`) —
+   a "done" step that skips this grep leaves stragglers (found in `AuthLayout` and `router.tsx`
+   after two "finished" steps).
 
 Never: rewrite the project for a small change, delete working functionality, invent mock data in
 production paths, leave dead buttons, or claim something works without running it.

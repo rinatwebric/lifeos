@@ -31,7 +31,7 @@ function ResetPasswordRoute() {
 
   if (status === "loading") {
     return (
-      <div role="status" className="text-sm text-muted">
+      <div role="status" className="text-ui text-muted">
         Loading…
       </div>
     );
