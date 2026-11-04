@@ -1,14 +1,12 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-  Writes the ai-assistant Edge Function secrets (AI_PROVIDER / AI_BASE_URL / AI_MODEL /
-  AI_API_KEY / AI_TIMEOUT_MS) without ever echoing the key.
+  Writes the ai-assistant Edge Function secrets without ever echoing the key.
 
 .DESCRIPTION
   The key is read with a hidden prompt, verified against "{BaseUrl}/models" and then
-  passed to `supabase secrets set`. It is never printed, never written to disk and
-  removed from the process memory afterwards. Nothing here is committed: secrets live
-  in the Supabase project only.
+  passed to `supabase secrets set`. It is never printed, never written to disk and is
+  removed from the process memory afterwards. Secrets live in the Supabase project only.
 
 .EXAMPLE
   .\scripts\set-ai-secrets.ps1 -Stub
@@ -40,51 +38,46 @@ function Invoke-SupabaseCli {
 
   & npx @cliArgs @Arguments
   if ($LASTEXITCODE -ne 0) {
-    throw "supabase CLI завершился с кодом $LASTEXITCODE"
+    throw "supabase CLI exited with code $LASTEXITCODE"
   }
 }
 
 if ($Stub) {
   Invoke-SupabaseCli -Arguments @("secrets", "set", "--project-ref", $ProjectRef, "AI_PROVIDER=stub")
   Invoke-SupabaseCli -Arguments @("secrets", "list", "--project-ref", $ProjectRef)
-  Write-Host "Готово: провайдер = stub (ключ не нужен, денег не тратит)."
+  Write-Host "Done: AI_PROVIDER=stub (no key needed, no provider cost)."
   return
 }
 
 if ([string]::IsNullOrWhiteSpace($BaseUrl)) {
-  $BaseUrl = Read-Host "Base URL провайдера (например https://api.meta.ai/v1)"
+  $BaseUrl = Read-Host "Provider base URL (for example https://api.meta.ai/v1)"
 }
 if ([string]::IsNullOrWhiteSpace($Model)) {
-  $Model = Read-Host "Model ID (например muse-spark-1.3)"
+  $Model = Read-Host "Model ID (for example muse-spark-1.3)"
 }
 
 $BaseUrl = $BaseUrl.Trim().TrimEnd("/")
 $Model = $Model.Trim()
 
-$secure = Read-Host "API key (ввод скрыт)" -AsSecureString
+$secure = Read-Host "API key (input hidden)" -AsSecureString
 $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)
 $key = [Runtime.InteropServices.Marshal]::PtrToStringAuto($bstr)
 [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
 
 try {
   if ([string]::IsNullOrWhiteSpace($key)) {
-    throw "Пустой ключ: отменено."
+    throw "Empty key: cancelled, nothing written."
   }
 
   if (-not $SkipVerify) {
     $modelsUrl = "$BaseUrl/models"
-    Write-Host "Проверяю ключ: GET $modelsUrl"
+    Write-Host "Checking the key: GET $modelsUrl"
     $status = (& curl.exe -s -o NUL -w "%{http_code}" $modelsUrl -H "Authorization: Bearer $key").Trim()
 
     if ($status -ne "200") {
-      throw @"
-Ключ или Base URL не приняты (HTTP $status).
-- 401/403: ключ чужой для этого Base URL (Meta-ключ ≠ ключ шлюза) или отозван.
-- 404: у провайдера нет /models — запусти с -SkipVerify, но сначала проверь руками.
-Ничего не записано.
-"@
+      throw "Key or base URL rejected (HTTP $status). 401/403 means the key belongs to another base URL or was revoked; 404 means the provider has no /models (rerun with -SkipVerify after checking by hand). Nothing was written."
     }
-    Write-Host "Ключ принят (HTTP 200)."
+    Write-Host "Key accepted (HTTP 200)."
   }
 
   Invoke-SupabaseCli -Arguments @(
@@ -97,7 +90,7 @@ try {
   )
 
   Invoke-SupabaseCli -Arguments @("secrets", "list", "--project-ref", $ProjectRef)
-  Write-Host "Готово: живые секреты записаны в проект $ProjectRef."
+  Write-Host "Done: live secrets written to project $ProjectRef."
 }
 finally {
   Remove-Variable key, secure, bstr -ErrorAction SilentlyContinue
