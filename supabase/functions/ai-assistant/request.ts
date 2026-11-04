@@ -12,6 +12,24 @@ export const MAX_BODY_BYTES = 64 * 1024;
 /** Same bound as the frontend `content` schema (step 6): 1–4000 chars. */
 export const MAX_MESSAGE_CHARS = 4000;
 
+/**
+ * Header pre-check: reject bodies over MAX_BODY_BYTES BEFORE req.text()
+ * so an oversized Content-Length never forces the runtime to buffer the
+ * body. Missing or malformed headers return false - the post-read byte
+ * check in parseChatRequestBody stays the enforcement point for chunked
+ * bodies without a length (fix b, review 2026-11-04).
+ */
+export function isContentLengthExceeded(contentLengthHeader: string | null): boolean {
+  if (contentLengthHeader === null) {
+    return false;
+  }
+  const parsed = Number.parseInt(contentLengthHeader.trim(), 10);
+  if (!Number.isFinite(parsed)) {
+    return false;
+  }
+  return parsed > MAX_BODY_BYTES;
+}
+
 export interface ChatRequest {
   message: string;
   conversationId: string | null;

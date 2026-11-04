@@ -1,7 +1,7 @@
 /**
  * `ai-assistant` Edge Function (iteration 5, step 3; PRD §6.3, §13, §16).
  *
- * Flow: POST { message, conversationId } + user JWT → size limit → auth →
+ * Flow: POST { message, conversationId } + user JWT + rate limit + size pre-check → size limit → auth →
  * tool context (skeleton until step 4) → provider (`stub` by default,
  * `openai-compatible` via env) with `response_format` from `toJsonSchema()` →
  * `parseProposal` validation → persist `ai_messages`/`ai_proposals` as the
@@ -25,7 +25,8 @@ import {
   DEFAULT_TIMEOUT_MS,
 } from "./providers/openaiCompatible.ts";
 import { createStubProvider } from "./providers/stub.ts";
-import { parseChatRequestBody } from "./request.ts";
+import { checkChatRateLimit, type RateLimitClient } from "./rateLimit.ts";
+import { isContentLengthExceeded, MAX_BODY_BYTES, parseChatRequestBody } from "./request.ts";
 import { buildToolContext, TOOL_DEFINITIONS, type UserScopedClient } from "./tools.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
@@ -115,6 +116,10 @@ async function handleChat(req: Request): Promise<Response> {
     });
   }
 
+  if (isContentLengthExceeded(req.headers.get("content-length"))) {
+    return json(413, { code: "too_large", message: "Request body exceeds " + MAX_BODY_BYTES + " bytes." });
+  }
+
   let bodyText: string;
   try {
     bodyText = await req.text();
@@ -140,13 +145,19 @@ async function handleChat(req: Request): Promise<Response> {
     return json(401, { code: "unauthorized", message: "Invalid or expired token." });
   }
 
+  const rate = await checkChatRateLimit(supabase as unknown as RateLimitClient);
+  if (!rate.allowed) {
+    console.info("[ai-assistant] rate limited", { user: userId, count: rate.count });
+    return json(429, { code: "rate_limited", message: "Too many requests. Please try again tomorrow." });
+  }
+
   const providerOrError = selectProvider();
   if (providerOrError instanceof Response) {
     return providerOrError;
   }
   const provider = providerOrError;
 
-  // Tool context (skeleton reads until step 4) — called so the wiring, the
+  // Tool context (step 4 real reads) — called so the wiring, the
   // truncate flag and the metadata path are live from day one.
   const context = await buildToolContext(supabase as unknown as UserScopedClient);
 

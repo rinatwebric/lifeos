@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  isContentLengthExceeded,
   MAX_BODY_BYTES,
   MAX_MESSAGE_CHARS,
   parseChatRequestBody,
@@ -64,5 +65,20 @@ describe("parseChatRequestBody", () => {
       ok: true,
       request: { message: "Continue", conversationId: uuid },
     });
+  });
+});
+
+describe("isContentLengthExceeded (header pre-check, fix b)", () => {
+  it("returns true when the header exceeds 64 KiB", () => {
+    expect(isContentLengthExceeded(String(MAX_BODY_BYTES + 1))).toBe(true);
+    expect(isContentLengthExceeded(" 131072 ")).toBe(true);
+  });
+
+  it("returns false when the header is absent, malformed or within limit", () => {
+    expect(isContentLengthExceeded(null)).toBe(false);
+    expect(isContentLengthExceeded(String(MAX_BODY_BYTES))).toBe(false);
+    expect(isContentLengthExceeded("1024")).toBe(false);
+    expect(isContentLengthExceeded("not-a-number")).toBe(false);
+    expect(isContentLengthExceeded("")).toBe(false);
   });
 });
