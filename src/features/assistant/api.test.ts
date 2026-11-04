@@ -185,12 +185,17 @@ describe("assistant api", () => {
     const invokeEntry = vi.fn();
     stubClient("u1", vi.fn(), invokeEntry);
 
-    await expect(sendMessage({ message: "   ", conversationId: null })).rejects.toMatchObject({
-      code: "unknown",
-    });
-    await expect(
-      sendMessage({ message: "hello", conversationId: "not-a-uuid" }),
-    ).rejects.toMatchObject({ code: "unknown" });
+    const emptyError = (await sendMessage({ message: "   ", conversationId: null }).catch(
+      (failure: unknown) => failure,
+    )) as AssistantServiceError;
+    expect(emptyError).toMatchObject({ code: "invalid_input" });
+    expect(emptyError.details).toBe("message");
+
+    const uuidError = (await sendMessage({ message: "hello", conversationId: "not-a-uuid" }).catch(
+      (failure: unknown) => failure,
+    )) as AssistantServiceError;
+    expect(uuidError).toMatchObject({ code: "invalid_input" });
+    expect(uuidError.details).toBe("conversationId");
     expect(invokeEntry).not.toHaveBeenCalled();
   });
 

@@ -112,10 +112,14 @@ export async function sendMessage(input: SendMessageInput): Promise<SendMessageR
     const parsedInput = sendMessageSchema.safeParse(input);
 
     if (!parsedInput.success) {
-      const first = parsedInput.error.issues[0]?.message;
+      const firstIssue = parsedInput.error.issues[0];
+      const fieldPath =
+        firstIssue && firstIssue.path.length > 0 ? firstIssue.path.join(".") : "(root)";
       throw new AssistantServiceError(
-        "unknown",
-        first ?? ASSISTANT_ERROR_MESSAGES.unknown,
+        "invalid_input",
+        firstIssue?.message ?? ASSISTANT_ERROR_MESSAGES.invalid_input,
+        undefined,
+        fieldPath,
       );
     }
 

@@ -5,13 +5,14 @@
  * - `forbidden` — no session or 401 from the function (auth boundary);
  * - `rate_limited` — 429, the 50-messages/24h budget (plan Р10) is spent;
  * - `too_large` — 413, the turn exceeds the function size limit;
+ * - `invalid_input` — client-side validation failed (empty/overlong message,
+ *   non-UUID conversation id); never reaches the network;
  * - `ai_unavailable` — the provider is down, misconfigured, the function is
  *   not deployed (404 on `functions.invoke`), or a 5xx without a better code;
  * - `invalid_response` — the function answered 2xx but the payload missed
  *   ids or the proposal failed `assistantProposalSchema` (never render junk);
  * - `network` — the request never reached Supabase (fetch failure);
- * - `unknown` — everything else, incl. client-side input validation and
- *   PostgREST failures on the read paths.
+ * - `unknown` — everything else, incl. PostgREST failures on the read paths.
  *
  * User-facing `message` is always the English fallback copy below — never a
  * raw Postgres/HTTP/fetch string. The raw text lands in `details` for logs.
@@ -21,6 +22,7 @@ export type AssistantErrorCode =
   | "forbidden"
   | "rate_limited"
   | "too_large"
+  | "invalid_input"
   | "ai_unavailable"
   | "invalid_response"
   | "network"
@@ -45,6 +47,7 @@ export const ASSISTANT_ERROR_MESSAGES: Record<AssistantErrorCode, string> = {
   forbidden: "You need to sign in to use the assistant. Please sign in and try again.",
   rate_limited: "You have sent a lot of messages today. Please try again tomorrow.",
   too_large: "Your message is too long. Please shorten it and try again.",
+  invalid_input: "Please check your message and try again.",
   ai_unavailable: "The assistant is temporarily unavailable. Please try again.",
   invalid_response: "The assistant returned an unexpected response. Please try again.",
   network: "Network error. Check your connection and try again.",
