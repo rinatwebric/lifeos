@@ -40,18 +40,17 @@ AI-ассистент помогает управлять целями/зада�
 - Почта/SMTP, magic link, resend — не закладывать (решение итерации 3, бессрочно).
 - Слово «AI» только в assistant/Dashboard-Insights через реальные данные; детерминированные хинты Dashboard не трогать.
 
-## 2. Вопросы владельцу (PRD чего-то не определяет — решения нет, нужен ответ)
+## 2. Решения (владелец + ревью, 2026-11-04)
 
-1. Провайдер и модель: какой AI-провайдер на MVP — OpenAI-compatible, Anthropic, локальный, или stub до покупки ключа? Варианты: (a) OpenAI-compatible по `AI_PROVIDER`+`AI_MODEL`; (b) конкретный вендор сразу; (c) только stub в итерации 5, ключ позже.
-2. Бюджет и лимиты: дневной/месячный лимит запросов на пользователя и глобально? Варианты: (a) N запросов/день + 429 с человеческим текстом; (b) без лимита в MVP; (c) только длина контекста без счётчика.
-3. Scope `proposal_type` в MVP: все 5 (`goal_breakdown`, `task_creation`, `schedule_suggestion`, `schedule_changes`, `productivity_analysis`) или subset? PRD §6.4 требует все инструменты, §17 — все строки Phase 4. Варианты: (a) все 5; (b) только `schedule_*` + `productivity_analysis`; (c) только `goal_breakdown` первым.
-4. `expires_at` предложений: TTL? Варианты: (a) 7 дней + cron/пометка `expired` при чтении; (b) без срока; (c) 24 часа.
-5. Применение: целиком + по одному действию + ручная правка (§4.4 требует всё)? Варианты: (a) да, все три; (b) только целиком в MVP.
-6. Удаление диалога: что с messages/proposals? Варианты: (a) messages CASCADE, proposals `conversation_id SET NULL` (аудит живёт); (b) всё CASCADE; (c) запрет удаления при живых `pending` proposals.
-7. Weekly review: отдельный экран или вкладка Assistant? Streaming ответов нужен? Варианты: (a) Assistant-вкладка, без streaming; (b) отдельный роут, без streaming; (c) streaming в MVP (отдельная единица).
-8. Контекст: сколько задач/целей слать в промпт (лимиты токенов)? Варианты: (a) последние 50 задач + активные цели, truncate с пометкой; (b) только за неделю + цель из вопроса; (c) без truncate (риск 413/таймаута).
-9. e2e с живым ключом: выделять ли платный ключ для CI? Варианты: (a) нет — только stub, live-тест вручную владельцем; (b) да, отдельный ключ + отдельный проект.
-10. Язык ответов AI: интерфейс English (§1), пользователь русскоязычный. Варианты: (a) ответы English; (b) язык из `profiles.language`; (c) язык сообщения пользователя.
+1. Р1: провайдер-независимый адаптер Edge Function; env `AI_PROVIDER=stub|openai-compatible`, `AI_BASE_URL`, `AI_MODEL`, `AI_API_KEY`, `AI_TIMEOUT_MS`; имя модели в коде отсутствует; не OpenAI-совместимый провайдер — отдельный адаптер только после чтения его документации, до этого stub; секреты только в окружении функции.
+2. Р2: CHECK `proposal_type` содержит все 5 типов; порядок реализации: `goal_breakdown` + `task_creation` → `schedule_suggestion` → `schedule_changes` → `productivity_analysis`.
+3. Р3: `expires_at` = `created_at` + 7 days (DEFAULT + CHECK `>` `created_at`); в БД статусы `pending|approved|rejected`; `expired` вычисляется на чтении; approve просроченного — ошибка.
+4. Р4: UI English; ассистент отвечает на языке последнего сообщения пользователя, fallback `profiles.language`; названия целей/задач не переводятся.
+5. Р5: accept-all + per-item + ручная правка действия до approve.
+6. Р6: messages CASCADE, `proposals.conversation_id` SET NULL.
+7. Р7: weekly review — вкладка Assistant, без streaming.
+8. Р8: контекст — активные цели + 50 последних задач, truncate с пометкой в метаданных.
+9. Р9: e2e только stub, live — вручную владельцем.
 
 ## 3. Шаги итерации (один шаг = один коммит)
 
