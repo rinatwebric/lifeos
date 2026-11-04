@@ -9,6 +9,9 @@ import type {
   Goal,
   GoalCategory,
   GoalStatus,
+  Habit,
+  HabitLog,
+  HabitStatus,
   Milestone,
   MilestoneStatus,
   Priority,
@@ -325,6 +328,65 @@ export function mapAiProposalRowToAiProposal(row: AiProposalsRow): AiProposal {
     status: row.status,
     expiresAt: row.expires_at,
     appliedAt: row.applied_at,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+/** Mirrors migration 0007_habits_habit_logs (habits). */
+export interface HabitsRow {
+  id: string;
+  user_id: string;
+  title: string;
+  description: string | null;
+  frequency: Habit["frequency"];
+  weekdays: number[];
+  target_count: number;
+  /** TIME column; PostgREST serializes it as "HH:MM:SS". */
+  reminder_time: string | null;
+  start_date: string;
+  status: HabitStatus;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Mirrors migration 0007_habits_habit_logs (habit_logs). */
+export interface HabitLogsRow {
+  id: string;
+  user_id: string;
+  habit_id: string;
+  log_date: string;
+  completed_count: number;
+  note: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export function mapHabitRowToHabit(row: HabitsRow): Habit {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    title: row.title,
+    description: row.description,
+    frequency: row.frequency,
+    weekdays: row.weekdays,
+    targetCount: row.target_count,
+    reminderTime: row.reminder_time,
+    startDate: row.start_date,
+    status: row.status,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+export function mapHabitLogRowToHabitLog(row: HabitLogsRow): HabitLog {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    habitId: row.habit_id,
+    logDate: row.log_date,
+    completedCount: row.completed_count,
+    note: row.note,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

@@ -1576,3 +1576,63 @@ PostgREST отдаёт `timestamptz` с `"+00:00"` и `time` как `"HH:MM:SS"`
 - ручная правка предложения до approve (Р5) — отложена, нужна серверная ре-валидация;
 - 429 и таймаут провайдера маппятся в общий `ai_unavailable` — нужен отдельный код;
 - тег `v0.5.0` — за владельцем после приёмки; ротация ключа после демо.
+
+## 2026-11-05 — Phase 5, шаг 1: контракт данных habits (на ревью, миграция НЕ применена)
+
+**Сделано**
+
+- `docs/plan-phase-5.md` (new): план всей Phase 5 — данные → чистые расчёты и
+  сервисы → Habits UI → Analytics/weekly review → финальная проверка; критерии
+  приёмки каждого шага; зафиксированная семантика для шага 2 (daily/weekdays —
+  `target_count` на запланированный день; weekly — сумма за календарную неделю;
+  сегодня/текущая неделя — не пропуск; незапланированные дни не ломают streak;
+  периоды без запланированного — не 0%; pause/archive не удаляют логи) и
+  открытый долг про прошлые паузы/смены расписания (`status` исторический
+  календарь не восстанавливает; минимальный вариант — `habit_schedule_versions`,
+  отдельным шагом после Phase 5, не часть приёмки).
+- `supabase/migrations/0007_habits_habit_logs.sql` (new, текст в git,
+  **к живой БД не применялась**): `habits` (frequency daily/weekdays/weekly,
+  weekdays `0=Sunday..6=Saturday` как в 0004, пустой список при weekdays —
+  reject, NULL-элементы — reject, `target_count >= 1`, `reminder_time TIME
+  nullable`, `start_date DATE`, status active/paused/archived) + `habit_logs`
+  (`completed_count >= 0`, `UNIQUE (habit_id, log_date)`, `habit_id ON DELETE
+  CASCADE`); индексы `(user_id)`, `(user_id, status)`, `(user_id, log_date)`;
+  триггеры `set_updated_at()`; RLS 8 политик, на INSERT/UPDATE логов —
+  `EXISTS`-гард владения `habit_id`; без `SECURITY DEFINER`.
+- Номер `0007` — следующий фактически свободный (`0001–0006` существуют).
+  В `docs/plan-phase-4.md` номер `0007` упомянут для будущего AI RPC
+  (`apply_proposal` атомарно), но файла нет: `0007` занимают привычки, backlog
+  AI RPC при реализации обязан взять `0008+`. AI-код не тронут.
+- `src/types/database.ts`: `HabitsRow`/`HabitLogsRow` + `mapHabitRowToHabit` /
+  `mapHabitLogRowToHabitLog` в существующем стиле. `src/types/domain.ts` не
+  менялся — `Habit`/`HabitLog` уже точно описывают схему.
+- `src/features/habits/schemas.ts` + `schemas.test.ts` (new, 19 тестов):
+  частоты, статусы (только active/paused/archived), weekdays (границы,
+  нецелые, NULL, пустой только не для weekdays), целые количества
+  (`target >= 1`, `completed >= 0`, ноль и перевыполнение разрешены),
+  настоящие календарные даты (`2026-02-30` — reject с «Use YYYY-MM-DD.»),
+  optional/null (`description`/`reminderTime`/`note`), `HH:MM`-формат
+  напоминания; `userId` не принимается ни в одной схеме (тест на strip).
+- `src/types/habitMappers.test.ts` (new, 4 теста): мапперы по образцу
+  `aiMappers.test.ts`, включая nullables.
+- `docs/plan.md`: указатель переведён на Phase 5 / `docs/plan-phase-5.md`,
+  история итераций сохранена.
+
+**Проверено**
+
+- `npm run typecheck` — ok
+- `npm run lint` — 0 errors / 16 warnings (те же классы, что в baseline;
+  новых warnings от файлов шага нет)
+- `npm test` — **724/724 в 75 файлах** (baseline 701/73: +19 схем +4 мапперов)
+- `npm run build` — ok
+- `git diff --check` — чист; TDD-цикл соблюдён (тесты написаны до кода,
+  падение подтверждено: schemas — unresolved import, мапперы — not a function)
+- Живая БД не тронута: SQL-проверки на живой БД не выполнялись и не
+  заявляются (миграция ждёт внешнего ревью).
+
+**Осталось**
+
+- Внешнее code review этого шага; затем применение `0007` владельцем
+  отдельной командой + живая проверка RLS (инструкция — в отчёте сессии).
+- Шаги 2–5 по `docs/plan-phase-5.md` (расчёты/сервисы → UI → Analytics →
+  финальная проверка).
