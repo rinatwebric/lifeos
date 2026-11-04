@@ -157,6 +157,23 @@ export interface HabitLog extends BaseEntity {
   note: string | null;
 }
 
+/**
+ * One snapshot of a habit's schedule (Phase 5 step 1b, migration 0008).
+ * The version effective on a date decides whether that date was scheduled
+ * (frequency/weekdays/target_count/start_date) and whether pauses exclude
+ * it (status). `effectiveTo: null` marks the currently open version.
+ */
+export interface HabitScheduleVersion extends BaseEntity {
+  habitId: string;
+  effectiveFrom: string;
+  effectiveTo: string | null;
+  frequency: RecurrenceFrequency;
+  weekdays: number[];
+  targetCount: number;
+  startDate: string;
+  status: HabitStatus;
+}
+
 export interface AiConversation extends BaseEntity {
   title: string;
 }

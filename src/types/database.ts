@@ -11,6 +11,7 @@ import type {
   GoalStatus,
   Habit,
   HabitLog,
+  HabitScheduleVersion,
   HabitStatus,
   Milestone,
   MilestoneStatus,
@@ -387,6 +388,41 @@ export function mapHabitLogRowToHabitLog(row: HabitLogsRow): HabitLog {
     logDate: row.log_date,
     completedCount: row.completed_count,
     note: row.note,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+/** Mirrors migration 0008_habit_schedule_versions. */
+export interface HabitScheduleVersionsRow {
+  id: string;
+  user_id: string;
+  habit_id: string;
+  effective_from: string;
+  effective_to: string | null;
+  frequency: HabitScheduleVersion["frequency"];
+  weekdays: number[];
+  target_count: number;
+  start_date: string;
+  status: HabitStatus;
+  created_at: string;
+  updated_at: string;
+}
+
+export function mapHabitScheduleVersionRowToHabitScheduleVersion(
+  row: HabitScheduleVersionsRow,
+): HabitScheduleVersion {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    habitId: row.habit_id,
+    effectiveFrom: row.effective_from,
+    effectiveTo: row.effective_to,
+    frequency: row.frequency,
+    weekdays: row.weekdays,
+    targetCount: row.target_count,
+    startDate: row.start_date,
+    status: row.status,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
