@@ -22,6 +22,10 @@ const SECTION_LINK_CLASS =
 
 const PANEL_LIST_CLASS = "divide-y divide-line overflow-hidden rounded-card border border-line bg-surface";
 
+export const DASHBOARD_COPY = {
+  emptyInsights: "No suggestions right now.",
+} as const;
+
 function BlockSkeleton({ label }: { label: string }) {
   return (
     <div role="status" aria-label={label}>
@@ -232,7 +236,7 @@ export function DashboardPage() {
               ))}
             </ul>
           ) : (
-            <p className="text-ui text-muted">No suggestions right now.</p>
+            <p className="text-ui text-muted">{DASHBOARD_COPY.emptyInsights}</p>
           )}
         </div>
       </section>
@@ -245,7 +249,7 @@ export function DashboardPage() {
             </h2>
             <Link
               to="/goals"
-              className="text-ui font-medium text-content underline-offset-4 hover:underline"
+              className="inline-flex min-h-11 items-center text-ui font-medium text-content underline-offset-4 hover:underline"
             >
               View all
             </Link>
@@ -299,7 +303,7 @@ export function DashboardPage() {
             </h2>
             <Link
               to="/tasks"
-              className="text-ui font-medium text-content underline-offset-4 hover:underline"
+              className="inline-flex min-h-11 items-center text-ui font-medium text-content underline-offset-4 hover:underline"
             >
               View all
             </Link>

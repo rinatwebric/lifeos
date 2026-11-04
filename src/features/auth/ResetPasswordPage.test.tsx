@@ -57,7 +57,9 @@ describe("ResetPasswordPage request mode", () => {
     await user.type(screen.getByLabelText(RESET_PASSWORD_COPY.emailLabel), "ada@example.com");
     await user.click(screen.getByRole("button", { name: RESET_PASSWORD_COPY.requestSubmit }));
 
-    expect(await screen.findByRole("status")).toHaveTextContent(RESET_PASSWORD_COPY.requestSent);
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      RESET_PASSWORD_COPY.requestSentMailOff,
+    );
     expect(resetMock).toHaveBeenCalledWith(
       "ada@example.com",
       expect.objectContaining({ redirectTo: expect.stringContaining("/reset-password") }),

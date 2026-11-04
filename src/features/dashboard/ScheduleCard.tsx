@@ -162,15 +162,9 @@ export function ScheduleBody({ now }: { now?: Date }) {
 export interface ScheduleCardProps {
   /** Keeps "today" in step with the rest of the Dashboard. */
   now?: Date;
-  /** Drop the Card frame when embedding in a composed panel. */
-  bare?: boolean;
 }
 
-export function ScheduleCard({ now, bare = false }: ScheduleCardProps) {
-  if (bare) {
-    return <ScheduleBody now={now} />;
-  }
-
+export function ScheduleCard({ now }: ScheduleCardProps) {
   return (
     <Card className="space-y-3">
       <h2 className="text-ui font-medium text-content">Schedule</h2>

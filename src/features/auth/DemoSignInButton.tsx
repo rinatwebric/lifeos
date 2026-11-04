@@ -22,7 +22,8 @@ interface DemoSignInButtonProps {
 /**
  * One-click entry into the shared demo account (iteration 3, unit 2).
  * Uses the existing `signIn()` service — no `service_role`, no e2e account,
- * no `AuthProvider`/RLS changes. Renders nothing when the demo env is absent.
+ * no `AuthProvider`/RLS changes. Without demo env renders an honest
+ * unavailable note instead of a dead button.
  */
 export function DemoSignInButton({ onError }: DemoSignInButtonProps) {
   const navigate = useNavigate();
@@ -30,11 +31,7 @@ export function DemoSignInButton({ onError }: DemoSignInButtonProps) {
   const available = isDemoSignInAvailable();
 
   if (!available) {
-    return (
-      <p role="note" className="text-center text-micro text-muted">
-        {DEMO_SIGN_IN_COPY.unavailable}
-      </p>
-    );
+    return <p className="text-center text-micro text-muted">{DEMO_SIGN_IN_COPY.unavailable}</p>;
   }
 
   const handleClick = async (): Promise<void> => {

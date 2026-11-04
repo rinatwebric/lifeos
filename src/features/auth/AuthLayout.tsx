@@ -5,7 +5,6 @@ import { Brand } from "@/components/layout/Brand";
 import { AuthVisual } from "./AuthVisual";
 
 export const AUTH_LAYOUT_COPY = {
-  tagline: "Sign in to continue to your personal operating system.",
   headline: "Turn intentions into a realistic day.",
   stepGoals: "Set long-term goals and break them into milestones.",
   stepTasks: "Turn milestones into tasks with priorities and deadlines.",

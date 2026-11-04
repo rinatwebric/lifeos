@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { DashboardPage } from "./DashboardPage";
+import { DASHBOARD_COPY, DashboardPage } from "./DashboardPage";
 import { useDashboardSchedule, type DashboardSchedule } from "./useDashboardSchedule";
 import { listAllMilestones, listGoals } from "@/features/goals/api";
 import { getProfile } from "@/features/settings/api";
@@ -311,7 +311,7 @@ describe("DashboardPage", () => {
 
     await screen.findByRole("heading", { name: "Welcome back, Alex" });
     await screen.findByText(/0 of 1 milestones remaining/);
-    expect(await screen.findByText("No suggestions right now.")).toBeInTheDocument();
+    expect(await screen.findByText(DASHBOARD_COPY.emptyInsights)).toBeInTheDocument();
   });
 
   it("offers the planner from an empty schedule card", async () => {

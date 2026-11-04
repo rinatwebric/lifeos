@@ -13,7 +13,7 @@ function SidebarLink({ entry }: { entry: NavEntry }) {
       end={entry.end}
       className={({ isActive }) =>
         cn(
-          "relative flex items-center gap-2.5 rounded-control px-3 py-2 text-ui transition-[color,background-color] duration-fast ease-standard",
+          "relative flex min-h-11 items-center gap-2.5 rounded-control px-3 py-2 text-ui transition-[color,background-color] duration-fast ease-standard",
           isActive ? "bg-surface-muted font-semibold text-content" : "text-muted hover:bg-surface-muted hover:text-content",
         )
       }

@@ -7,7 +7,6 @@ export function AuthVisual() {
   return (
     <svg
       viewBox="0 0 480 360"
-      role="img"
       aria-hidden="true"
       focusable="false"
       className="h-auto w-full max-w-md text-line"

@@ -24,8 +24,8 @@ export const RESET_PASSWORD_COPY = {
   emailPlaceholder: "you@example.com",
   requestSubmit: "Send reset link",
   requesting: "Sending…",
-  requestSent:
-    "If an account exists for this email, a reset link is on its way. Check your inbox (and the spam folder).",
+  requestSentMailOff:
+    "Request received. Email delivery is switched off for this installation, so no letter will arrive — ask the workspace owner to reset your password.",
   updateTitle: "Choose a new password",
   updateSubtitle: "This link only works once. After saving you will sign in again.",
   passwordLabel: "New password",
@@ -152,14 +152,13 @@ export function ResetPasswordPage({ initialMode = "request" }: ResetPasswordPage
       </div>
 
       {expiredLink ? <AuthAlert tone="error">{RESET_PASSWORD_COPY.expiredLink}</AuthAlert> : null}
-      <p
-        role="note"
-        className="rounded-control border border-line bg-surface-muted px-3 py-2 text-ui text-muted"
-      >
+      <p className="rounded-control border border-line bg-surface-muted px-3 py-2 text-ui text-muted">
         {RESET_PASSWORD_COPY.mailOffNotice}
       </p>
       {formError ? <AuthAlert tone="error">{formError}</AuthAlert> : null}
-      {requestSent ? <AuthAlert tone="success">{RESET_PASSWORD_COPY.requestSent}</AuthAlert> : null}
+      {requestSent ? (
+        <AuthAlert tone="success">{RESET_PASSWORD_COPY.requestSentMailOff}</AuthAlert>
+      ) : null}
 
       <form
         noValidate

@@ -13,10 +13,11 @@ existing key is renamed.
 | `AUTH_LAYOUT_COPY.assistantNote` | The assistant proposes. You confirm. Nothing changes on its own. | Ассистент предлагает. Вы подтверждаете. Ничего не меняется само. |
 | `DEMO_SIGN_IN_COPY.unavailable` | Demo account is unavailable in this environment. | Демо-доступ недоступен в этом окружении. |
 | `RESET_PASSWORD_COPY.requestSubtitle` (changed) | Enter your account email below. | Введите адрес вашей учётной записи ниже. |
+| `RESET_PASSWORD_COPY.requestSentMailOff` (new, replaces `requestSent`) | Request received. Email delivery is switched off for this installation, so no letter will arrive — ask the workspace owner to reset your password. | Запрос получен. Отправка писем в этой установке отключена, поэтому письмо не придёт — попросите владельца рабочей области сбросить пароль. |
+| `DASHBOARD_COPY.emptyInsights` (new) | No suggestions right now. | Пока нет предложений. |
 | `RESET_PASSWORD_COPY.mailOffNotice` | Email delivery is switched off for this installation, so no reset letter can arrive. Ask the workspace owner to reset your password. | Отправка писем в этой установке отключена, поэтому письмо со ссылкой не придёт. Попросите владельца рабочей области сбросить пароль. |
 
-Unchanged keys: `AUTH_LAYOUT_COPY.tagline` (kept, still exported; the layout test no longer
-asserts it), `SIGN_IN_COPY.*`, `SIGN_UP_COPY.*`, `CHECK_EMAIL_COPY.*`, all dashboard and
-shell strings. `DashboardPage` reuses existing strings only ("No suggestions right now." is
-new — add EN `No suggestions right now.` / RU `Пока нет предложений.` under a dashboard key
-when the i18n branch wires it; code intentionally keeps the literal until then).
+Unchanged keys: `SIGN_IN_COPY.*`, `SIGN_UP_COPY.*`, `CHECK_EMAIL_COPY.*`, all dashboard and
+shell strings. `AUTH_LAYOUT_COPY.tagline` is removed (the editorial layout renders
+`headline` + `assistantNote` instead); `RESET_PASSWORD_COPY.requestSent` is replaced by
+`requestSentMailOff`. Ru translations for both removals are not needed.
