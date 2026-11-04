@@ -4,6 +4,7 @@ import { toDateKey } from "@/lib/dates";
 import type { Habit, HabitLog, HabitScheduleVersion } from "@/types/domain";
 
 import {
+  buildHabitUnits,
   calculateHabitStats,
   getHabitDayStatus,
   getVersionForDate,
@@ -338,6 +339,20 @@ describe("calculateHabitStats (weekly)", () => {
     expect(stats.completed).toBe(1);
   });
 
+  it("judges a weekly day without hindsight: future logs do not mark it done", () => {
+    const weekly = [version("2026-11-02", { frequency: "weekly", targetCount: 3, startDate: "2026-11-02" })];
+    // Wednesday's status must ignore Friday's log (stats never look past today either).
+    const s = getHabitDayStatus(
+      habit({ frequency: "weekly", targetCount: 3, startDate: "2026-11-02" }),
+      weekly,
+      [log("2026-11-06", 3)],
+      "2026-11-04",
+    );
+
+    expect(s.scheduled).toBe(true);
+    expect(s.done).toBe(false);
+  });
+
   it("leaves the current week out of the denominator until it is done", () => {
     const stats = calculateHabitStats({
       habit: habit({ frequency: "weekly", targetCount: 3 }),
@@ -377,6 +392,29 @@ describe("calculateHabitStats (weekly)", () => {
 
     expect(stats.planned).toBe(1);
     expect(stats.completed).toBe(1);
+  });
+
+  it("ends a weekly unit where the schedule changes, not on Sunday", () => {
+    // Weekly Mon–Wed, then daily from Thu: the week unit covers only 11-02..11-04.
+    const versions = [
+      version("2026-11-02", {
+        frequency: "weekly",
+        targetCount: 3,
+        startDate: "2026-11-02",
+        effectiveTo: "2026-11-04",
+      }),
+      version("2026-11-05", { startDate: "2026-11-02" }),
+    ];
+    const units = buildHabitUnits({
+      habit: habit({ startDate: "2026-11-02" }),
+      versions,
+      logs: [log("2026-11-03", 3), log("2026-11-05", 1)],
+      todayKey: "2026-11-06",
+    });
+
+    expect(units).toHaveLength(2);
+    expect(units[0]).toMatchObject({ kind: "week", from: "2026-11-02", to: "2026-11-04", done: true });
+    expect(units[1]).toMatchObject({ kind: "day", from: "2026-11-05", done: true });
   });
 });
 

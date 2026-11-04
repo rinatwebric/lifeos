@@ -204,14 +204,22 @@ export function getHabitDayStatus(
   }
 
   if (found.frequency === "weekly") {
-    // A weekly day inherits its week's outcome (sum of the ISO week,
-    // Monday–Sunday, over active days only).
+    // A weekly day inherits its week's outcome — but only from days up to
+    // and including the status date itself. Summing past the date would
+    // judge the day with hindsight (e.g. a future-dated log inflating a
+    // past day), disagreeing with buildHabitUnits, which never looks past
+    // today.
     const monday = weekMondayOf(dateKey);
     const counts = logsByDate(logs);
     let sum = 0;
 
     for (let i = 0; i < 7; i += 1) {
       const day = addDays(monday, i);
+
+      if (day > dateKey) {
+        break;
+      }
+
       const dayVersion = getVersionForDate(list, day);
 
       if (dayVersion !== null && isDayScheduled(dayVersion, day)) {
@@ -325,7 +333,9 @@ export function buildHabitUnits(input: HabitStatsInput): HabitObligationUnit[] {
     }
 
     if (openWeek !== null) {
-      flushWeek(openWeek.monday, addDays(openWeek.monday, 6));
+      // The weekly unit ends where the schedule changes: the unit's `to`
+      // is the day before the switch, not the calendar Sunday.
+      flushWeek(openWeek.monday, addDays(cursor, -1));
     }
 
     const scheduled = isDayScheduled(version, cursor);

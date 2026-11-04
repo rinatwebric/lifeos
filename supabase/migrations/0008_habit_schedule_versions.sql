@@ -11,9 +11,14 @@
 --
 -- Semantics (enforced by the trigger below, same transaction = atomic):
 --   * Habit creation + snapshot are atomic (AFTER INSERT writes the first
---     version with effective_from = NEW.start_date).
+--     version with effective_from = GREATEST(start_date, creation day in the
+--     owner's timezone): backdated starts do not materialize misses for
+--     days on which the habit could not exist).
 --   * Schedule/status change + snapshot are atomic (AFTER UPDATE writes or
---     refreshes today's version; past rows are never rewritten).
+--     refreshes today's version; past rows are never rewritten). Future
+--     snapshots (a future start_date row) are refreshed to the newest
+--     values, never closed into a CHECK violation, and today's new row is
+--     bounded by the next future snapshot (single-open-version invariant).
 --   * Only tracked fields version the history: frequency, weekdays,
 --     target_count, start_date, status. Title/description/reminder_time
 --     changes (rename) and no-op writes store nothing.
@@ -35,17 +40,30 @@
 
 create or replace function public.habit_current_date(p_user_id uuid)
 returns date
-language sql
+language plpgsql
 stable
 security invoker
 set search_path = ''
 as $$
-  select (
-    now() at time zone coalesce(
-      (select timezone from public.profiles where id = p_user_id),
-      'UTC'
-    )
-  )::date;
+declare
+  v_timezone text;
+begin
+  select timezone into v_timezone from public.profiles where id = p_user_id;
+
+  if v_timezone is null then
+    v_timezone := 'UTC';
+  end if;
+
+  begin
+    return (now() at time zone v_timezone)::date;
+  exception
+    -- profiles.timezone is free text (0001 has no CHECK): a bad value must
+    -- degrade to UTC, never brick habit edits (the trigger calls this on
+    -- every tracked UPDATE).
+    when invalid_parameter_value then
+      return (now() at time zone 'UTC')::date;
+  end;
+end;
 $$;
 
 create table public.habit_schedule_versions (
@@ -95,21 +113,36 @@ set search_path = ''
 as $$
 declare
   v_today date;
+  v_new_weekdays integer[];
+  v_old_weekdays integer[];
+  v_next_from date;
 begin
+  -- Weekday comparison and storage are order-insensitive: the service sorts,
+  -- but direct-SQL writes of an equal-as-set array must not mint noise.
+  select coalesce(array_agg(w order by w), '{}') into v_new_weekdays
+    from unnest(NEW.weekdays) as w;
+  if (TG_OP = 'UPDATE') then
+    select coalesce(array_agg(w order by w), '{}') into v_old_weekdays
+      from unnest(OLD.weekdays) as w;
+  end if;
+
   if (TG_OP = 'INSERT') then
+    -- Obligations start when the habit starts existing, not before: a
+    -- backdated start_date does not materialize misses for days on which
+    -- the habit (and therefore its logs) could not exist.
     insert into public.habit_schedule_versions
       (user_id, habit_id, effective_from, effective_to,
        frequency, weekdays, target_count, start_date, status)
     values
-      (NEW.user_id, NEW.id, NEW.start_date, null,
-       NEW.frequency, NEW.weekdays, NEW.target_count, NEW.start_date, NEW.status);
+      (NEW.user_id, NEW.id,
+       greatest(NEW.start_date, public.habit_current_date(NEW.user_id)), null,
+       NEW.frequency, v_new_weekdays, NEW.target_count, NEW.start_date, NEW.status);
     return NEW;
   elsif (TG_OP = 'UPDATE') then
     -- Rename / no-op writes store nothing: only tracked schedule fields
-    -- version the history. Array equality is order-sensitive; the service
-    -- layer always stores weekdays sorted (see habits/api.ts).
+    -- version the history.
     if (OLD.frequency is not distinct from NEW.frequency
-        and OLD.weekdays is not distinct from NEW.weekdays
+        and v_old_weekdays = v_new_weekdays
         and OLD.target_count is not distinct from NEW.target_count
         and OLD.start_date is not distinct from NEW.start_date
         and OLD.status is not distinct from NEW.status) then
@@ -121,29 +154,62 @@ begin
     -- Last change of the current day wins: refresh today's snapshot.
     update public.habit_schedule_versions
       set frequency = NEW.frequency,
-          weekdays = NEW.weekdays,
+          weekdays = v_new_weekdays,
           target_count = NEW.target_count,
           start_date = NEW.start_date,
           status = NEW.status
       where habit_id = NEW.id
         and effective_from = v_today;
     if found then
+      -- Today's refresh must not leave later snapshots stale (e.g. a
+      -- future start_date row written at creation).
+      update public.habit_schedule_versions
+        set frequency = NEW.frequency,
+            weekdays = v_new_weekdays,
+            target_count = NEW.target_count,
+            start_date = NEW.start_date,
+            status = NEW.status
+        where habit_id = NEW.id
+          and effective_from > v_today;
       return NEW;
     end if;
 
-    -- Close the previously open version (strictly before today) and open
-    -- today's. Rows with effective_from < today are never touched again.
+    -- Close only strictly-past open rows. Future snapshots (a future
+    -- start_date row) are refreshed below instead: closing one with
+    -- effective_to = v_today - 1 would violate
+    -- effective_to >= effective_from and abort the whole UPDATE.
     update public.habit_schedule_versions
       set effective_to = v_today - 1
       where habit_id = NEW.id
-        and effective_to is null;
+        and effective_to is null
+        and effective_from < v_today;
+
+    -- Future snapshots never go stale: they keep their effective_from
+    -- but carry the newest field values.
+    update public.habit_schedule_versions
+      set frequency = NEW.frequency,
+          weekdays = v_new_weekdays,
+          target_count = NEW.target_count,
+          start_date = NEW.start_date,
+          status = NEW.status
+      where habit_id = NEW.id
+        and effective_from > v_today;
+
+    -- Open today's snapshot, bounded by the next future snapshot if one
+    -- exists (single-open-version invariant: at most one NULL row, and it
+    -- always has the greatest effective_from).
+    select min(effective_from) into v_next_from
+      from public.habit_schedule_versions
+      where habit_id = NEW.id
+        and effective_from > v_today;
 
     insert into public.habit_schedule_versions
       (user_id, habit_id, effective_from, effective_to,
        frequency, weekdays, target_count, start_date, status)
     values
-      (NEW.user_id, NEW.id, v_today, null,
-       NEW.frequency, NEW.weekdays, NEW.target_count, NEW.start_date, NEW.status);
+      (NEW.user_id, NEW.id, v_today,
+       case when v_next_from is null then null else v_next_from - 1 end,
+       NEW.frequency, v_new_weekdays, NEW.target_count, NEW.start_date, NEW.status);
     return NEW;
   end if;
 
@@ -159,6 +225,9 @@ create trigger trg_habits_schedule_versioning
 -- live yet, so this is expected to insert 0 rows). GREATEST keeps the
 -- unknown past uncovered instead of inventing it: dates before today
 -- have no version and therefore no obligations.
+-- Midnight note: CURRENT_DATE is the server date while the trigger uses
+-- the profile timezone; near midnight they can disagree by one day. This
+-- is a one-shot statement, so the skew (if any) is documented, not fixed.
 insert into public.habit_schedule_versions
   (user_id, habit_id, effective_from, effective_to,
    frequency, weekdays, target_count, start_date, status)
