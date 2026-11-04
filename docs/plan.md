@@ -105,7 +105,9 @@ Dashboard покажет «запланировано» без блока). Dash
    Проверка: `typecheck && lint && test && build`.
 7. **Ручные блоки.** `TimeBlockDialog.tsx` (`localDateTimeToIso` / `isoToLocalDateTime`),
    `DeleteBlockDialog.tsx`; конфликт/сон/прошлое — только с явным подтверждением (§18);
-   ошибки — кодами. Проверка: `typecheck && lint && test && build`.
+   ошибки — кодами. Перенос блока на другую задачу (relink) чистит зеркало у прежней задачи
+   и выставляет у новой — этот случай единица 3 сознательно не покрывала.
+   Проверка: `typecheck && lint && test && build`.
 8. **Предпросмотр плана (без записей).** `PlanPreview.tsx` + `usePlanPreview.ts`: слоты с
    «почему», списки «не поместилось» / «нужна оценка», никаких записей в БД до Accept.
    Проверка: `typecheck && lint && test && build`.

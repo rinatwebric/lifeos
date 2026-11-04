@@ -96,17 +96,31 @@ production paths, leave dead buttons, or claim something works without running i
 
 ## 8. Available skills
 
-Global skills live in `~/.config/opencode/skills`. Use the ones that match the task:
+Global skills live in `~/.config/opencode/skills`, project skills in `.opencode/skills`
+and `.agents/skills`. Use the ones that match the task:
 
 - `vercel-react-best-practices`, `vercel-composition-patterns` — React implementation and structure
-- `web-design-guidelines`, `frontend-design`, `theme-factory` — UI quality and visual system
 - `supabase`, `supabase-postgres-best-practices` — auth, RLS, schema, migrations, performance
 - `test-driven-development`, `systematic-debugging`, `verification-before-completion` — correctness
 - `brainstorming`, `writing-plans`, `to-spec`, `to-tickets` — shaping work before code
 - `deploy-to-vercel`, `writing-guidelines` — deployment and copy
-- `find-skills` — discover and install new skills from the registry
-- `design-taste-frontend` — art direction for app screens (heavy; use for UI work)
-- `lifeos-workflow` — the project-specific task loop
+- `lifeos-workflow` (`.opencode/skills`) — the project-specific task loop
+
+**Design skills** live in `.agents/skills` (installed with
+`npx skills add jakubkrehel/skills --skill <names> -a opencode -y --copy`, tracked by
+`skills-lock.json`). Each folder has `SKILL.md` plus reference files. Any UI work starts by
+reading the matching files and ends by naming them in the report with the concrete rules applied:
+
+- `better-interface` — ranked review of a screen/flow (a11y, layout, writing, type, color, polish)
+- `better-colors` — palettes, semantic tokens, format conversion, contrast measurement
+- `better-typography` — type scale, spacing, wrapping, truncation, tabular numbers, punctuation
+- `better-layout` — grouping, alignment, reading order, breakpoints, room for translations
+- `better-ui` — radius/shadow/optical-alignment/icon-state/motion values
+- `better-accessibility` — focus, ARIA, accessible names, forms, WCAG 2.2, reduced motion
+- `better-writing` — labels, errors, empty states, confirmations, product voice
+- `interface-review` — review a branch/PR for interface problems it introduced
+
+Do not install skills "just in case" and do not cite a skill you did not open.
 
 Subagents for this repo live in `.opencode/agents/` and are invoked with `@`:
 `planner`, `frontend-developer`, `code-reviewer`, `debugger`, `security-auditor`.
