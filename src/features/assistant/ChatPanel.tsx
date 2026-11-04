@@ -93,11 +93,17 @@ export function ChatPanel() {
       setDraft("");
       setSelectedId(result.conversationId);
       setDecisionNotice(null);
-      setLastProposal({
-        proposalId: result.proposalId,
-        proposal: result.proposal,
-        conversationId: result.conversationId,
-      });
+      if (result.proposal.actions.length > 0) {
+        setLastProposal({
+          proposalId: result.proposalId,
+          proposal: result.proposal,
+          conversationId: result.conversationId,
+        });
+      } else {
+        // An answer without actions is plain text — nothing to review, and no
+        // duplicate summary card next to the message bubble.
+        setLastProposal(null);
+      }
     } catch {
       // Error surfaces through sendMutation.error with a coded message.
     }

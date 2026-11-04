@@ -143,6 +143,39 @@ describe("ChatPanel", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("too long");
   });
 
+  it("does not offer a review when the answer proposes no actions", async () => {
+    const user = userEvent.setup();
+    stubQueries();
+    const mutateAsync = vi.fn().mockResolvedValue({
+      conversationId: "c1",
+      userMessageId: "u1",
+      assistantMessageId: "a1",
+      proposalId: "p1",
+      proposal: {
+        proposalType: "productivity_analysis",
+        summary: "Я умею создавать цели, задачи и план.",
+        reasoning: "Ответ без изменений в данных.",
+        actions: [],
+      },
+    });
+    mockedSend.mockReturnValue({
+      mutateAsync,
+      isPending: false,
+      error: null,
+      reset: vi.fn(),
+    } as unknown as ReturnType<typeof useSendMessage>);
+
+    render(<ChatPanel />);
+
+    await user.type(screen.getByLabelText("Message"), "что ты умеешь");
+    await user.click(screen.getByRole("button", { name: "Send" }));
+
+    await waitFor(() => {
+      expect(mutateAsync).toHaveBeenCalled();
+    });
+    expect(screen.queryByRole("button", { name: "Review proposal" })).not.toBeInTheDocument();
+  });
+
   it("explains the rate limit with the next step", () => {
     stubQueries();
     mockedSend.mockReturnValue({
@@ -266,7 +299,18 @@ describe("ChatPanel", () => {
           proposalType: "task_creation",
           summary: "Two starter tasks.",
           reasoning: "Small steps first.",
-          actions: [],
+          actions: [
+            {
+              type: "create_task",
+              title: "Review today's priorities",
+              description: null,
+              goalId: null,
+              milestoneId: null,
+              priority: null,
+              dueDate: null,
+              estimatedDurationMinutes: 30,
+            },
+          ],
         },
       }),
       isPending: false,

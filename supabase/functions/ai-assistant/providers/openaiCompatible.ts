@@ -21,7 +21,46 @@ export interface OpenAiCompatibleEnv {
   timeoutMs: number;
 }
 
-export const DEFAULT_TIMEOUT_MS = 25000;
+export const DEFAULT_TIMEOUT_MS = 45000;
+
+/**
+ * Models do not always return bare JSON, even with `response_format:
+ * json_schema`: some wrap it in a ```json fence or add a sentence around it.
+ * `JSON.parse(content)` then fails and the user sees a misleading
+ * "temporarily unavailable", so the payload is extracted defensively:
+ * fenced block → raw text → first `{`/`[` … last `}`/`]`.
+ */
+export function extractJsonPayload(content: string): unknown {
+  const trimmed = content.trim().replace(/^\uFEFF/, "");
+  const candidates: string[] = [];
+  const fenced = /```(?:json)?\s*([\s\S]*?)\s*```/i.exec(trimmed);
+
+  if (fenced?.[1]) {
+    candidates.push(fenced[1].trim());
+  }
+
+  candidates.push(trimmed);
+
+  const firstBrace = ["{", "["]
+    .map((brace) => trimmed.indexOf(brace))
+    .filter((index) => index >= 0)
+    .sort((a, b) => a - b)[0];
+  const lastBrace = Math.max(trimmed.lastIndexOf("}"), trimmed.lastIndexOf("]"));
+
+  if (firstBrace !== undefined && lastBrace > firstBrace) {
+    candidates.push(trimmed.slice(firstBrace, lastBrace + 1));
+  }
+
+  for (const candidate of candidates) {
+    try {
+      return JSON.parse(candidate) as unknown;
+    } catch {
+      // try the next shape
+    }
+  }
+
+  throw new Error("content is not JSON");
+}
 
 function trimTrailingSlash(url: string): string {
   return url.endsWith("/") ? url.slice(0, -1) : url;
@@ -116,7 +155,7 @@ export async function callOpenAiCompatible(
     }
 
     try {
-      return JSON.parse(content) as unknown;
+      return extractJsonPayload(content);
     } catch (error) {
       throw new ProviderError("provider returned malformed JSON content", {
         status: response.status,

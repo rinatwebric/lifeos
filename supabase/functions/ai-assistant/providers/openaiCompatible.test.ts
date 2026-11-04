@@ -61,6 +61,38 @@ describe("openaiCompatible provider", () => {
     expect((init.headers as Record<string, string>).Authorization).toBe("Bearer test-key");
   });
 
+  it("accepts a JSON payload wrapped in a markdown fence", async () => {
+    const fetchImpl = vi.fn(async () =>
+      rawResponse('```json\n{"proposalType":"task_creation","actions":[]}\n```'),
+    );
+
+    await expect(callOpenAiCompatible(INPUT, ENV, fetchImpl)).resolves.toStrictEqual({
+      proposalType: "task_creation",
+      actions: [],
+    });
+  });
+
+  it("accepts a JSON payload with a sentence around it", async () => {
+    const fetchImpl = vi.fn(async () =>
+      rawResponse('Вот план: {"proposalType":"task_creation"} — готово.'),
+    );
+
+    await expect(callOpenAiCompatible(INPUT, ENV, fetchImpl)).resolves.toStrictEqual({
+      proposalType: "task_creation",
+    });
+  });
+
+  it("still rejects content that contains no JSON at all", async () => {
+    const fetchImpl = vi.fn(async () => rawResponse("Извините, сейчас не могу помочь."));
+    const failure = await callOpenAiCompatible(INPUT, ENV, fetchImpl).then(
+      () => null,
+      (error: unknown) => error,
+    );
+
+    expect(failure).toBeInstanceOf(ProviderError);
+    expect((failure as ProviderError).message).toContain("malformed JSON");
+  });
+
   it("maps 401 invalid_api_key to ai_unavailable", async () => {
     const fetchImpl = vi.fn(async () => errorResponse(401, "Unauthorized"));
     const failure = await callOpenAiCompatible(INPUT, ENV, fetchImpl).then(
