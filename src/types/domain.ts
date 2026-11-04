@@ -35,6 +35,24 @@ export type RecurrenceFrequency = (typeof RECURRENCE_FREQUENCIES)[number];
 export const BLOCK_TYPES = ["task", "break", "personal"] as const;
 export type BlockType = (typeof BLOCK_TYPES)[number];
 
+/** Weekday keys used by availability JSONB columns (`mon` … `sun`). */
+export const WEEKDAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] as const;
+export type Weekday = (typeof WEEKDAYS)[number];
+
+/** Wall-clock interval within one day, "HH:MM" (24-hour). */
+export interface AvailabilityWindow {
+  start: string;
+  end: string;
+}
+
+/**
+ * Shape of `working_hours`, `study_hours` and `preferred_work_periods`
+ * (migration 0002_user_preferences): weekday → that day's windows.
+ * A missing key — or an empty array — means "not set"; never both, the write
+ * path drops empty days.
+ */
+export type AvailabilityWindows = Partial<Record<Weekday, AvailabilityWindow[]>>;
+
 export const HABIT_STATUSES = ["active", "paused", "archived"] as const;
 export type HabitStatus = (typeof HABIT_STATUSES)[number];
 
@@ -169,8 +187,8 @@ export interface Profile {
 export interface UserPreferences extends BaseEntity {
   wakeUpTime: string;
   sleepTime: string;
-  workingHours: Record<string, unknown>;
-  studyHours: Record<string, unknown>;
-  preferredWorkPeriods: Record<string, unknown>;
+  workingHours: AvailabilityWindows;
+  studyHours: AvailabilityWindows;
+  preferredWorkPeriods: AvailabilityWindows;
   notificationPreferences: Record<string, unknown>;
 }

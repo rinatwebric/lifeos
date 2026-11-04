@@ -3,6 +3,7 @@ import { useForm } from "react-hook-form";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { PreferencesForm } from "./PreferencesForm";
+import { AvailabilityForm } from "./AvailabilityForm";
 import {
   getPreferences,
   getProfile,
@@ -171,6 +172,10 @@ export function SettingsPage() {
           }}
           idPrefix="settings"
         />
+      </Card>
+
+      <Card className="space-y-4">
+        <AvailabilityForm />
       </Card>
 
       <SignOutCard />
