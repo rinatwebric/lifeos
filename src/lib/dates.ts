@@ -173,3 +173,30 @@ export function isoToLocalDateTime(iso: string, timeZone: string): string {
     `T${pad2(parts.hour)}:${pad2(parts.minute)}`
   );
 }
+
+/**
+ * Normalizes a wall-clock time from the database to "HH:MM".
+ *
+ * PostgREST serializes Postgres time columns as "HH:MM:SS" (plus a
+ * fractional part when microseconds are present), while the forms and the
+ * planner math speak strict "HH:MM". This is the single DB-boundary
+ * normalizer: every reader of time / jsonb wall times goes through it,
+ * form validation (settings/schemas.ts) intentionally stays strict.
+ *
+ * Returns "HH:MM" for "HH:MM", "HH:MM:SS" and "HH:MM:SS.fff".
+ * Returns null for anything else: non-strings, "7:00", "25:00",
+ * "07:00:60", empty strings.
+ */
+export function toWallTime(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const match = /^([01]\d|2[0-3]):([0-5]\d)(?::([0-5]\d)(?:\.\d+)?)?$/.exec(value);
+
+  if (!match) {
+    return null;
+  }
+
+  return `${match[1]}:${match[2]}`;
+}

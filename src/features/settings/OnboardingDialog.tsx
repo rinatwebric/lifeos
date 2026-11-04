@@ -11,6 +11,7 @@ import {
 } from "./api";
 import { useAuth } from "@/features/auth/useAuth";
 import { isSupabaseConfigured } from "@/lib/env";
+import { toWallTime } from "@/lib/dates";
 import { Button } from "@/components/ui/Button";
 
 export const ONBOARDING_COPY = {
@@ -94,6 +95,11 @@ export function OnboardingDialog() {
 
   const browserZone = Intl.DateTimeFormat().resolvedOptions().timeZone ?? "UTC";
 
+  // Same PostgREST "HH:MM:SS" normalization as SettingsPage: the dialog seeds
+  // the strict "HH:MM"-only form, so raw `time` values must not reach it.
+  const wakeUpTime = toWallTime(preferencesQuery.data?.wakeUpTime) ?? "07:00";
+  const sleepTime = toWallTime(preferencesQuery.data?.sleepTime) ?? "23:00";
+
   return (
     <div
       role="dialog"
@@ -118,11 +124,11 @@ export function OnboardingDialog() {
             </p>
           ) : (
             <PreferencesForm
-              key={`${profileQuery.data?.timezone ?? browserZone}-${preferencesQuery.data?.wakeUpTime ?? "07:00"}-${preferencesQuery.data?.sleepTime ?? "23:00"}`}
+              key={`${profileQuery.data?.timezone ?? browserZone}-${wakeUpTime}-${sleepTime}`}
               defaultValues={{
                 timezone: profileQuery.data?.timezone ?? browserZone,
-                wakeUpTime: preferencesQuery.data?.wakeUpTime ?? "07:00",
-                sleepTime: preferencesQuery.data?.sleepTime ?? "23:00",
+                wakeUpTime,
+                sleepTime,
               }}
               submitLabel={ONBOARDING_COPY.save}
               idPrefix="onboarding"

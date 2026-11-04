@@ -6,6 +6,7 @@ import {
   isoToLocalDateTime,
   localDateTimeToIso,
   toDateKey,
+  toWallTime,
 } from "@/lib/dates";
 import type { Task } from "@/types/domain";
 
@@ -125,5 +126,40 @@ describe("localDateTimeToIso / isoToLocalDateTime", () => {
     expect(() => localDateTimeToIso("not-a-date", "UTC")).toThrow();
     expect(() => localDateTimeToIso("2026-13-01T10:00", "UTC")).toThrow();
     expect(() => isoToLocalDateTime("not-a-date", "UTC")).toThrow();
+  });
+});
+
+describe("toWallTime", () => {
+  it("passes strict HH:MM through unchanged", () => {
+    expect(toWallTime("07:00")).toBe("07:00");
+  });
+
+  it("truncates the PostgREST time serialization to HH:MM", () => {
+    expect(toWallTime("07:00:00")).toBe("07:00");
+  });
+
+  it("drops a fractional-seconds tail", () => {
+    expect(toWallTime("07:00:00.123")).toBe("07:00");
+  });
+
+  it("rejects a one-digit hour", () => {
+    expect(toWallTime("7:00")).toBeNull();
+  });
+
+  it("rejects an out-of-range hour", () => {
+    expect(toWallTime("25:00")).toBeNull();
+  });
+
+  it("rejects an out-of-range second", () => {
+    expect(toWallTime("07:00:60")).toBeNull();
+  });
+
+  it("rejects non-strings", () => {
+    expect(toWallTime(null)).toBeNull();
+    expect(toWallTime(700)).toBeNull();
+  });
+
+  it("rejects an empty string", () => {
+    expect(toWallTime("")).toBeNull();
   });
 });

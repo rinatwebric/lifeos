@@ -23,6 +23,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { Select } from "@/components/ui/Select";
 import { Button } from "@/components/ui/Button";
 import { isSupabaseConfigured } from "@/lib/env";
+import { toWallTime } from "@/lib/dates";
 
 export const SETTINGS_COPY = {
   title: "Settings",
@@ -129,6 +130,11 @@ export function SettingsPage() {
 
   const profile = profileQuery.data;
   const preferences = preferencesQuery.data;
+  // PostgREST serializes `time` columns as "HH:MM:SS": normalize before the
+  // values reach `PreferencesForm` (`input[type=time]` + strict zod would
+  // otherwise reject its own defaults on save). Fallbacks match onboarding.
+  const wakeUpTime = toWallTime(preferences.wakeUpTime) ?? "07:00";
+  const sleepTime = toWallTime(preferences.sleepTime) ?? "23:00";
 
   return (
     <div className="space-y-6">
@@ -164,11 +170,11 @@ export function SettingsPage() {
 
       <Card className="space-y-4">
         <PreferencesForm
-          key={`prefs-${profile.timezone}-${preferences.wakeUpTime}-${preferences.sleepTime}`}
+          key={`prefs-${profile.timezone}-${wakeUpTime}-${sleepTime}`}
           defaultValues={{
             timezone: profile.timezone,
-            wakeUpTime: preferences.wakeUpTime,
-            sleepTime: preferences.sleepTime,
+            wakeUpTime,
+            sleepTime,
           }}
           idPrefix="settings"
         />

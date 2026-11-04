@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { toWallTime } from "@/lib/dates";
 import {
   PROFILE_LANGUAGES,
   PROFILE_THEMES,
@@ -94,11 +95,22 @@ export const availabilityFormSchema = z.object({
 export type AvailabilityDayValues = z.infer<typeof availabilityDaySchema>;
 export type AvailabilityFormValues = z.infer<typeof availabilityFormSchema>;
 
-/** JSONB → form: every weekday becomes a row, missing keys become empty rows. */
+/**
+ * JSONB → form: every weekday becomes a row, missing keys become empty rows.
+ * Stored windows are normalized through `toWallTime`, so a PostgREST `time`
+ * serialization ("HH:MM:SS") never reaches `input[type=time]` + the strict
+ * zod `timeField` (which intentionally stays "HH:MM"-only); malformed
+ * windows are dropped instead of breaking the form.
+ */
 export function availabilityToDays(windows: AvailabilityWindows): AvailabilityDayValues[] {
   return WEEKDAYS.map((day) => ({
     day,
-    windows: (windows[day] ?? []).map((window) => ({ start: window.start, end: window.end })),
+    windows: (windows[day] ?? []).flatMap((window) => {
+      const start = toWallTime(window.start);
+      const end = toWallTime(window.end);
+
+      return start === null || end === null ? [] : [{ start, end }];
+    }),
   }));
 }
 

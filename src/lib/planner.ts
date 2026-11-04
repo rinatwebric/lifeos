@@ -1,4 +1,4 @@
-import { isoToLocalDateTime, isTaskOverdue, localDateTimeToIso, toDateKey } from "@/lib/dates";
+import { isoToLocalDateTime, isTaskOverdue, localDateTimeToIso, toDateKey, toWallTime } from "@/lib/dates";
 import type {
   AvailabilityWindow,
   AvailabilityWindows,
@@ -138,7 +138,6 @@ export interface PlanDayResult {
   needsEstimate: Task[];
 }
 
-const WALL_TIME_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;
 const DATE_KEY_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
 const MS_PER_MINUTE = 60_000;
 const MS_PER_DAY = 86_400_000;
@@ -214,7 +213,7 @@ function weekdayOf(dateKey: string, timeZone: string): DayKey {
 }
 
 function assertWallTime(value: string, field: string): void {
-  if (!WALL_TIME_PATTERN.test(value)) {
+  if (toWallTime(value) === null) {
     throw new Error(`Invalid wall-clock time for ${field}: ${value}`);
   }
 }
@@ -233,13 +232,16 @@ function wakeWindowMs(
   assertWallTime(wakeUpTime, "wakeUpTime");
   assertWallTime(sleepTime, "sleepTime");
 
-  if (wakeUpTime === sleepTime) {
+  const wake = toWallTime(wakeUpTime) as string;
+  const sleep = toWallTime(sleepTime) as string;
+
+  if (wake === sleep) {
     return null;
   }
 
-  const endDateKey = sleepTime <= wakeUpTime ? addDays(dateKey, 1) : dateKey;
-  const start = Date.parse(localDateTimeToIso(`${dateKey}T${wakeUpTime}`, timeZone));
-  const end = Date.parse(localDateTimeToIso(`${endDateKey}T${sleepTime}`, timeZone));
+  const endDateKey = sleep <= wake ? addDays(dateKey, 1) : dateKey;
+  const start = Date.parse(localDateTimeToIso(`${dateKey}T${wake}`, timeZone));
+  const end = Date.parse(localDateTimeToIso(`${endDateKey}T${sleep}`, timeZone));
 
   if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) {
     return null;
@@ -263,13 +265,16 @@ function availabilityRangesMs(
   const ranges: RangeMs[] = [];
 
   for (const interval of intervals) {
-    if (!WALL_TIME_PATTERN.test(interval.start) || !WALL_TIME_PATTERN.test(interval.end)) {
+    const startWall = toWallTime(interval.start);
+    const endWall = toWallTime(interval.end);
+
+    if (startWall === null || endWall === null) {
       continue;
     }
 
-    const endDateKey = interval.end <= interval.start ? addDays(dateKey, 1) : dateKey;
-    const start = Date.parse(localDateTimeToIso(`${dateKey}T${interval.start}`, timeZone));
-    const end = Date.parse(localDateTimeToIso(`${endDateKey}T${interval.end}`, timeZone));
+    const endDateKey = endWall <= startWall ? addDays(dateKey, 1) : dateKey;
+    const start = Date.parse(localDateTimeToIso(`${dateKey}T${startWall}`, timeZone));
+    const end = Date.parse(localDateTimeToIso(`${endDateKey}T${endWall}`, timeZone));
 
     if (Number.isFinite(start) && Number.isFinite(end) && end > start) {
       ranges.push({ start, end });

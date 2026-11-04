@@ -9,7 +9,7 @@ import {
 } from "@/features/settings/api";
 import { listTasks } from "@/features/tasks/api";
 import { tasks } from "@/features/tasks/queryKeys";
-import { localDateTimeToIso } from "@/lib/dates";
+import { localDateTimeToIso, toWallTime } from "@/lib/dates";
 import {
   computeFreeWindows,
   findConflicts,
@@ -43,7 +43,6 @@ import { useBlocks } from "./hooks";
  */
 
 const DATE_KEY_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
-const WALL_TIME_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;
 const DAY_KEYS: readonly DayKey[] = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 const MS_PER_MINUTE = 60_000;
 const MS_PER_DAY = 86_400_000;
@@ -205,7 +204,9 @@ export function plannerDayBounds(
 /**
  * Reads the `working_hours` / `study_hours` jsonb as `WeeklyAvailability`.
  * Unknown days, non-array values and malformed `HH:MM` entries are dropped
- * instead of reaching the planning math; `{}` means "not set".
+ * instead of reaching the planning math; `{}` means "not set". Entries in
+ * the PostgREST `time` serialization ("HH:MM:SS", optional fraction) are
+ * normalized to "HH:MM" through `toWallTime`.
  */
 export function parseWeeklyAvailability(value: unknown): WeeklyAvailability {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -231,15 +232,14 @@ export function parseWeeklyAvailability(value: unknown): WeeklyAvailability {
 
       const { start, end } = item as { start?: unknown; end?: unknown };
 
-      if (typeof start !== "string" || typeof end !== "string") {
+      const normalizedStart = toWallTime(start);
+      const normalizedEnd = toWallTime(end);
+
+      if (normalizedStart === null || normalizedEnd === null) {
         continue;
       }
 
-      if (!WALL_TIME_PATTERN.test(start) || !WALL_TIME_PATTERN.test(end)) {
-        continue;
-      }
-
-      intervals.push({ start, end });
+      intervals.push({ start: normalizedStart, end: normalizedEnd });
     }
 
     if (intervals.length > 0) {
@@ -250,9 +250,9 @@ export function parseWeeklyAvailability(value: unknown): WeeklyAvailability {
   return availability;
 }
 
-/** A stored `HH:MM` preference, or null when it is missing or malformed. */
+/** A stored wall-clock preference, normalized from the PostgREST `time` serialization to `HH:MM`, or null when it is missing or malformed. */
 export function readWallTime(value: unknown): string | null {
-  return typeof value === "string" && WALL_TIME_PATTERN.test(value) ? value : null;
+  return toWallTime(value);
 }
 function wallTimeToMinutes(value: string): number {
   return Number(value.slice(0, 2)) * 60 + Number(value.slice(3, 5));

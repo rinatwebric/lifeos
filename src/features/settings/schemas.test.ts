@@ -140,6 +140,14 @@ describe("availability mapping", () => {
     expect(Object.keys(availability)).toHaveLength(0);
   });
 
+  it("normalizes PostgREST HH:MM:SS windows so the strict form keeps working", () => {
+    const days = availabilityToDays({ mon: [{ start: "09:00:00", end: "12:00:00" }] });
+
+    expect(days.find((day) => day.day === "mon")?.windows).toStrictEqual([
+      { start: "09:00", end: "12:00" },
+    ]);
+  });
+
   it("round-trips windows without inventing days", () => {
     const windows: AvailabilityWindows = {
       mon: [{ start: "09:00", end: "12:00" }],
