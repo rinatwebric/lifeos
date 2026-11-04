@@ -46,16 +46,22 @@
 
 **Результат:** пользователь формирует реалистичный план.
 
-## Phase 4 — AI Assistant
+## Phase 4 — AI Assistant ✅ (итерация 5 закрыта 2026-11-04)
 
-- [ ] AI service layer в Edge Function (провайдер-независимый)
-- [ ] Tool layer: `get_user_goals`, `get_user_tasks`, `get_weekly_progress`, `get_user_preferences`, `suggest_*`, `analyze_productivity`
-- [ ] Structured output + JSON Schema валидация
-- [ ] `ai_conversations`, `ai_messages`, `ai_proposals`
-- [ ] Apply/reject предложений с серверной проверкой каждого действия
-- [ ] Разбиение цели на этапы, weekly review, анализ невыполненных задач
+- [x] AI service layer в Edge Function (провайдер-независимый)
+- [x] Tool layer: `get_user_goals`, `get_user_tasks`, `get_weekly_progress`, `get_user_preferences`, `suggest_*`, `analyze_productivity`
+- [x] Structured output + JSON Schema валидация
+- [x] `ai_conversations`, `ai_messages`, `ai_proposals` (миграция `0006` применена)
+- [x] Apply/reject предложений с серверной проверкой каждого действия
+- [x] Разбиение цели на этапы, weekly review, анализ невыполненных задач — через контекст чата (Р7: отдельного экрана нет)
 
 **Результат:** AI помогает управлять системой, не меняя её без согласия.
+
+**Долг (Phase 4.1, не входил в закрытие):**
+
+- e2e на stub для сценариев PRD §19 пп. 9–10 (approve/reject) — не написан;
+- ручная правка предложения до approve (Р5) — отложена: меняет доверенную границу, нужна серверная ре-валидация клиентских действий;
+- роль `Contributor`/лимиты провайдера: 429 и таймаут пока маппятся в общий `ai_unavailable`.
 
 ## Phase 5 — Habits & Analytics
 
