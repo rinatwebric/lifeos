@@ -144,6 +144,9 @@ The current iteration is written down in `docs/plan.md`; finished work goes to `
 - Stay inside roughly 30% of the context window; summarise findings into files, not memory.
 - Commit before each prompt so any change is instantly revertible; use a feature branch for experiments.
 - With 2+ parallel agents in the same repo use `git worktree`, not the same working copy.
+  Never share `node_modules` between worktrees through a junction: npm inside the worktree
+  replaces the link with a real directory and the other tree ends up empty (cost: one `npm ci`).
+  Let each worktree run its own install instead.
 - Disable MCP servers you are not using for the current task; they consume context.
 - Quote the specific file section instead of dumping whole files; prefer error text and stack traces
   over screenshots.
