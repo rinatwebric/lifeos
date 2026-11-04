@@ -252,6 +252,11 @@ test("habits rls: two independent users are fully isolated", async ({ page, requ
       try {
         await page.goto("/habits");
         await expect(page.getByRole("heading", { name: "Habits", exact: true })).toBeVisible();
+        // Settle first: the heading renders before rows load, and a bare
+        // count() during the skeleton would read 0 and skip the delete.
+        await expect(
+          page.locator("li", { hasText: title }).or(page.getByText("No habits yet")),
+        ).toBeVisible();
         if ((await page.locator("li", { hasText: title }).count()) > 0) {
           await deleteHabit(page, title);
         }
