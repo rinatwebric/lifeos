@@ -3,7 +3,16 @@ import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tansta
 import { tasks } from "@/features/tasks/queryKeys";
 import type { TimeBlock } from "@/types/domain";
 
-import { createBlock, deleteBlock, listBlocks, updateBlock, type BlockRange } from "./api";
+import {
+  applyPlan,
+  createBlock,
+  deleteBlock,
+  listBlocks,
+  updateBlock,
+  type ApplyPlanResult,
+  type BlockRange,
+} from "./api";
+import type { ApplyPlanInput } from "./schemas";
 import { planner } from "./queryKeys";
 import type { CreateBlockInput, UpdateBlockInput } from "./schemas";
 
@@ -91,6 +100,33 @@ export function useDeleteBlock() {
       invalidatePlannerBlocks(queryClient);
       invalidateLinkedTask(queryClient, variables.taskId);
       void queryClient.removeQueries({ queryKey: planner.detail(variables.id) });
+    },
+  });
+}
+
+/**
+ * Accept of a plan preview (plan.md Unit 9). The service inserts only the
+ * missing pairs and mirrors them; the mutation refreshes the planner ranges
+ * (day and week read through them) and every linked task list — the
+ * Dashboard reads `scheduled_start/end` from tasks, so a stale list would
+ * hide an accepted plan. `["goals", "list"]` is never touched from here.
+ */
+export function useApplyPlan() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (input: ApplyPlanInput) => applyPlan(input),
+    onSuccess: (result: ApplyPlanResult, input: ApplyPlanInput) => {
+      invalidatePlannerBlocks(queryClient);
+
+      const taskIds = new Set<string>([
+        ...result.mirroredTaskIds,
+        ...input.slots.map((slot) => slot.taskId),
+      ]);
+
+      for (const taskId of taskIds) {
+        invalidateLinkedTask(queryClient, taskId);
+      }
     },
   });
 }

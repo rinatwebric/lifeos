@@ -11,6 +11,7 @@ import { formatLongDate, localDateTimeToIso, toDateKey } from "@/lib/dates";
 
 import { DayView } from "./DayView";
 import { DeleteBlockDialog, type DeleteBlockTarget } from "./DeleteBlockDialog";
+import { PlanAcceptPanel } from "./PlanAcceptPanel";
 import { TimeBlockDialog, type EditableTimeBlock } from "./TimeBlockDialog";
 import { isValidDateKey, shiftDateKey, usePlannerDay, type PlannerDayBlock } from "./usePlannerDay";
 import { plannerWeekLabel, usePlannerWeek } from "./usePlannerWeek";
@@ -148,6 +149,7 @@ export function PlannerPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [blockDialog, setBlockDialog] = useState<BlockDialogState>(null);
   const [deleteTarget, setDeleteTarget] = useState<DeleteBlockTarget | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
   // Same query key as both planner hooks: one profile read, shared by all.
   const profileQuery = useQuery({
     queryKey: profileQueryKey,
@@ -192,6 +194,9 @@ export function PlannerPage() {
               <Plus className="size-4" aria-hidden="true" />
               Add block
             </Button>
+            <Button size="lg" variant="secondary" onClick={() => setPreviewOpen(true)}>
+              Generate plan
+            </Button>
             <ViewSwitch view={view} dateKey={dateKey} />
             <div className="flex flex-wrap items-center gap-2">
               <Button
@@ -232,6 +237,15 @@ export function PlannerPage() {
           onEditBlock={(block) => setBlockDialog({ mode: "edit", block: toEditableBlock(block) })}
         />
       )}
+
+      {previewOpen ? (
+        <PlanAcceptPanel
+          dateKey={dateKey}
+          timeZone={timeZone}
+          now={now}
+          onClose={() => setPreviewOpen(false)}
+        />
+      ) : null}
 
       <TimeBlockDialog
         open={blockDialog !== null}

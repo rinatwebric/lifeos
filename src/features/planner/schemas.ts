@@ -126,3 +126,30 @@ export const updateBlockSchema = z
   );
 
 export type UpdateBlockInput = z.infer<typeof updateBlockSchema>;
+
+/**
+ * One accepted proposal slot: a `task` block for one task, UTC instants.
+ * The title travels with the slot (the task title at preview time); the
+ * service falls back to the stored task title when it arrives blank.
+ */
+export const planSlotSchema = z
+  .object({
+    taskId: z.string().uuid("Select a valid task."),
+    title: z.string().max(200, "Title must be 200 characters or fewer."),
+    start: datetimeField,
+    end: datetimeField,
+  })
+  .refine((values) => Date.parse(values.end) > Date.parse(values.start), {
+    message: "End must be after start.",
+    path: ["end"],
+  });
+
+/**
+ * Batch accept of a plan preview. Slots are deduplicated by the service
+ * (`taskId + start + end`), so sending the same plan twice is safe.
+ */
+export const applyPlanSchema = z.object({
+  slots: z.array(planSlotSchema).max(100, "Too many slots in one plan."),
+});
+
+export type ApplyPlanInput = z.infer<typeof applyPlanSchema>;

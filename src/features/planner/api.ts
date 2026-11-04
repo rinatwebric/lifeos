@@ -3,7 +3,7 @@ import { mapTimeBlockRowToTimeBlock, type TimeBlocksRow } from "@/types/database
 import type { BlockType, TimeBlock } from "@/types/domain";
 
 import { BlockServiceError, BLOCK_ERROR_MESSAGES, toBlockError } from "./errors";
-import type { CreateBlockInput, UpdateBlockInput } from "./schemas";
+import { applyPlanSchema, type ApplyPlanInput, type CreateBlockInput, type UpdateBlockInput } from "./schemas";
 
 /**
  * Half-open overlap window for one fetch: `[from, to)` as ISO instants.
@@ -423,6 +423,196 @@ export async function deleteBlock(id: string): Promise<void> {
     if (deleteError) {
       throw toBlockError(deleteError);
     }
+  } catch (error) {
+    throw toBlockError(error);
+  }
+}
+
+/** One accepted proposal slot: a `task` block for one task, UTC instants. */
+export interface ApplyPlanSlot {
+  taskId: string;
+  title: string;
+  start: string;
+  end: string;
+}
+
+export interface ApplyPlanResult {
+  /** Blocks created by this call. Empty when every pair already existed. */
+  blocks: TimeBlock[];
+  /** Tasks whose mirror was rewritten by this call. */
+  mirroredTaskIds: string[];
+}
+
+function planSlotKey(taskId: string, start: string, end: string): string {
+  return `${taskId}|${start}|${end}`;
+}
+
+/**
+ * Batch accept of a plan preview (plan.md Unit 9): the only preview path
+ * that writes. Every slot becomes a `block_type = 'task'` block and the
+ * linked task's `scheduled_start` / `scheduled_end` mirror is rewritten in
+ * the same call through the shared `writeTaskMirrors` batch.
+ *
+ * Idempotency without a migration: the existing pairs are read with one
+ * query over the plan's own span and only the missing ones are inserted, so
+ * a repeated Accept of the same plan inserts nothing and mirrors nothing.
+ * Identity comes from the JWT (`requireUserId`); RLS stays untouched.
+ *
+ * Partial failure is never silent: an insert failure throws before any
+ * mirror write; a mirror failure after a successful insert throws the coded
+ * error while the created blocks stay in the database (two parallel
+ * requests, not a transaction — a future RPC would make it atomic).
+ */
+export async function applyPlan(input: ApplyPlanInput): Promise<ApplyPlanResult> {
+  try {
+    const userId = await requireUserId();
+
+    const parsed = applyPlanSchema.safeParse(input);
+
+    if (!parsed.success) {
+      throw new BlockServiceError("validation", BLOCK_ERROR_MESSAGES.validation);
+    }
+
+    // A duplicated pair inside one call must not become two blocks.
+    const seen = new Set<string>();
+    const slots: ApplyPlanSlot[] = [];
+
+    for (const slot of parsed.data.slots) {
+      const key = planSlotKey(slot.taskId, slot.start, slot.end);
+
+      if (!seen.has(key)) {
+        seen.add(key);
+        slots.push({ taskId: slot.taskId, title: slot.title, start: slot.start, end: slot.end });
+      }
+    }
+
+    if (slots.length === 0) {
+      return { blocks: [], mirroredTaskIds: [] };
+    }
+
+    const client = getSupabaseClient();
+    const taskIds = [...new Set(slots.map((slot) => slot.taskId))];
+
+    // One query for every linked task: each must exist and belong to the caller.
+    const { data: ownedTasks, error: ownedError } = await client
+      .from("tasks")
+      .select("id,title")
+      .eq("user_id", userId)
+      .in("id", taskIds);
+
+    if (ownedError) {
+      throw toBlockError(ownedError);
+    }
+
+    const titlesById = new Map<string, string>(
+      ((ownedTasks ?? []) as Array<{ id: string; title: string | null }>).map((row) => [
+        row.id,
+        row.title ?? "",
+      ]),
+    );
+
+    if (titlesById.size !== taskIds.length) {
+      throw new BlockServiceError(
+        "validation",
+        "The selected task was not found. Please reload and choose another task.",
+      );
+    }
+
+    const resolved = slots.map((slot) => {
+      const title = slot.title.trim() || titlesById.get(slot.taskId)?.trim() || "";
+
+      if (title === "") {
+        throw new BlockServiceError("validation", BLOCK_ERROR_MESSAGES.validation);
+      }
+
+      return { ...slot, title };
+    });
+
+    // One query for every pair: the blocks overlapping the plan's own span,
+    // narrowed to exact (`task_id`, `start_time`, `end_time`) matches here.
+    // A slot always lies strictly inside [minStart, maxEnd), so the strict
+    // window cannot miss a pair it is looking for.
+    const minStart = resolved.reduce(
+      (min, slot) => (slot.start < min ? slot.start : min),
+      resolved[0].start,
+    );
+    const maxEnd = resolved.reduce(
+      (max, slot) => (slot.end > max ? slot.end : max),
+      resolved[0].end,
+    );
+
+    const { data: existing, error: existingError } = await client
+      .from("time_blocks")
+      .select("task_id,start_time,end_time")
+      .eq("user_id", userId)
+      .gt("end_time", minStart)
+      .lt("start_time", maxEnd)
+      .order("start_time", { ascending: true });
+
+    if (existingError) {
+      throw toBlockError(existingError);
+    }
+
+    const present = new Set(
+      ((existing ?? []) as Array<Pick<TimeBlocksRow, "task_id" | "start_time" | "end_time">>).map(
+        (row) => planSlotKey(row.task_id ?? "", row.start_time, row.end_time),
+      ),
+    );
+    const missing = resolved.filter(
+      (slot) => !present.has(planSlotKey(slot.taskId, slot.start, slot.end)),
+    );
+
+    if (missing.length === 0) {
+      return { blocks: [], mirroredTaskIds: [] };
+    }
+
+    const payload: Array<Omit<TimeBlocksRow, "id" | "created_at" | "updated_at">> = missing.map(
+      (slot) => ({
+        user_id: userId,
+        task_id: slot.taskId,
+        title: slot.title,
+        start_time: slot.start,
+        end_time: slot.end,
+        block_type: "task",
+      }),
+    );
+
+    const { data: inserted, error: insertError } = await client
+      .from("time_blocks")
+      .insert(payload)
+      .select();
+
+    if (insertError) {
+      throw toBlockError(insertError);
+    }
+
+    const rows = (inserted ?? []) as TimeBlocksRow[];
+    const blocks = rows.map(mapTimeBlockRowToTimeBlock);
+
+    // One task carries at most one new block (Д3: no splitting), but the
+    // batch stays keyed by task so a repeated or multi-slot plan cannot
+    // write one task twice: the earliest new block wins the mirror.
+    const earliestByTask = new Map<string, TimeBlocksRow>();
+
+    for (const row of rows) {
+      const current = earliestByTask.get(row.task_id ?? "");
+
+      if (row.task_id !== null && (!current || row.start_time < current.start_time)) {
+        earliestByTask.set(row.task_id, row);
+      }
+    }
+
+    await writeTaskMirrors(
+      client,
+      userId,
+      [...earliestByTask].map(([taskId, row]) => ({
+        taskId,
+        scheduledStart: row.start_time,
+        scheduledEnd: row.end_time,
+      })),
+    );
+
+    return { blocks, mirroredTaskIds: [...earliestByTask.keys()] };
   } catch (error) {
     throw toBlockError(error);
   }
