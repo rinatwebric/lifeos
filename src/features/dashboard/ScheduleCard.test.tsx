@@ -68,7 +68,7 @@ describe("ScheduleCard", () => {
 
     renderCard();
 
-    expect(screen.getByRole("status", { name: "Loading today's schedule" })).toBeInTheDocument();
+    expect(screen.getByRole("status", { name: "Loading today's schedule…" })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Open planner" })).not.toBeInTheDocument();
   });
 
