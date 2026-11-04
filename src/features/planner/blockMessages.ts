@@ -153,7 +153,8 @@ const BLOCK_ERROR_UI_COPY: Record<BlockErrorCode, string> = {
     "This block could not be saved. Check the times and the linked task, then try again.",
   not_found: "This block is no longer there. It may have been deleted in another tab.",
   forbidden: "You do not have access to change this block. Sign in again and retry.",
-  conflict: "The block or the task changed while you were editing. Reload the day and try again.",
+  conflict:
+    "This time overlaps a block that is already there. Adjust the times, or confirm the overlap and accept again.",
   network: "The connection dropped before the block was saved. Check your connection and retry.",
   unknown: "The block could not be saved. Try again in a moment.",
 };

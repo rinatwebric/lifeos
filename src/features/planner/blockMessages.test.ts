@@ -186,6 +186,12 @@ describe("describeBlockError", () => {
     ).toBe("This block could not be saved. Check the times and the linked task, then try again.");
   });
 
+  it("names the action for a conflict: adjust or confirm and retry", () => {
+    expect(describeBlockError(new BlockServiceError("conflict", "overlaps"))).toBe(
+      "This time overlaps a block that is already there. Adjust the times, or confirm the overlap and accept again.",
+    );
+  });
+
   it("falls back to generic copy for anything that is not a block error", () => {
     expect(describeBlockError(new Error("boom"))).toBe(
       "The block could not be saved. Try again in a moment.",
