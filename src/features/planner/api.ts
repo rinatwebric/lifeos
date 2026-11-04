@@ -443,8 +443,25 @@ export interface ApplyPlanResult {
   mirroredTaskIds: string[];
 }
 
-function planSlotKey(taskId: string, start: string, end: string): string {
-  return `${taskId}|${start}|${end}`;
+/**
+ * Instant pair key: `taskId|startMs|endMs` where the ends are UTC epoch
+ * milliseconds (`Date.parse`). PostgREST returns `timestamptz` as
+ * "2026-11-04T08:00:00+00:00" while the planner writes
+ * "2026-11-04T08:00:00.000Z" — the same instant in different strings.
+ * Comparing raw strings would miss the pair and insert a duplicate on a
+ * repeated Accept. Returns null when either end does not parse: callers turn
+ * an unparsable slot into a validation error, stored rows with garbage are
+ * skipped and never matched.
+ */
+function planSlotKey(taskId: string, start: string, end: string): string | null {
+  const startMs = Date.parse(start);
+  const endMs = Date.parse(end);
+
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) {
+    return null;
+  }
+
+  return `${taskId}|${startMs}|${endMs}`;
 }
 
 /**
@@ -474,11 +491,17 @@ export async function applyPlan(input: ApplyPlanInput): Promise<ApplyPlanResult>
     }
 
     // A duplicated pair inside one call must not become two blocks.
+    // Keys are instants (see planSlotKey), so the same moment in a
+    // different string shape still dedupes.
     const seen = new Set<string>();
     const slots: ApplyPlanSlot[] = [];
 
     for (const slot of parsed.data.slots) {
       const key = planSlotKey(slot.taskId, slot.start, slot.end);
+
+      if (key === null) {
+        throw new BlockServiceError("validation", BLOCK_ERROR_MESSAGES.validation);
+      }
 
       if (!seen.has(key)) {
         seen.add(key);
@@ -531,15 +554,24 @@ export async function applyPlan(input: ApplyPlanInput): Promise<ApplyPlanResult>
     // One query for every pair: the blocks overlapping the plan's own span,
     // narrowed to exact (`task_id`, `start_time`, `end_time`) matches here.
     // A slot always lies strictly inside [minStart, maxEnd), so the strict
-    // window cannot miss a pair it is looking for.
-    const minStart = resolved.reduce(
-      (min, slot) => (slot.start < min ? slot.start : min),
-      resolved[0].start,
+    // window cannot miss a pair it is looking for. Bounds are picked by
+    // instant (Date.parse), not lexicographically: "Z" and "+00:00" shapes
+    // of the same moment order differently as strings.
+    const minStartMs = resolved.reduce(
+      (min, slot) => Math.min(min, Date.parse(slot.start)),
+      Date.parse(resolved[0].start),
     );
-    const maxEnd = resolved.reduce(
-      (max, slot) => (slot.end > max ? slot.end : max),
-      resolved[0].end,
+    const maxEndMs = resolved.reduce(
+      (max, slot) => Math.max(max, Date.parse(slot.end)),
+      Date.parse(resolved[0].end),
     );
+
+    if (!Number.isFinite(minStartMs) || !Number.isFinite(maxEndMs)) {
+      throw new BlockServiceError("validation", BLOCK_ERROR_MESSAGES.validation);
+    }
+
+    const minStart = new Date(minStartMs).toISOString();
+    const maxEnd = new Date(maxEndMs).toISOString();
 
     const { data: existing, error: existingError } = await client
       .from("time_blocks")
@@ -553,14 +585,34 @@ export async function applyPlan(input: ApplyPlanInput): Promise<ApplyPlanResult>
       throw toBlockError(existingError);
     }
 
-    const present = new Set(
-      ((existing ?? []) as Array<Pick<TimeBlocksRow, "task_id" | "start_time" | "end_time">>).map(
-        (row) => planSlotKey(row.task_id ?? "", row.start_time, row.end_time),
-      ),
-    );
-    const missing = resolved.filter(
-      (slot) => !present.has(planSlotKey(slot.taskId, slot.start, slot.end)),
-    );
+    // Pairs are matched by instant (see planSlotKey): the stored row may
+    // carry the Postgres "+00:00" shape while the slot carries "Z".
+    // Rows without a task have no pair and stay out of the set entirely.
+    const present = new Set<string>();
+
+    for (const row of ((existing ?? []) as Array<
+      Pick<TimeBlocksRow, "task_id" | "start_time" | "end_time">
+    >)) {
+      if (row.task_id === null) {
+        continue;
+      }
+
+      const key = planSlotKey(row.task_id, row.start_time, row.end_time);
+
+      if (key !== null) {
+        present.add(key);
+      }
+    }
+
+    const missing = resolved.filter((slot) => {
+      const key = planSlotKey(slot.taskId, slot.start, slot.end);
+
+      if (key === null) {
+        throw new BlockServiceError("validation", BLOCK_ERROR_MESSAGES.validation);
+      }
+
+      return !present.has(key);
+    });
 
     if (missing.length === 0) {
       return { blocks: [], mirroredTaskIds: [] };

@@ -234,6 +234,79 @@ describe("applyPlan", () => {
     expect(fromEntry).toHaveBeenCalledTimes(2);
   });
 
+  it("treats a Postgres +00:00 pair as the same instant and writes nothing", async () => {
+    const owned = chain({ data: [{ id: TASK_A, title: "Write the report" }], error: null });
+    // PostgREST returns timestamptz as "+00:00" while the slot carries "Z":
+    // the same instant, different strings. A raw-string key would miss it.
+    const existing = chain({
+      data: [
+        {
+          task_id: TASK_A,
+          start_time: "2026-11-04T08:00:00+00:00",
+          end_time: "2026-11-04T09:00:00+00:00",
+        },
+      ],
+      error: null,
+    });
+    const insert = chain({ data: [], error: null });
+    const mirror = chain({ data: null, error: null });
+    const fromEntry = queueFrom([owned, existing, insert, mirror]);
+    stubClient("u1", fromEntry);
+
+    const result = await applyPlan({ slots: [SLOT_A] });
+
+    expect(result).toEqual({ blocks: [], mirroredTaskIds: [] });
+    expect(fromEntry).toHaveBeenCalledTimes(2);
+    expect(insert.insert).not.toHaveBeenCalled();
+    expect(mirror.update).not.toHaveBeenCalled();
+  });
+
+  it("treats a Postgres microsecond pair as the same instant and writes nothing", async () => {
+    const microSlot = {
+      taskId: TASK_A,
+      title: "Write the report",
+      start: "2026-11-04T08:00:00.123Z",
+      end: "2026-11-04T09:00:00.123Z",
+    };
+    const owned = chain({ data: [{ id: TASK_A, title: "Write the report" }], error: null });
+    // Postgres keeps microseconds; JS dates keep milliseconds. The stored
+    // pair is the same instant at millisecond precision — no duplicate.
+    const existing = chain({
+      data: [
+        {
+          task_id: TASK_A,
+          start_time: "2026-11-04T08:00:00.123456+00:00",
+          end_time: "2026-11-04T09:00:00.123456+00:00",
+        },
+      ],
+      error: null,
+    });
+    const insert = chain({ data: [], error: null });
+    const mirror = chain({ data: null, error: null });
+    const fromEntry = queueFrom([owned, existing, insert, mirror]);
+    stubClient("u1", fromEntry);
+
+    const result = await applyPlan({ slots: [microSlot] });
+
+    expect(result).toEqual({ blocks: [], mirroredTaskIds: [] });
+    expect(fromEntry).toHaveBeenCalledTimes(2);
+    expect(insert.insert).not.toHaveBeenCalled();
+    expect(mirror.update).not.toHaveBeenCalled();
+  });
+
+  it("rejects a slot with an unparsable date without touching the database", async () => {
+    const fromEntry = vi.fn();
+    stubClient("u1", fromEntry);
+
+    const error = await applyPlan({
+      slots: [{ ...SLOT_A, start: "not-a-date" }],
+    }).catch((failure: unknown) => failure);
+
+    expect(error).toBeInstanceOf(BlockServiceError);
+    expect(error).toMatchObject({ code: "validation" });
+    expect(fromEntry).not.toHaveBeenCalled();
+  });
+
   it("dedupes an identical pair sent twice inside one call", async () => {
     const owned = chain({ data: [{ id: TASK_A, title: "Write the report" }], error: null });
     const existing = chain({ data: [], error: null });

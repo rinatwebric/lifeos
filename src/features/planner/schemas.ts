@@ -139,10 +139,20 @@ export const planSlotSchema = z
     start: datetimeField,
     end: datetimeField,
   })
-  .refine((values) => Date.parse(values.end) > Date.parse(values.start), {
-    message: "End must be after start.",
-    path: ["end"],
-  });
+  .refine(
+    (values) => {
+      // Explicit parsability: an unparsable end must not collapse into a
+      // NaN key downstream — it is a validation error here instead.
+      const start = Date.parse(values.start);
+      const end = Date.parse(values.end);
+
+      return Number.isFinite(start) && Number.isFinite(end) && end > start;
+    },
+    {
+      message: "End must be after start.",
+      path: ["end"],
+    },
+  );
 
 /**
  * Batch accept of a plan preview. Slots are deduplicated by the service
