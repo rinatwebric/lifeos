@@ -1,4 +1,9 @@
 import type {
+  AiConversation,
+  AiMessage,
+  AiMessageRole,
+  AiProposal,
+  AiProposalStatus,
   AvailabilityWindows,
   BlockType,
   Goal,
@@ -9,6 +14,7 @@ import type {
   Priority,
   Profile,
   ProgressMode,
+  ProposalType,
   RecurrenceRule,
   Task,
   TaskStatus,
@@ -240,6 +246,85 @@ export function mapTimeBlockRowToTimeBlock(row: TimeBlocksRow): TimeBlock {
     startTime: row.start_time,
     endTime: row.end_time,
     blockType: row.block_type,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+/** Mirrors migration 0006_ai_assistant (ai_conversations). */
+export interface AiConversationsRow {
+  id: string;
+  user_id: string;
+  title: string;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Mirrors migration 0006_ai_assistant (ai_messages). Messages are immutable: no updated_at. */
+export interface AiMessagesRow {
+  id: string;
+  conversation_id: string;
+  user_id: string;
+  role: AiMessageRole;
+  content: string;
+  /** JSONB object. Provider-specific extras; never secrets. */
+  metadata: Record<string, unknown>;
+  created_at: string;
+}
+
+/**
+ * Mirrors migration 0006_ai_assistant (ai_proposals). `expired` is computed on
+ * read (pending AND expires_at < now()), never stored — hence the Exclude.
+ */
+export type StoredProposalStatus = Exclude<AiProposalStatus, "expired">;
+
+/** Mirrors migration 0006_ai_assistant (ai_proposals). */
+export interface AiProposalsRow {
+  id: string;
+  user_id: string;
+  conversation_id: string | null;
+  proposal_type: ProposalType;
+  /** JSONB object carrying the `actions` array; validated by Zod in src/lib. */
+  payload: Record<string, unknown>;
+  status: StoredProposalStatus;
+  expires_at: string | null;
+  applied_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export function mapAiConversationRowToAiConversation(row: AiConversationsRow): AiConversation {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    title: row.title,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+export function mapAiMessageRowToAiMessage(row: AiMessagesRow): AiMessage {
+  return {
+    id: row.id,
+    conversationId: row.conversation_id,
+    userId: row.user_id,
+    role: row.role,
+    content: row.content,
+    metadata: row.metadata,
+    createdAt: row.created_at,
+  };
+}
+
+export function mapAiProposalRowToAiProposal(row: AiProposalsRow): AiProposal {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    conversationId: row.conversation_id,
+    proposalType: row.proposal_type,
+    payload: row.payload,
+    status: row.status,
+    expiresAt: row.expires_at,
+    appliedAt: row.applied_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

@@ -59,7 +59,23 @@ export type HabitStatus = (typeof HABIT_STATUSES)[number];
 export const AI_PROPOSAL_STATUSES = ["pending", "approved", "rejected", "expired"] as const;
 export type AiProposalStatus = (typeof AI_PROPOSAL_STATUSES)[number];
 
-export type AiMessageRole = "user" | "assistant" | "system";
+/**
+ * All proposal kinds the assistant may return (plan-phase-4 Р2, CHECK in
+ * migration 0006). Rollout order is enforced in code, not by narrowing this
+ * union: goal_breakdown + task_creation → schedule_suggestion →
+ * schedule_changes → productivity_analysis.
+ */
+export const PROPOSAL_TYPES = [
+  "goal_breakdown",
+  "task_creation",
+  "schedule_suggestion",
+  "schedule_changes",
+  "productivity_analysis",
+] as const;
+export type ProposalType = (typeof PROPOSAL_TYPES)[number];
+
+export const AI_MESSAGE_ROLES = ["user", "assistant", "system"] as const;
+export type AiMessageRole = (typeof AI_MESSAGE_ROLES)[number];
 
 export interface BaseEntity {
   id: string;
@@ -141,9 +157,24 @@ export interface HabitLog extends BaseEntity {
   note: string | null;
 }
 
+export interface AiConversation extends BaseEntity {
+  title: string;
+}
+
+export interface AiMessage {
+  id: string;
+  conversationId: string;
+  userId: string;
+  role: AiMessageRole;
+  content: string;
+  /** JSONB object. Provider-specific extras; never secrets (PRD §6.7). */
+  metadata: Record<string, unknown>;
+  createdAt: string;
+}
+
 export interface AiProposal extends BaseEntity {
   conversationId: string | null;
-  proposalType: string;
+  proposalType: ProposalType;
   payload: unknown;
   status: AiProposalStatus;
   expiresAt: string | null;
