@@ -1170,3 +1170,64 @@ PostgREST отдаёт `timestamptz` с `"+00:00"` и `time` как `"HH:MM:SS"`
   правками, — отдельный кейс, не покрыт).
 - `scripts/verify-rls.mjs` по-прежнему не покрывает `time_blocks`.
 - Тег `v0.5.0` — ставит владелец после приёмки.
+
+## 2026-11-04 — Итерация 5: ревью-фиксы tool layer (A) + validate (шаг 5, B)
+
+**Сделано (два коммита, один шаг = один коммит)**
+
+- A `fix(ai): correct weekly window and reuse domain rules`
+  (`supabase/functions/ai-assistant/tools.ts`, `tools.test.ts`, `deno.json`):
+  1) недельное окно закрыто с обеих сторон — `[todayKey − 7, todayKey]`
+  (раньше только `due_date >= cutoff`, задачи со сроком в 2030-м попадали
+  в weekly и занижали процент);
+  2) порядок вычислений: сначала timezone из `profiles`, затем `todayKey`
+  в этом поясе (`toDateKey` из `src/lib/dates.ts`), затем cutoff как
+  операция над date-key (`shiftDateKey`) — раньше cutoff считался от UTC
+  до резолва пояса (сдвиг на сутки при UTC+13/+14);
+  3) вместо выборки 201 строки + агрегата в памяти — два count-запроса
+  `select("id", { count: "exact", head: true })` (total `neq cancelled`,
+  completed `eq completed` в закрытом окне): усечения нет вообще,
+  процент точен при любом размере окна;
+  4) дубли удалены: `calculateCompletionRate` из `src/lib/progress.ts`,
+  `isTaskOverdue` из `src/lib/dates.ts` (плюс `toDateKey` оттуда же);
+  `deno.json` получил алиасы `@/lib/aiProposals`, `@/lib/dates`,
+  `@/lib/planner`, `@/lib/progress` (Deno резолвит их в `src/`,
+  Vitest — через Vite-алиас `@`).
+- B — шаг 5 из `docs/plan-phase-4.md`: `validate.ts` + `validate.test.ts`
+  (чистая проверка каждого действия до применения, записей нет):
+  `validateActions(actions, context) -> {ok:true} | {ok:false, index, code,
+  message}`, 10 кодов §16. Расписание — только через `findConflicts`
+  из `src/lib/planner.ts` (касание рёбер не конфликт, `work` — soft и
+  игнорируется); даты/стены — через `toDateKey`/`toWallTime` из
+  `src/lib/dates.ts`, закрытые статусы — через `isTaskClosed` из
+  `src/types/domain.ts`. Без N+1: один запрос на набор id сущности
+  (`goals`/`milestones`/`tasks` через `in`) + один запрос блоков на
+  union-спан черновиков; контекст (`client`, `now`, `timeZone`,
+  `wake/sleep`, `working/studyHours`) снаружи, `new Date()` внутри нет.
+  Отклонение от плана зафиксировано в `docs/plan-phase-4.md`: чужой id
+  под RLS-клиентом читается как отсутствующий → `missing_*`
+  (план говорил `forbidden`); `forbidden` — ошибки хранилища (fail closed)
+  и неподдерживаемые enum.
+- Документы: `docs/plan-phase-4.md` — статус шага 5 + поправка тестовой
+  строки §5; эта запись.
+
+**Проверено (числа)**
+
+- `npm run typecheck` — ok
+- `npm run lint` — 0 errors, 16 warnings (те же известные классы)
+- `npm test` — **643/643 в 66 файлах** (было 627 в 65 после A: +16 новых
+  `validate.test.ts`; A: 624 → 627 — новые кейсы окна/UTC+13/усечения/parity)
+- `npm run build` — ok
+- `grep -n "utcDateKey\|completionRate\|isOverdue" tools.ts` — только поле
+  интерфейса и вызов импортированной функции, локальных дублей нет;
+  `grep -n "findConflicts" validate.ts` — один импорт + один вызов;
+  `new Date()` в `validate.ts` — только в комментарии.
+
+**Не проверено живьём (требует владельца)**
+
+- Миграция 0006 НЕ применена, функция НЕ задеплоена — живые вызовы
+  `ai-assistant` невозможны; все покрытия шагов A/B — фейковый клиент
+  под Vitest, без сети и без ключа (ключа у исполнителя нет и не было).
+- Дальше — шаг 6 из `docs/plan-phase-4.md` (frontend-сервис чата
+  `src/features/assistant/*`); `src/features/**` и
+  `supabase/migrations/**` в этих коммитах не тронуты.

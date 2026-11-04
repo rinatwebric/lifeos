@@ -133,6 +133,24 @@ AI-ассистент помогает управлять целями/зада�
 
 ### Шаг 5. Серверная проверка каждого действия (ядро безопасности §6.5)
 
+> Статус (2026-11-04): реализован. Коммит B: `validate.ts` + `validate.test.ts`
+> (коммит A рядом чинил шаги 3–4: закрытое недельное окно, локальный todayKey,
+> два count-запроса, `calculateCompletionRate`/`isTaskOverdue` из `src/lib`).
+> Сигнатура `validateActions(actions, context) -> {ok:true} | {ok:false, index,
+> code, message}`; коды — 10 из §16 (`missing_goal`, `missing_milestone`,
+> `missing_task`, `wrong_status`, `invalid_date`, `inverted_interval`,
+> `conflict`, `past`, `no_time`, `forbidden`). Расписание — только через
+> `findConflicts` из `src/lib/planner.ts` (касание рёбер не конфликт); формулы
+> дат/времени — через `toDateKey`/`toWallTime` из `src/lib/dates.ts`
+> (импорт-мап `deno.json`: `@/lib/dates`, `@/lib/planner`, `@/lib/progress`,
+> `@/lib/aiProposals`). Без N+1: один запрос на набор id сущности + один
+> запрос блоков на union-спан; контекст (`client`, `now`, `timeZone`,
+> `wake/sleep`, `working/work/study`) снаружи, `new Date()` внутри нет.
+> Отклонение от текста ниже: чужая задача/цель/этап читается RLS-клиентом как
+> отсутствующая → `missing_*` (не `forbidden`); `forbidden` — ошибки хранилища
+> (fail closed) и неподдерживаемые значения enum. Живьём не проверено:
+> миграция 0006 не применена, функция не задеплоена.
+
 Цель: `validateAction()` в Function: ни одно действие не применяется без построчной проверки.
 
 Новые файлы:
@@ -224,7 +242,7 @@ AI-ассистент помогает управлять целями/зада�
 
 ## 5. Тесты: что именно проверяют
 
-- Unit (Vitest): `aiProposals.test.ts` — пример §6.5 проходит, битый JSON → `invalid_json`, неизвестный `type` → reject, инвертированный интервал → `bad_date`, несуществующая задача → `missing_task`; `validate.test.ts` — чужая задача → `forbidden`, сон/прошлое → `conflict` без явного подтверждения, допустимый перенос → ok; `tools.test.ts` — truncate помечен, пустые данные не выдумываются; `assistant/api.test.ts` — CRUD диалогов на моке клиента, `sendMessage` шлёт без `user_id`.
+- Unit (Vitest): `aiProposals.test.ts` — пример §6.5 проходит, битый JSON → `invalid_json`, неизвестный `type` → reject, инвертированный интервал → `bad_date`, несуществующая задача → `missing_task`; `validate.test.ts` — чужая задача → `missing_task` (RLS-клиент читает чужое как отсутствующее; `forbidden` — только ошибки хранилища и неподдерживаемые enum), сон/пересечение → `conflict`, прошлое → `past`, допустимый перенос → ok; `tools.test.ts` — truncate помечен, пустые данные не выдумываются; `assistant/api.test.ts` — CRUD диалогов на моке клиента, `sendMessage` шлёт без `user_id`.
 - RLS-негативы (живая БД, после применения 0006 владельцем, `service_role` не использовать): второй аккаунт не читает чужие conversations/messages/proposals (0 строк); вставка message с чужим `conversation_id` падает на `WITH CHECK`; approve чужого `proposal_id` — 0 строк/403; доказательства — вывод запросов как в `scripts/verify-rls.mjs`.
 - Component (RTL): `ChatPanel` — loading/empty/error; `ProposalModal` — accept-all, per-action toggle, reject, ручная правка с перепроверкой; деструктивное действие — только через подтверждение; без провайдера — `AI unavailable`, а не молчание.
 - e2e (Playwright, stub): `assistant.spec.ts` — (1) B: «разбей цель» → proposal → approve → этапы появились; (2) E: «болею» → proposal → reject → расписание не изменилось; (3) RLS: чужой id → недоступно; (4) часовые пояса (§19 п. 12) — слоты в поясе из `profiles.timezone`. Live-ветка с реальным ключом — `test.skip(!E2E_AI_KEY)`, в CI без ключа не гоняется.
