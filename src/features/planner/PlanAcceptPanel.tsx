@@ -44,6 +44,13 @@ export interface PlanAcceptPanelProps {
   onClose: () => void;
 }
 
+/**
+ * Shown when Accept wrote nothing because every slot was already in the
+ * plan. `status`, not `alert`: this is information, not an error — the
+ * schedule is exactly as the user left it.
+ */
+const NOTHING_NEW_SAVED_COPY = "These tasks are already in your plan — nothing new was saved.";
+
 function toEditableSlots(preview: PlanPreviewModel): EditablePlanSlot[] {
   return preview.slots.map((slot) => ({
     taskId: slot.taskId,
@@ -112,6 +119,7 @@ export function PlanAcceptPanel({ dateKey, timeZone, now, onClose }: PlanAcceptP
   const [acknowledgedKey, setAcknowledgedKey] = useState<string | null>(null);
   const [ackError, setAckError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [savedNotice, setSavedNotice] = useState<string | null>(null);
 
   // Same keys the day view and the preview hook already read: cached when
   // the panel opens from the day view, no extra request.
@@ -168,6 +176,7 @@ export function PlanAcceptPanel({ dateKey, timeZone, now, onClose }: PlanAcceptP
     setSlots(next);
     setAckError(null);
     setSubmitError(null);
+    setSavedNotice(null);
   };
 
   const handleChangeSlot = (taskId: string, patch: { start?: string; end?: string }): void => {
@@ -187,6 +196,7 @@ export function PlanAcceptPanel({ dateKey, timeZone, now, onClose }: PlanAcceptP
 
     setAckError(null);
     setSubmitError(null);
+    setSavedNotice(null);
 
     if (hasInvalid) {
       setSubmitError("Fix the times above before accepting.");
@@ -199,7 +209,7 @@ export function PlanAcceptPanel({ dateKey, timeZone, now, onClose }: PlanAcceptP
     }
 
     try {
-      await applyPlan.mutateAsync({
+      const result = await applyPlan.mutateAsync({
         dateKey,
         timeZone,
         allowConflicts: acknowledged,
@@ -210,7 +220,12 @@ export function PlanAcceptPanel({ dateKey, timeZone, now, onClose }: PlanAcceptP
           end: slot.end,
         })),
       });
-      onClose();
+
+      if (result.blocks.length > 0) {
+        onClose();
+      } else {
+        setSavedNotice(NOTHING_NEW_SAVED_COPY);
+      }
     } catch (error) {
       setSubmitError(describeBlockError(error));
     }
@@ -240,6 +255,12 @@ export function PlanAcceptPanel({ dateKey, timeZone, now, onClose }: PlanAcceptP
       {submitError ? (
         <p role="alert" className="text-ui text-danger">
           {submitError}
+        </p>
+      ) : null}
+
+      {savedNotice ? (
+        <p role="status" className="text-ui text-muted">
+          {savedNotice}
         </p>
       ) : null}
 

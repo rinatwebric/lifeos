@@ -188,6 +188,20 @@ describe("PlanAcceptPanel", () => {
 
   it("accept writes the edited slots and closes the panel", async () => {
     const user = userEvent.setup();
+    vi.mocked(applyPlan).mockResolvedValue({
+      blocks: [
+        block({
+          id: "written",
+          taskId: TASK_ID,
+          blockType: "task",
+          title: TASK_TITLE,
+          startTime: "2026-11-04T10:00:00.000Z",
+          endTime: "2026-11-04T11:00:00.000Z",
+        }),
+      ],
+      mirroredTaskIds: [TASK_ID],
+      skippedTaskIds: [],
+    });
     const { onClose } = renderPanel();
 
     await screen.findByText("Plan preview");
@@ -220,6 +234,55 @@ describe("PlanAcceptPanel", () => {
     expect(updateBlock).not.toHaveBeenCalled();
     expect(deleteBlock).not.toHaveBeenCalled();
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the panel open and explains that nothing was saved", async () => {
+    const user = userEvent.setup();
+    vi.mocked(applyPlan).mockResolvedValue({
+      blocks: [],
+      mirroredTaskIds: [],
+      skippedTaskIds: [TASK_ID],
+    });
+    const { onClose } = renderPanel();
+
+    await screen.findByText("Plan preview");
+    await user.click(screen.getByRole("button", { name: "Accept plan" }));
+
+    await waitFor(() => {
+      expect(applyPlan).toHaveBeenCalledTimes(1);
+    });
+    expect(
+      screen.getByText("These tasks are already in your plan — nothing new was saved."),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("status")).toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("closes the panel when at least one block was written", async () => {
+    const user = userEvent.setup();
+    vi.mocked(applyPlan).mockResolvedValue({
+      blocks: [
+        block({
+          id: "written",
+          taskId: TASK_ID,
+          blockType: "task",
+          title: TASK_TITLE,
+          startTime: "2026-11-04T08:00:00.000Z",
+          endTime: "2026-11-04T09:00:00.000Z",
+        }),
+      ],
+      mirroredTaskIds: [TASK_ID],
+      skippedTaskIds: ["22222222-2222-4222-8222-222222222222"],
+    });
+    const { onClose } = renderPanel();
+
+    await screen.findByText("Plan preview");
+    await user.click(screen.getByRole("button", { name: "Accept plan" }));
+
+    await waitFor(() => {
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 
   it("a conflicting edit needs an explicit confirmation before accept", async () => {
