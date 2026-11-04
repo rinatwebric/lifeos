@@ -1,0 +1,4 @@
+# Supabase CLI project config (created for Phase 4 deploy; review before commit).
+# The remote project ref is stored by `supabase link` in supabase/.temp (git-ignored),
+# so it never needs to be hardcoded here.
+project_id = "lifeos"
