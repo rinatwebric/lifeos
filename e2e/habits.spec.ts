@@ -66,8 +66,12 @@ async function deleteHabit(page: Page, title: string): Promise<void> {
   await expect(page.locator("li", { hasText: title })).toHaveCount(0);
 }
 
-test("habits: create, log, streak grows, and reload keeps it", async ({ page }) => {
+test("habits: create, log, streak grows, and reload keeps it", async ({ page, request }) => {
   test.skip(!SUPABASE_URL || !SUPABASE_ANON_KEY, "SUPABASE_URL / SUPABASE_ANON_KEY are not set.");
+  test.skip(
+    !(await habitsProvisioned(request)),
+    "habits tables are not provisioned yet — apply 0007+0008, then rerun.",
+  );
   await signIn(page, E2E_EMAIL, E2E_PASSWORD);
   await dismissOnboarding(page);
   await openHabits(page);
@@ -88,8 +92,12 @@ test("habits: create, log, streak grows, and reload keeps it", async ({ page }) 
   await deleteHabit(page, title);
 });
 
-test("habits: an unscheduled weekday does not break the streak", async ({ page }) => {
+test("habits: an unscheduled weekday does not break the streak", async ({ page, request }) => {
   test.skip(!SUPABASE_URL || !SUPABASE_ANON_KEY, "SUPABASE_URL / SUPABASE_ANON_KEY are not set.");
+  test.skip(
+    !(await habitsProvisioned(request)),
+    "habits tables are not provisioned yet — apply 0007+0008, then rerun.",
+  );
   await signIn(page, E2E_EMAIL, E2E_PASSWORD);
   await dismissOnboarding(page);
   await openHabits(page);
@@ -107,8 +115,12 @@ test("habits: an unscheduled weekday does not break the streak", async ({ page }
   await deleteHabit(page, title);
 });
 
-test("habits: pause keeps the logs, resume returns to active", async ({ page }) => {
+test("habits: pause keeps the logs, resume returns to active", async ({ page, request }) => {
   test.skip(!SUPABASE_URL || !SUPABASE_ANON_KEY, "SUPABASE_URL / SUPABASE_ANON_KEY are not set.");
+  test.skip(
+    !(await habitsProvisioned(request)),
+    "habits tables are not provisioned yet — apply 0007+0008, then rerun.",
+  );
   await signIn(page, E2E_EMAIL, E2E_PASSWORD);
   await dismissOnboarding(page);
   await openHabits(page);
@@ -146,7 +158,12 @@ test("habits rls: a foreign user_id in habits is invisible", async ({ page, requ
   expect(await foreign.json()).toEqual([]);
 });
 
-test("analytics: periods switch and reload keeps the page", async ({ page }) => {
+test("analytics: periods switch and reload keeps the page", async ({ page, request }) => {
+  test.skip(!SUPABASE_URL || !SUPABASE_ANON_KEY, "SUPABASE_URL / SUPABASE_ANON_KEY are not set.");
+  test.skip(
+    !(await habitsProvisioned(request)),
+    "habits tables are not provisioned yet — AnalyticsPage reads them, apply 0007+0008, then rerun.",
+  );
   await signIn(page, E2E_EMAIL, E2E_PASSWORD);
   await dismissOnboarding(page);
 
