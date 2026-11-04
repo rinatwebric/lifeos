@@ -50,10 +50,9 @@ test.describe("i18n EN/RU + theme", () => {
     // background PATCH lands — the context closes right after this test,
     // and an un-awaited sync would leave the shared account dirty.
     // Body-matched: a stale in-flight PATCH for another field must not
-    // satisfy the waiter.
-    const restoreLabel = original === "ru" ? "Язык" : "Language";
-    const restoreSelect = page.getByLabel(restoreLabel);
-    const currentLang = await restoreSelect.inputValue();
+    // satisfy the waiter. The label depends on the CURRENT page language.
+    const restoreSelect = page.getByLabel("Язык").or(page.getByLabel("Language"));
+    const currentLang = await restoreSelect.first().inputValue();
     if (currentLang !== original) {
       const saved = page.waitForResponse(
         (r) =>
@@ -61,7 +60,7 @@ test.describe("i18n EN/RU + theme", () => {
           r.url().includes("/rest/v1/profiles") &&
           (r.request().postData() ?? "").includes(`"language":"${original}"`),
       );
-      await restoreSelect.selectOption(original);
+      await restoreSelect.first().selectOption(original);
       await saved;
     }
   });
