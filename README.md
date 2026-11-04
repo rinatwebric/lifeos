@@ -91,8 +91,8 @@ custom SMTP (сброс — только через Supabase Dashboard → Users
   полный план — в Planner (day/week, ручные блоки, generate → accept/cancel).
 - Безопасность: RLS на всех пользовательских таблицах (`user_id = auth.uid()`),
   identity только из проверенного JWT, `service_role` нигде не используется.
-- Проверки: 294 unit-тестов (Vitest + RTL), live e2e (auth/goals/tasks/dashboard/
-  smoke/recurrence) против реального Supabase-проекта; `typecheck`, `lint`, `build` зелёные.
+- Проверки: 563 unit-теста (Vitest + RTL), live e2e (auth/goals/tasks/dashboard/
+  smoke/recurrence/planner) против реального Supabase-проекта; `typecheck`, `lint`, `build` зелёные.
 
 Полное техническое задание — [docs/PRD.md](docs/PRD.md).
 Архитектурные решения — [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
