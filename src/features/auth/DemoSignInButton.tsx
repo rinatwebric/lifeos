@@ -11,6 +11,7 @@ export const DEMO_SIGN_IN_COPY = {
   button: "Explore the demo account",
   pending: "Signing in…",
   caption: "Signs in to a shared demo account with sample goals and tasks.",
+  unavailable: "Demo account is unavailable in this environment.",
 } as const;
 
 interface DemoSignInButtonProps {
@@ -29,7 +30,11 @@ export function DemoSignInButton({ onError }: DemoSignInButtonProps) {
   const available = isDemoSignInAvailable();
 
   if (!available) {
-    return null;
+    return (
+      <p role="note" className="text-center text-micro text-muted">
+        {DEMO_SIGN_IN_COPY.unavailable}
+      </p>
+    );
   }
 
   const handleClick = async (): Promise<void> => {
