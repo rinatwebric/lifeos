@@ -75,8 +75,8 @@ export function MilestoneList({ goalId, milestones }: MilestoneListProps) {
   if (sorted.length === 0) {
     return (
       <div className="space-y-4">
-        <div className="rounded-lg border border-dashed border-line px-6 py-10 text-center">
-          <p className="mx-auto max-w-sm text-sm text-muted">
+        <div className="rounded-card border border-dashed border-line px-6 py-10 text-center">
+          <p className="mx-auto max-w-sm text-ui text-muted">
             No milestones yet. Add the first step — progress will be calculated from them.
           </p>
         </div>
@@ -99,7 +99,7 @@ export function MilestoneList({ goalId, milestones }: MilestoneListProps) {
           </Button>
         </form>
         {addError ?? (createMilestone.isError ? "Could not add the milestone. Please try again." : null) ? (
-          <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+          <p role="alert" className="text-micro text-danger">
             {addError ?? "Could not add the milestone. Please try again."}
           </p>
         ) : null}
@@ -110,53 +110,61 @@ export function MilestoneList({ goalId, milestones }: MilestoneListProps) {
   return (
     <div className="space-y-4">
       {updateMilestone.isError ? (
-        <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+        <p role="alert" className="text-micro text-danger">
           Could not update the milestone. Please try again.
         </p>
       ) : null}
       {reorderMilestones.isError ? (
-        <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+        <p role="alert" className="text-micro text-danger">
           Could not reorder milestones. Please try again.
         </p>
       ) : null}
       {deleteMilestone.isError ? (
-        <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+        <p role="alert" className="text-micro text-danger">
           Could not delete the milestone. Please try again.
         </p>
       ) : null}
 
-      <ul className="divide-y divide-line rounded-lg border border-line bg-surface">
+      <ul className="divide-y divide-line rounded-card border border-line bg-surface">
         {sorted.map((milestone, index) => {
           const completed = milestone.status === "completed";
           return (
-            <li key={milestone.id} className="flex items-center gap-3 px-4 py-3">
-              <input
-                type="checkbox"
-                checked={completed}
-                onChange={() => handleToggle(milestone)}
-                aria-label={
-                  completed
-                    ? `Mark ${milestone.title} as pending`
-                    : `Mark ${milestone.title} as completed`
-                }
-                className="size-4 shrink-0 accent-current"
-              />
+            <li key={milestone.id} className="flex items-start gap-3 px-4 py-3">
+              <label
+                htmlFor={`milestone-${milestone.id}`}
+                className="-m-3.5 inline-flex shrink-0 cursor-pointer p-3.5"
+              >
+                <input
+                  id={`milestone-${milestone.id}`}
+                  type="checkbox"
+                  checked={completed}
+                  onChange={() => handleToggle(milestone)}
+                  aria-label={
+                    completed
+                      ? `Mark ${milestone.title} as pending`
+                      : `Mark ${milestone.title} as completed`
+                  }
+                  className="mt-0.5 size-4 shrink-0 accent-current"
+                />
+              </label>
               <div className="min-w-0 flex-1">
                 <p
+                  title={milestone.title}
                   className={
-                    completed ? "truncate text-sm text-muted line-through" : "truncate text-sm text-content"
+                    completed ? "truncate text-ui text-muted line-through" : "truncate text-ui text-content"
                   }
                 >
                   {milestone.title}
                 </p>
                 {milestone.targetDate ? (
-                  <p className="text-xs text-muted">{milestone.targetDate}</p>
+                  <p className="text-micro text-muted tabular-nums">{milestone.targetDate}</p>
                 ) : null}
               </div>
               <div className="flex shrink-0 items-center gap-1">
                 <Button
                   variant="ghost"
                   size="sm"
+                  className="relative after:absolute after:-inset-1 after:content-['']"
                   aria-label={`Move ${milestone.title} up`}
                   disabled={index === 0 || reorderMilestones.isPending}
                   onClick={() => handleMove(index, -1)}
@@ -166,19 +174,26 @@ export function MilestoneList({ goalId, milestones }: MilestoneListProps) {
                 <Button
                   variant="ghost"
                   size="sm"
+                  className="relative after:absolute after:-inset-1 after:content-['']"
                   aria-label={`Move ${milestone.title} down`}
                   disabled={index === sorted.length - 1 || reorderMilestones.isPending}
                   onClick={() => handleMove(index, 1)}
                 >
                   <ArrowDown className="size-3.5" aria-hidden="true" />
                 </Button>
-                <Button variant="ghost" size="sm" onClick={() => setEditing(milestone)}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="relative after:absolute after:-inset-1 after:content-['']"
+                  onClick={() => setEditing(milestone)}
+                >
                   <Pencil className="size-3.5" aria-hidden="true" />
                   Edit
                 </Button>
                 <Button
                   variant="ghost"
                   size="sm"
+                  className="relative after:absolute after:-inset-1 after:content-['']"
                   onClick={() => setDeleting(milestone)}
                   aria-label={`Delete ${milestone.title}`}
                 >
@@ -207,7 +222,7 @@ export function MilestoneList({ goalId, milestones }: MilestoneListProps) {
         </Button>
       </form>
       {addError ?? (createMilestone.isError ? "Could not add the milestone. Please try again." : null) ? (
-        <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+        <p role="alert" className="text-micro text-danger">
           {addError ?? "Could not add the milestone. Please try again."}
         </p>
       ) : null}

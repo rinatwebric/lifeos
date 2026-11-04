@@ -44,15 +44,17 @@ export function GoalCard({ goal, progress, onEdit, onDelete }: GoalCardProps) {
   return (
     <Card className="flex flex-col gap-3">
       <div className="flex items-start justify-between gap-2">
-        <h3 className="text-base font-semibold text-content">
-          <Link to={`/goals/${goal.id}`} className="hover:underline">
+        <h3 className="min-w-0 flex-1 truncate text-body font-semibold text-content">
+          <Link to={`/goals/${goal.id}`} className="hover:underline" title={goal.title}>
             {goal.title}
           </Link>
         </h3>
         <Badge tone={STATUS_TONE[goal.status]}>{humanize(goal.status)}</Badge>
       </div>
 
-      {goal.description ? <p className="text-sm text-muted">{goal.description}</p> : null}
+      {goal.description ? (
+        <p className="text-ui text-muted break-words">{goal.description}</p>
+      ) : null}
 
       <div className="flex flex-wrap gap-1.5">
         <Badge>{humanize(goal.category)}</Badge>
@@ -61,13 +63,13 @@ export function GoalCard({ goal, progress, onEdit, onDelete }: GoalCardProps) {
 
       <div className="space-y-1">
         <ProgressBar value={progress} label={`Progress for ${goal.title}`} />
-        <p className="text-xs text-muted">
+        <p className="text-micro text-muted tabular-nums">
           {`${progress}% complete`}
           {goal.progressMode === "milestones" ? " · from milestones" : " · manual"}
         </p>
       </div>
 
-      <p className="text-xs text-muted">{formatDateRange(goal)}</p>
+      <p className="text-micro text-muted tabular-nums">{formatDateRange(goal)}</p>
 
       <div className="mt-auto flex flex-wrap gap-2 pt-1">
         <Button variant="secondary" size="sm" onClick={() => onEdit(goal)}>

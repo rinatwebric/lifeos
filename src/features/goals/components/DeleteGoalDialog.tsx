@@ -47,9 +47,9 @@ export function DeleteGoalDialog({ open, onClose, goal, onDeleted }: DeleteGoalD
       description="Linked tasks keep their rows and lose the link (SET NULL); milestones are removed with the goal. No task is ever cascade-deleted."
     >
       {taskCount.isLoading ? (
-        <p className="text-sm text-muted">Counting linked tasks…</p>
+        <p className="text-ui text-muted">Counting linked tasks…</p>
       ) : taskCount.isError ? (
-        <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+        <p role="alert" className="text-micro text-danger">
           Could not count linked tasks.{" "}
           <button
             type="button"
@@ -60,20 +60,20 @@ export function DeleteGoalDialog({ open, onClose, goal, onDeleted }: DeleteGoalD
           </button>
         </p>
       ) : (
-        <p className="text-sm text-content">{taskLine(taskCount.data ?? 0)}</p>
+        <p className="text-ui text-content tabular-nums">{taskLine(taskCount.data ?? 0)}</p>
       )}
 
       {serverError ? (
-        <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+        <p role="alert" className="text-micro text-danger">
           {serverError}
         </p>
       ) : null}
 
       <div className="flex justify-end gap-2">
-        <Button variant="secondary" onClick={onClose} disabled={deleteGoal.isPending}>
+        <Button variant="secondary" size="lg" data-autofocus onClick={onClose} disabled={deleteGoal.isPending}>
           Cancel
         </Button>
-        <Button variant="danger" onClick={() => void handleConfirm()} loading={deleteGoal.isPending}>
+        <Button variant="danger" size="lg" onClick={() => void handleConfirm()} loading={deleteGoal.isPending}>
           Delete
         </Button>
       </div>

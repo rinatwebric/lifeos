@@ -86,8 +86,8 @@ export function GoalsPage() {
           <GoalCardSkeleton />
         </div>
       ) : goalsQuery.isError ? (
-        <div role="alert" className="rounded-lg border border-line bg-surface p-4">
-          <p className="text-sm text-content">Could not load goals. Please try again.</p>
+        <div role="alert" className="rounded-card border border-line bg-surface p-4">
+          <p className="text-ui text-content">Could not load goals. Please try again.</p>
           <div className="mt-3">
             <Button variant="secondary" size="sm" onClick={() => void goalsQuery.refetch()}>
               Retry

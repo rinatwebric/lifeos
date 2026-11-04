@@ -126,7 +126,7 @@ export function GoalFormDialog({ open, onClose, goal }: GoalFormDialogProps) {
     >
       <form onSubmit={(event) => void handleSubmit(onSubmit)(event)} noValidate className="space-y-4">
         <Field id="goal-title" label="Title" required error={errors.title?.message}>
-          <Input placeholder="Learn to play the piano" {...register("title")} />
+          <Input data-autofocus placeholder="Learn to play the piano" {...register("title")} />
         </Field>
 
         <Field id="goal-description" label="Description" error={errors.description?.message}>
@@ -183,7 +183,7 @@ export function GoalFormDialog({ open, onClose, goal }: GoalFormDialogProps) {
           </Field>
         </div>
 
-        <div className="space-y-1.5 rounded-lg border border-line bg-surface-muted p-3">
+        <div className="space-y-1.5 rounded-card border border-line bg-surface-muted p-3">
           <div className="flex items-center gap-2">
             <input
               id="goal-progressMode"
@@ -196,11 +196,11 @@ export function GoalFormDialog({ open, onClose, goal }: GoalFormDialogProps) {
                 })
               }
             />
-            <label htmlFor="goal-progressMode" className="text-sm font-medium text-content">
+            <label htmlFor="goal-progressMode" className="text-ui font-medium text-content">
               Calculate progress from milestones
             </label>
           </div>
-          <p className="text-xs text-muted">
+          <p className="text-micro text-muted">
             When on, progress is derived from completed milestones. Your manual value is kept
             and shown again when the goal has no milestones yet.
           </p>
@@ -224,16 +224,16 @@ export function GoalFormDialog({ open, onClose, goal }: GoalFormDialogProps) {
         ) : null}
 
         {serverError ? (
-          <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+          <p role="alert" className="text-micro text-danger">
             {serverError}
           </p>
         ) : null}
 
         <div className="flex justify-end gap-2">
-          <Button variant="secondary" onClick={onClose} disabled={saving}>
+          <Button variant="secondary" size="lg" onClick={onClose} disabled={saving}>
             Cancel
           </Button>
-          <Button type="submit" loading={saving}>
+          <Button type="submit" size="lg" loading={saving}>
             {goal ? "Save changes" : "Create goal"}
           </Button>
         </div>

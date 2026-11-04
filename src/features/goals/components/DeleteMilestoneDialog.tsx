@@ -36,17 +36,18 @@ export function DeleteMilestoneDialog({ open, onClose, milestone }: DeleteMilest
       description="This milestone will be permanently removed. This cannot be undone."
     >
       {serverError ? (
-        <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+        <p role="alert" className="text-micro text-danger">
           {serverError}
         </p>
       ) : null}
 
       <div className="flex justify-end gap-2">
-        <Button variant="secondary" onClick={onClose} disabled={deleteMilestone.isPending}>
+        <Button variant="secondary" size="lg" data-autofocus onClick={onClose} disabled={deleteMilestone.isPending}>
           Cancel
         </Button>
         <Button
           variant="danger"
+          size="lg"
           onClick={() => void handleConfirm()}
           loading={deleteMilestone.isPending}
         >

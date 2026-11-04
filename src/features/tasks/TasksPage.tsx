@@ -96,7 +96,7 @@ export function TasksPage() {
 
       <TasksFilters filters={filters} goals={goalsQuery.data ?? []} onChange={setFilters} />
 
-      <p className="text-sm text-muted" aria-live="polite">
+      <p className="text-ui text-muted tabular-nums" aria-live="polite">
         {tasksQuery.isLoading
           ? "Loading tasks…"
           : `${taskCountLabel(tasks.length)}${atLimit ? ` · Showing first ${TASK_LIST_LIMIT} tasks` : ""}`}
@@ -114,8 +114,8 @@ export function TasksPage() {
           </Card>
         </div>
       ) : tasksQuery.isError ? (
-        <div role="alert" className="rounded-lg border border-line bg-surface p-4">
-          <p className="text-sm text-content">Could not load tasks. Please try again.</p>
+        <div role="alert" className="rounded-card border border-line bg-surface p-4">
+          <p className="text-ui text-content">Could not load tasks. Please try again.</p>
           <div className="mt-3">
             <Button variant="secondary" size="sm" onClick={() => void tasksQuery.refetch()}>
               Retry

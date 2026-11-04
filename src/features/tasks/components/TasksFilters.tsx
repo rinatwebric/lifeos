@@ -48,9 +48,9 @@ export function TasksFilters({ filters, goals, onChange }: TasksFiltersProps) {
   }
 
   return (
-    <div className="grid gap-3 rounded-xl border border-line bg-surface p-4 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="grid gap-3 rounded-card border border-line bg-surface p-4 sm:grid-cols-2 lg:grid-cols-4">
       <div className="space-y-1.5">
-        <label htmlFor="tasks-filter-status" className="block text-sm font-medium text-content">
+        <label htmlFor="tasks-filter-status" className="block text-ui font-medium text-content">
           Status
         </label>
         <Select
@@ -70,7 +70,7 @@ export function TasksFilters({ filters, goals, onChange }: TasksFiltersProps) {
       </div>
 
       <div className="space-y-1.5">
-        <label htmlFor="tasks-filter-priority" className="block text-sm font-medium text-content">
+        <label htmlFor="tasks-filter-priority" className="block text-ui font-medium text-content">
           Priority
         </label>
         <Select
@@ -93,7 +93,7 @@ export function TasksFilters({ filters, goals, onChange }: TasksFiltersProps) {
       </div>
 
       <div className="space-y-1.5">
-        <label htmlFor="tasks-filter-goal" className="block text-sm font-medium text-content">
+        <label htmlFor="tasks-filter-goal" className="block text-ui font-medium text-content">
           Goal
         </label>
         <Select
@@ -113,7 +113,7 @@ export function TasksFilters({ filters, goals, onChange }: TasksFiltersProps) {
       </div>
 
       <div className="space-y-1.5">
-        <label htmlFor={SEARCH_INPUT_ID} className="block text-sm font-medium text-content">
+        <label htmlFor={SEARCH_INPUT_ID} className="block text-ui font-medium text-content">
           Search
         </label>
         <Input

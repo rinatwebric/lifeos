@@ -106,7 +106,7 @@ export function MilestoneFormDialog({ open, onClose, goalId, milestone }: Milest
     >
       <form onSubmit={(event) => void handleSubmit(onSubmit)(event)} noValidate className="space-y-4">
         <Field id="milestone-title" label="Title" required error={errors.title?.message}>
-          <Input placeholder="Finish chapter 1" {...register("title")} />
+          <Input data-autofocus placeholder="Finish chapter 1" {...register("title")} />
         </Field>
 
         <Field id="milestone-description" label="Description" error={errors.description?.message}>
@@ -126,16 +126,16 @@ export function MilestoneFormDialog({ open, onClose, goalId, milestone }: Milest
         </Field>
 
         {serverError ? (
-          <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+          <p role="alert" className="text-micro text-danger">
             {serverError}
           </p>
         ) : null}
 
         <div className="flex justify-end gap-2">
-          <Button variant="secondary" onClick={handleClose} disabled={saving}>
+          <Button variant="secondary" size="lg" onClick={handleClose} disabled={saving}>
             Cancel
           </Button>
-          <Button type="submit" loading={saving}>
+          <Button type="submit" size="lg" loading={saving}>
             {milestone ? "Save changes" : "Create milestone"}
           </Button>
         </div>

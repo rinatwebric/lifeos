@@ -225,7 +225,7 @@ export function TaskFormDialog({ open, onClose, task, timeZone }: TaskFormDialog
     >
       <form onSubmit={(event) => void handleSubmit(onSubmit)(event)} noValidate className="space-y-4">
         <Field id="task-title" label="Title" required error={errors.title?.message}>
-          <Input placeholder="Write the report" {...register("title")} />
+          <Input data-autofocus placeholder="Write the report" {...register("title")} />
         </Field>
 
         <Field id="task-description" label="Description" error={errors.description?.message}>
@@ -372,8 +372,8 @@ export function TaskFormDialog({ open, onClose, task, timeZone }: TaskFormDialog
         </div>
 
         {task ? null : (
-          <div className="space-y-3 rounded-lg border border-line p-3">
-            <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-content">
+          <div className="space-y-3 rounded-card border border-line p-3">
+            <label className="flex cursor-pointer items-center gap-2 text-ui font-medium text-content">
               <input
                 type="checkbox"
                 checked={repeatEnabled}
@@ -400,7 +400,7 @@ export function TaskFormDialog({ open, onClose, task, timeZone }: TaskFormDialog
 
                 {repeatFrequency === "weekdays" ? (
                   <fieldset>
-                    <legend className="mb-1 block text-sm font-medium text-content">
+                    <legend className="mb-1 block text-ui font-medium text-content">
                       Days of the week
                     </legend>
                     <div className="flex flex-wrap gap-2">
@@ -408,7 +408,7 @@ export function TaskFormDialog({ open, onClose, task, timeZone }: TaskFormDialog
                         <label
                           key={option.value}
                           htmlFor={`task-repeat-weekday-${option.value}`}
-                          className="flex cursor-pointer items-center gap-1 rounded-full border border-line px-2.5 py-1 text-xs text-content"
+                          className="flex cursor-pointer items-center gap-1 rounded-full border border-line px-2.5 py-1 text-micro text-content"
                         >
                           <input
                             id={`task-repeat-weekday-${option.value}`}
@@ -437,7 +437,7 @@ export function TaskFormDialog({ open, onClose, task, timeZone }: TaskFormDialog
                 </Field>
 
                 {repeatError ? (
-                  <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+                  <p role="alert" className="text-micro text-danger">
                     {repeatError}
                   </p>
                 ) : null}
@@ -447,16 +447,16 @@ export function TaskFormDialog({ open, onClose, task, timeZone }: TaskFormDialog
         )}
 
         {serverError ? (
-          <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+          <p role="alert" className="text-micro text-danger">
             {serverError}
           </p>
         ) : null}
 
         <div className="flex justify-end gap-2">
-          <Button variant="secondary" onClick={onClose} disabled={saving}>
+          <Button variant="secondary" size="lg" onClick={onClose} disabled={saving}>
             Cancel
           </Button>
-          <Button type="submit" loading={saving}>
+          <Button type="submit" size="lg" loading={saving}>
             {task ? "Save changes" : "Create task"}
           </Button>
         </div>

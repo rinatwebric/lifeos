@@ -31,7 +31,7 @@ export function RequireAuth({ children }: GuardProps) {
     return (
       <div
         role="status"
-        className="flex min-h-screen items-center justify-center text-sm text-muted"
+        className="flex min-h-dvh items-center justify-center text-ui text-muted"
       >
         {REQUIRE_AUTH_COPY.loading}
       </div>
@@ -60,7 +60,7 @@ export function RedirectIfAuthed({ children }: GuardProps) {
     return (
       <div
         role="status"
-        className="flex min-h-screen items-center justify-center text-sm text-muted"
+        className="flex min-h-dvh items-center justify-center text-ui text-muted"
       >
         {REQUIRE_AUTH_COPY.loading}
       </div>

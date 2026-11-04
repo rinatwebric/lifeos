@@ -21,7 +21,7 @@ export function NotFoundPage() {
           action={
             <Link
               to="/"
-              className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-accent-content"
+              className="inline-flex items-center gap-1.5 rounded-control bg-accent px-3 py-1.5 text-ui font-medium text-accent-content"
             >
               <ArrowLeft className="size-3.5" aria-hidden="true" />
               Back to dashboard

@@ -49,19 +49,26 @@ export function TaskRow({
         completed && "opacity-70",
       )}
     >
-      <input
-        type="checkbox"
-        checked={completed}
-        onChange={handleToggle}
-        aria-label={completed ? `Mark ${task.title} as not completed` : `Mark ${task.title} as completed`}
-        className="mt-0.5 size-4 shrink-0 accent-current"
-      />
+      <label
+        htmlFor={`task-${task.id}`}
+        className="-m-3.5 inline-flex shrink-0 cursor-pointer p-3.5"
+      >
+        <input
+          id={`task-${task.id}`}
+          type="checkbox"
+          checked={completed}
+          onChange={handleToggle}
+          aria-label={completed ? `Mark ${task.title} as not completed` : `Mark ${task.title} as completed`}
+          className="mt-0.5 size-4 shrink-0 accent-current"
+        />
+      </label>
       <div className="min-w-0 flex-1 space-y-1.5">
         <p
+          title={task.title}
           className={
             completed
-              ? "truncate text-sm text-muted line-through"
-              : "truncate text-sm font-medium text-content"
+              ? "truncate text-ui text-muted line-through"
+              : "truncate text-ui font-medium text-content"
           }
         >
           {task.title}
@@ -70,13 +77,13 @@ export function TaskRow({
           {showPriorityBadge ? <Badge tone="outline">{humanize(task.priority)} priority</Badge> : null}
           {task.recurrenceRuleId ? <Badge tone="outline">Repeat</Badge> : null}
           {task.dueDate ? (
-            <span className="text-xs text-muted">{task.dueDate}</span>
+            <span className="text-micro text-muted tabular-nums">{task.dueDate}</span>
           ) : null}
           {overdue ? <Badge tone="danger">Overdue</Badge> : null}
           {task.goalId && goalTitle ? (
             <Link
               to={`/goals/${task.goalId}`}
-              className="text-xs font-medium text-accent hover:underline"
+              className="text-micro font-medium break-words text-accent hover:underline"
             >
               {goalTitle}
             </Link>
@@ -84,28 +91,39 @@ export function TaskRow({
           {task.milestoneId && task.goalId && milestoneTitle ? (
             <Link
               to={`/goals/${task.goalId}`}
-              className="text-xs text-muted hover:underline"
+              className="text-micro break-words text-muted hover:underline"
             >
               {milestoneTitle}
             </Link>
           ) : null}
         </div>
         {setStatus.isError ? (
-          <p role="alert" className="text-xs text-red-600 dark:text-red-400">
+          <p role="alert" className="text-micro text-danger">
             Could not update the status. Please try again.
           </p>
         ) : null}
       </div>
       <div className="flex shrink-0 flex-wrap items-center gap-1">
-        <Button variant="ghost" size="sm" onClick={() => onEdit(task)}>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="relative after:absolute after:-inset-1 after:content-['']"
+          onClick={() => onEdit(task)}
+        >
           Edit
         </Button>
-        <Button variant="ghost" size="sm" onClick={() => onReschedule(task)}>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="relative after:absolute after:-inset-1 after:content-['']"
+          onClick={() => onReschedule(task)}
+        >
           Reschedule
         </Button>
         <Button
           variant="ghost"
           size="sm"
+          className="relative after:absolute after:-inset-1 after:content-['']"
           onClick={() => onDelete(task)}
           aria-label={`Delete ${task.title}`}
         >

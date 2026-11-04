@@ -34,7 +34,7 @@ export function PhasePlaceholder({
         <EmptyState icon={icon} title={`Planned for ${phase}`} description={detail} />
       </Card>
 
-      {footer ? <div className="text-xs text-muted">{footer}</div> : null}
+      {footer ? <div className="text-micro text-muted">{footer}</div> : null}
     </div>
   );
 }

@@ -54,6 +54,7 @@ export function RescheduleTaskDialog({ open, onClose, task }: RescheduleTaskDial
       <div className="space-y-4">
         <Field id="task-reschedule-date" label="Due date" error={undefined}>
           <Input
+            data-autofocus
             type="date"
             value={dueDate}
             onChange={(event) => setDueDate(event.target.value)}
@@ -61,16 +62,16 @@ export function RescheduleTaskDialog({ open, onClose, task }: RescheduleTaskDial
         </Field>
 
         {serverError ? (
-          <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+          <p role="alert" className="text-micro text-danger">
             {serverError}
           </p>
         ) : null}
 
         <div className="flex justify-end gap-2">
-          <Button variant="secondary" onClick={onClose} disabled={rescheduleTask.isPending}>
+          <Button variant="secondary" size="lg" onClick={onClose} disabled={rescheduleTask.isPending}>
             Cancel
           </Button>
-          <Button onClick={() => void handleSave()} loading={rescheduleTask.isPending}>
+          <Button size="lg" onClick={() => void handleSave()} loading={rescheduleTask.isPending}>
             Save
           </Button>
         </div>

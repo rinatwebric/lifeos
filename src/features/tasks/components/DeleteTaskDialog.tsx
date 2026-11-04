@@ -38,16 +38,16 @@ export function DeleteTaskDialog({ open, onClose, task }: DeleteTaskDialogProps)
       description="This cannot be undone."
     >
       {serverError ? (
-        <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+        <p role="alert" className="text-micro text-danger">
           {serverError}
         </p>
       ) : null}
 
       <div className="flex justify-end gap-2">
-        <Button variant="secondary" onClick={onClose} disabled={deleteTask.isPending}>
+        <Button variant="secondary" size="lg" data-autofocus onClick={onClose} disabled={deleteTask.isPending}>
           Cancel
         </Button>
-        <Button variant="danger" onClick={() => void handleConfirm()} loading={deleteTask.isPending}>
+        <Button variant="danger" size="lg" onClick={() => void handleConfirm()} loading={deleteTask.isPending}>
           Delete
         </Button>
       </div>

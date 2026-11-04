@@ -44,6 +44,12 @@ export function Dialog({ open, onClose, title, description, children, wide }: Di
       }
     }
 
+    // The dialog focuses its marked first field (or the safe action in
+    // confirmations) here — after `previouslyFocused` is captured — instead
+    // of React `autoFocus`, which fires before passive effects and would
+    // poison focus-restore with an in-dialog node.
+    dialog?.querySelector<HTMLElement>("[data-autofocus]")?.focus();
+
     // Native `showModal` already fires `close` on Esc — a manual keydown
     // listener would double-invoke `onClose`. Only polyfill Esc where the
     // native API is missing (e.g. jsdom).

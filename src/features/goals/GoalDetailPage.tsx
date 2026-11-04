@@ -42,7 +42,7 @@ export function GoalDetailPage() {
   if (goalQuery.isLoading) {
     return (
       <div className="space-y-6">
-        <Link to="/goals" className="text-sm text-muted hover:underline">
+        <Link to="/goals" className="text-ui text-muted hover:underline">
           ← All goals
         </Link>
         <div role="status" aria-label="Loading goal">
@@ -69,11 +69,11 @@ export function GoalDetailPage() {
     if (code !== "not_found") {
       return (
         <div className="space-y-6">
-          <Link to="/goals" className="text-sm text-muted hover:underline">
+          <Link to="/goals" className="text-ui text-muted hover:underline">
             ← All goals
           </Link>
-          <div role="alert" className="rounded-lg border border-line bg-surface p-4">
-            <p className="text-sm text-content">Could not load goal. Please try again.</p>
+          <div role="alert" className="rounded-card border border-line bg-surface p-4">
+            <p className="text-ui text-content">Could not load goal. Please try again.</p>
             <div className="mt-3">
               <Button variant="secondary" size="sm" onClick={() => void goalQuery.refetch()}>
                 Retry
@@ -85,18 +85,18 @@ export function GoalDetailPage() {
     }
     return (
       <div className="space-y-6">
-        <Link to="/goals" className="text-sm text-muted hover:underline">
+        <Link to="/goals" className="text-ui text-muted hover:underline">
           ← All goals
         </Link>
         <Card>
-          <h1 className="text-xl font-semibold tracking-tight text-content">Goal not found</h1>
-          <p className="mt-1 text-sm text-muted">
+          <h1 className="text-heading font-semibold tracking-tight text-content">Goal not found</h1>
+          <p className="mt-1 text-ui text-muted">
             This goal does not exist or has been deleted.
           </p>
           <div className="mt-4">
             <Link
               to="/goals"
-              className="inline-flex h-8 items-center justify-center gap-2 rounded-lg border border-line bg-surface px-3 text-sm font-medium text-content transition-colors hover:bg-surface-muted"
+              className="inline-flex h-8 items-center justify-center gap-2 rounded-control border border-line bg-surface px-3 text-ui font-medium text-content transition-[background-color] duration-fast ease-standard hover:bg-surface-muted"
             >
               Back to goals
             </Link>
@@ -117,14 +117,14 @@ export function GoalDetailPage() {
 
   return (
     <div className="space-y-6">
-      <Link to="/goals" className="text-sm text-muted hover:underline">
+      <Link to="/goals" className="text-ui text-muted hover:underline">
         ← All goals
       </Link>
 
       <section className="space-y-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="space-y-2">
-            <h1 className="text-xl font-semibold tracking-tight text-content sm:text-2xl">
+          <div className="min-w-0 flex-1 space-y-2">
+            <h1 className="text-heading font-semibold tracking-tight text-balance text-content break-words sm:text-title">
               {goal.title}
             </h1>
             <div className="flex flex-wrap gap-1.5">
@@ -150,20 +150,20 @@ export function GoalDetailPage() {
           </div>
         </div>
 
-        {goal.description ? <p className="text-sm text-muted">{goal.description}</p> : null}
+        {goal.description ? <p className="text-ui text-muted break-words">{goal.description}</p> : null}
 
         <div className="space-y-1">
           <ProgressBar value={progress} label={`Progress for ${goal.title}`} />
-          <p className="text-xs text-muted">
+          <p className="text-micro text-muted tabular-nums">
             {`${progress}% complete`}
             {goal.progressMode === "milestones" ? " · from milestones" : " · manual"}
           </p>
         </div>
 
-        <p className="text-xs text-muted">{formatDateRange(goal)}</p>
+        <p className="text-micro text-muted tabular-nums">{formatDateRange(goal)}</p>
 
         {goal.progressMode === "manual" ? (
-          <p className="text-xs text-muted">
+          <p className="text-micro text-muted">
             <button
               type="button"
               className="cursor-pointer underline"
@@ -176,7 +176,7 @@ export function GoalDetailPage() {
       </section>
 
       <section className="space-y-4">
-        <h2 className="text-lg font-semibold tracking-tight text-content">Milestones</h2>
+        <h2 className="text-heading font-semibold tracking-tight text-content">Milestones</h2>
         {milestonesQuery.isLoading ? (
           <div role="status" aria-label="Loading milestones">
             <span className="sr-only">Loading milestones…</span>
@@ -188,8 +188,8 @@ export function GoalDetailPage() {
             </Card>
           </div>
         ) : milestonesQuery.isError ? (
-          <div role="alert" className="rounded-lg border border-line bg-surface p-4">
-            <p className="text-sm text-content">Could not load milestones. Please try again.</p>
+          <div role="alert" className="rounded-card border border-line bg-surface p-4">
+            <p className="text-ui text-content">Could not load milestones. Please try again.</p>
             <div className="mt-3">
               <Button variant="secondary" size="sm" onClick={() => void milestonesQuery.refetch()}>
                 Retry
