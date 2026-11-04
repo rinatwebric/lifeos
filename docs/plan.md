@@ -3,6 +3,130 @@
 Обновляется перед каждой задачей. Выполненные пункты уезжают в `docs/progress.md`.
 Формат: один шаг = один коммит = одна проверяемая единица работы.
 
+## Итерация 4 — Phase 3: Planner (ПЛАН, открыт 2026-11-04)
+
+**Цель:** day view и week view, настройки доступного времени, time blocks с проверкой
+конфликтов, детерминированный алгоритм распределения задач с объяснением выбора слота,
+предпросмотр плана (принять / отклонить / изменить вручную). Исходное расписание без явного
+согласия пользователя не меняется.
+
+**Контекст (факты на 2026-11-04):**
+
+- Phase 2, 2.5 и итерация 3 закрыты; HEAD `aa73071`, тег `v0.4.0`. Gate: typecheck ok,
+  lint 0 errors (14 warnings), 294 теста в 32 файлах, build ok, 10 e2e-спек.
+- Миграции 0001–0004 применены в живой БД; RLS на всех таблицах (4 политики «own» на таблицу).
+- `user_preferences`: `wake_up_time` / `sleep_time` (time) + jsonb `working_hours`,
+  `study_hours`, `preferred_work_periods`, `notification_preferences` (все `{}` по умолчанию).
+- `tasks`: `due_date`, `scheduled_start/end`, `estimated_duration_minutes`, приоритет, статус,
+  связи с целью/этапом, повторения (eager, 30 дней). Overdue — вычисляемый (`isTaskOverdue`).
+- `src/features/planner/PlannerPage.tsx` — единственный файл модуля (честная заглушка).
+  `domain.ts` уже имеет `TimeBlock` (`blockType: string`), `database.ts` строки для
+  `time_blocks` **не имеет** — единица 1 добавляет и то и другое.
+- Почта выключена бессрочно (решение владельца): SMTP, восстановление пароля и «подготовка
+  e2e под включённую почту» в план не входят.
+- Слово «AI» в Planner не используется — это Phase 4 (PRD §4.4).
+
+**Границы итерации:**
+
+- Схема — только новый `supabase/migrations/0005_time_blocks.sql` в стиле 0001–0004.
+  Применение — отдельной командой владельца после ревью файла (в кодовых единицах не применять).
+  `database.ts` / `domain.ts` меняются в той же единице, что миграция (AGENTS.md §6).
+- Пересматривать нельзя: `tasks.goal_id → SET NULL`, `milestones → CASCADE` с целью, статусы
+  этапов `pending|completed`, `progress_mode` (ручное значение не перезаписывается),
+  eager-повторения с горизонтом 30 дней, `TASK_LIST_LIMIT = 500`, UTC в БД + IANA при показе,
+  демо-аккаунт отдельно от e2e.
+- Вне итерации: PRD §4.4 (AI Schedule Optimization), почта/SMTP, AI-ассистент, привычки,
+  аналитика, пагинация задач, `goal_events`.
+
+### Решения итерации 4 (приняты владельцем 2026-11-04, не пересматривать)
+
+Д1. «Свободное время» и «время отдыха» (§4.2) **не хранятся**: свободное = окно wake→sleep минус
+сон, working/study и занятые блоки; отдых = сон + блоки `break`. Новых колонок в
+`user_preferences` нет.
+
+Д2. Конфликт = пересечение блоков ∪ блок∩сон ∪ блок в прошлом. Поверх working/study —
+**разрешено с предупреждением** и понижением скора: PRD §4.3 такого запрета не содержит,
+а жёсткий запрет сломал бы сценарий C (§15). Правило живёт в `src/lib/planner.ts` и показывается
+в UI текстом.
+
+Д3. Дробления задач нет: один блок на задачу длиной `estimated_duration_minutes`;
+непоместившееся — в список «не поместилось» с причиной (§4.3: фиктивных интервалов не создаём).
+
+Д4. `block_type` = `('task','break','personal')`. `personal` покрывает работу/учёбу/личные
+события; отдельные `work`/`study` не вводим, пока PRD их не требует. Отдельной колонки `source`
+нет: `block_type='task'` ⇔ `task_id NOT NULL`.
+
+Д5. FK `time_blocks.task_id → tasks(id)` — **`ON DELETE CASCADE`**, не `SET NULL`. Причина:
+`ON DELETE SET NULL` выполняется как UPDATE ссылающейся строки, а CHECK проверяется на UPDATE —
+инвариант «task-блок всегда с `task_id`» нарушился бы, и удаление задачи с блоком падало бы
+с `23514`. Блок производен от задачи; `break`/`personal` не затрагиваются (`task_id IS NULL`).
+Симметрично: `CHECK (task_id IS NULL OR block_type = 'task')` — `break`-блок с задачей запрещён.
+
+Д6. Overdue — кандидаты с бустом и пометкой; экземпляры повторений — обычные задачи (сами
+правила не планируются); `completed` / `cancelled` исключены.
+
+Д7. Задача без `estimated_duration_minutes` — в список «нужна оценка» + inline-установка
+длительности; дефолтную длительность не выдумываем.
+
+Д8. Accept пишет `time_blocks` **и** зеркалит `scheduled_start/end` в связанную задачу одним
+батчем; ручная правка блока зеркалит тоже; **удаление блока обнуляет зеркало** в задаче (иначе
+Dashboard покажет «запланировано» без блока). Dashboard продолжает читать задачи, а не блоки.
+
+### Порядок единиц (каждая = один коммит)
+
+1. **Схема `0005_time_blocks` + типы.** Новый `supabase/migrations/0005_time_blocks.sql`:
+   CHECK `end_time > start_time`, `block_type in ('task','break','personal')`,
+   `block_type <> 'task' or task_id is not null`, `task_id is null or block_type = 'task'`;
+   FK `task_id → tasks(id) on delete cascade` (Д5); индексы `user_id`, `(user_id, start_time)`,
+   `task_id`; триггер `set_updated_at()`; RLS 4 политики + `EXISTS`-гард владения `task_id`
+   (образец `0004:105-139`). В том же коммите: `src/types/database.ts` (`TimeBlocksRow` +
+   `mapTimeBlockRowToTimeBlock`) и `src/types/domain.ts` (`BLOCK_TYPES`, `TimeBlock.blockType`
+   как union вместо `string`). Готово: SQL целиком в стиле 0004, маппер покрыт тестом,
+   миграция **не применена**. Проверка: `typecheck && lint && test`.
+2. **`src/lib/planner.ts` + `planner.test.ts` (без JSX и Supabase).** `computeFreeWindows`,
+   `findConflicts` (Д2), `scoreSlot` (приоритет → дедлайн → длительность → связь с целью →
+   preferred-периоды), `explainSlot` (5 полей §4.3), `selectCandidates` (Д3/Д6/Д7: списки
+   `needsEstimate` и `doesNotFit`). «Сегодня» — в поясе пользователя (`toDateKey`).
+   Проверка: `typecheck && lint && test`.
+3. **Сервис блоков + хуки.** `src/features/planner/{api,schemas,errors,hooks,queryKeys}.ts`
+   (identity из JWT, Zod: `end > start`, `task` ⇒ `task_id`), `api.test.ts`. Инвалидация:
+   блоки + связанные задачи (не трогать `["goals","list"]`), один запрос на диапазон, без N+1.
+   Проверка: `typecheck && lint && test`.
+4. **Доступное время в Settings.** `settings/api.ts` (3 jsonb), `settings/schemas.ts`
+   (форма `{day: [{start, end}]}`, `{}` = не задано, `start < end`), `AvailabilityForm.tsx`
+   с `reset` в `useEffect` (грабли проекта), раздельные ошибки двух таблиц.
+   Проверка: `typecheck && lint && test && build`.
+5. **Day view (чтение).** `PlannerPage.tsx` + `DayView.tsx` + `usePlannerDay.ts` (шкала в поясе,
+   занято/свободно, конфликты, длительности; пустое состояние объясняет следующий шаг, §9.4).
+   Название task-блока берётся из связанной задачи, `title` — fallback (Д4).
+   Проверка: `typecheck && lint && test && build`.
+6. **Week view (чтение).** `WeekView.tsx` + диапазон недели одним запросом с группировкой на
+   клиенте; клик по дню → Day view; перенос — существующий `rescheduleTask`.
+   Проверка: `typecheck && lint && test && build`.
+7. **Ручные блоки.** `TimeBlockDialog.tsx` (`localDateTimeToIso` / `isoToLocalDateTime`),
+   `DeleteBlockDialog.tsx`; конфликт/сон/прошлое — только с явным подтверждением (§18);
+   ошибки — кодами. Проверка: `typecheck && lint && test && build`.
+8. **Предпросмотр плана (без записей).** `PlanPreview.tsx` + `usePlanPreview.ts`: слоты с
+   «почему», списки «не поместилось» / «нужна оценка», никаких записей в БД до Accept.
+   Проверка: `typecheck && lint && test && build`.
+9. **Accept / Reject / ручная правка.** Батч `applyPlan` (блоки + зеркало `scheduled_start/end`),
+   `deleteBlock` обнуляет зеркало (Д8), reject ничего не пишет, правка слота до Accept —
+   локально с перепроверкой конфликтов. До подтверждения расписание неизменно.
+   Проверка: `typecheck && lint && test && build`.
+10. **Dashboard Schedule + e2e + журнал.** Короткий Preview дня в Dashboard на существующих
+    ключах (без запросов в цикле); `e2e/planner.spec.ts` (day/week, ручной блок,
+    конфликт только с подтверждением, generate → accept/reject, RLS-негатив через чужой id
+    как в `scripts/verify-rls.mjs` — второго аккаунта нет, `service_role` не использовать);
+    `docs/progress.md`. Проверка: полный gate + `npm run test:e2e` вручную.
+
+### Проверка итерации
+
+`npm run typecheck && npm run lint && npm test && npm run build` зелёные на каждой единице;
+e2e — в единице 10. Приёмка: PRD §18 Planner (4 пункта) и сценарий C (§15) вручную на двух
+аккаунтах (изоляция RLS); overdue считается в поясе пользователя; удаление цели по-прежнему
+`SET NULL`, а удаление задачи с блоком удаляет только блок (Д5). После применения `0005` —
+доказательства: структура таблицы, 4 политики, живая вставка/чтение от имени пользователя.
+
 ## Итерация 3 — Demo readiness (ЗАКРЫТА 2026-11-04)
 
 > **Статус:** итерация закрыта единицами 1–4 + follow-up владельца:
