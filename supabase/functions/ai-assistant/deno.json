@@ -7,6 +7,10 @@
   "imports": {
     "zod": "https://esm.sh/zod@4.6.7",
     "zod/": "https://esm.sh/zod@4.6.7/",
-    "@/types/domain": "../../../src/types/domain.ts"
+    "@/types/domain": "../../../src/types/domain.ts",
+    "@/lib/aiProposals": "../../../src/lib/aiProposals.ts",
+    "@/lib/dates": "../../../src/lib/dates.ts",
+    "@/lib/planner": "../../../src/lib/planner.ts",
+    "@/lib/progress": "../../../src/lib/progress.ts"
   }
 }

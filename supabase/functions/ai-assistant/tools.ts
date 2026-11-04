@@ -1,5 +1,5 @@
 /**
- * Tool-layer reads (iteration 5, step 4; PRD section 6.4).
+ * Tool-layer reads (iteration 5, steps 4–5; PRD section 6.4).
  *
  * The nine fixed tools are the ONLY way the assistant touches user data:
  * four read the caller's own rows, five `suggest_*`/`analyze_*` return
@@ -10,11 +10,21 @@
  * anywhere — empty tables yield empty arrays / null, never invented numbers
  * (PRD section 22 p. 4).
  *
- * One request per entity, no N+1: goals (1), tasks (1), weekly window (1),
- * preferences (1), profile timezone (1), all dispatched in parallel.
- * Truncation is disclosed via `truncated` and mirrored into the persisted
- * message `metadata` by `index.ts`.
+ * Six queries, no N+1: goals (1), tasks (1), preferences (1), profile
+ * timezone (1), weekly total (1) and weekly completed (1), the last two in
+ * parallel. Truncation is disclosed via `truncated` and mirrored into the
+ * persisted message `metadata` by `index.ts`.
+ *
+ * Domain rules live in exactly one place (single source of truth):
+ * `toDateKey`/`isTaskOverdue` come from `src/lib/dates.ts` and
+ * `calculateCompletionRate` from `src/lib/progress.ts` — the same functions
+ * the Dashboard uses. The Deno runtime resolves these `@/lib/*` specifiers
+ * through `deno.json`; Vitest resolves them through the Vite `@` alias.
  */
+
+import { isTaskOverdue, toDateKey } from "@/lib/dates";
+import { calculateCompletionRate } from "@/lib/progress";
+import type { TaskStatus } from "@/types/domain";
 
 import type { ToolDefinition } from "./provider.ts";
 
@@ -136,21 +146,28 @@ export const TOOL_GOALS_LIMIT = 50;
 export const TOOL_TASKS_LIMIT = 50;
 /** Weekly window length in days. */
 export const TOOL_WEEKLY_WINDOW_DAYS = 7;
-/** Weekly-window cap: bounds the pre-filter, overflow sets `truncated`. */
-export const TOOL_WEEKLY_LIMIT = 200;
+
+export interface ToolQueryResult {
+  data: unknown;
+  error: unknown;
+  /** Exact count for `head: true` count queries; absent for row queries. */
+  count?: number | null;
+}
 
 export interface ToolQueryBuilder {
   select(columns: string, options?: { count?: string; head?: boolean }): ToolQueryBuilder;
   eq(column: string, value: string): ToolQueryBuilder;
+  neq(column: string, value: string): ToolQueryBuilder;
   gte(column: string, value: string): ToolQueryBuilder;
+  lte(column: string, value: string): ToolQueryBuilder;
   order(
     column: string,
     options?: { ascending?: boolean; nullsFirst?: boolean },
   ): ToolQueryBuilder;
   limit(count: number): ToolQueryBuilder;
-  single(): Promise<{ data: unknown; error: unknown }>;
-  then<TResult1 = { data: unknown; error: unknown }, TResult2 = never>(
-    onfulfilled?: ((value: { data: unknown; error: unknown }) => TResult1 | PromiseLike<TResult1>) | null,
+  single(): Promise<ToolQueryResult>;
+  then<TResult1 = ToolQueryResult, TResult2 = never>(
+    onfulfilled?: ((value: ToolQueryResult) => TResult1 | PromiseLike<TResult1>) | null,
     onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
   ): Promise<TResult1 | TResult2>;
 }
@@ -217,45 +234,22 @@ function mapTaskRow(row: unknown): ToolContextTask | null {
   };
 }
 
-interface WeeklyRow {
-  status: string;
-  dueDate: string | null;
-}
+const DATE_KEY_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
 
-function mapWeeklyRow(row: unknown): WeeklyRow | null {
-  if (!isRecord(row)) {
-    return null;
+/**
+ * Date-key arithmetic: `dateKey` shifted by whole days. The weekly cutoff is
+ * an operation over the local `todayKey`, never over a UTC instant — at
+ * UTC+13/+14 the UTC date is already "yesterday" there.
+ */
+function shiftDateKey(dateKey: string, deltaDays: number): string {
+  const match = DATE_KEY_PATTERN.exec(dateKey);
+  if (!match) {
+    throw new Error(`Invalid date key: ${dateKey}`);
   }
-  const status = readStringField(row, "status");
-  if (status === null) {
-    return null;
-  }
-  return { status, dueDate: readStringField(row, "due_date") };
-}
-
-/** Calendar date (YYYY-MM-DD) in the given IANA zone (same as src/lib/dates). */
-function toDateKeyInTimezone(date: Date, timeZone: string): string {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(date);
-  const get = (type: string): string => parts.find((part) => part.type === type)?.value ?? "";
-  return `${get("year")}-${get("month")}-${get("day")}`;
-}
-
-/** UTC date key for the weekly pre-filter (timezone refinement happens after). */
-function utcDateKey(date: Date): string {
-  return date.toISOString().slice(0, 10);
-}
-
-/** Completed / total × 100, or null when nothing was planned (src/lib/progress). */
-function completionRate(completed: number, total: number): number | null {
-  if (total <= 0) {
-    return null;
-  }
-  return Math.min(100, Math.max(0, Math.round((completed / total) * 100)));
+  const shifted =
+    Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])) +
+    deltaDays * 86_400_000;
+  return new Date(shifted).toISOString().slice(0, 10);
 }
 
 /** Resolve the caller's timezone, falling back to UTC on garbage. */
@@ -269,17 +263,6 @@ function resolveTimezone(raw: unknown, now: Date): string {
   } catch {
     return "UTC";
   }
-}
-
-/**
- * Open + strictly before today in the caller's zone (derived overdue, never
- * a stored status — same rule as `isTaskOverdue` in src/lib/dates.ts).
- */
-function isOverdue(dueDate: string | null, status: string, todayKey: string): boolean {
-  if (dueDate === null || status === "completed" || status === "cancelled") {
-    return false;
-  }
-  return dueDate < todayKey;
 }
 
 async function fetchGoals(
@@ -335,30 +318,36 @@ async function fetchTasks(
   }
 }
 
-async function fetchWeeklyRows(
+/**
+ * Exact task count inside the CLOSED weekly window `[cutoffKey, todayKey]`
+ * (`due_date` keys compare lexicographically, so both bounds hold in one
+ * range). `total` counts every non-cancelled task, `completed` only the
+ * completed ones. `head: true` transfers no rows, so there is no slice to
+ * truncate and the percentage cannot skew when the window is large.
+ */
+async function countWeeklyTasks(
   client: UserScopedClient,
   cutoffKey: string,
-): Promise<{ rows: WeeklyRow[]; truncated: boolean }> {
+  todayKey: string,
+  which: "total" | "completed",
+): Promise<number> {
   try {
-    const result = await client
+    let query = client
       .from("tasks")
-      .select("id,status,due_date")
+      .select("id", { count: "exact", head: true })
       .gte("due_date", cutoffKey)
-      .limit(TOOL_WEEKLY_LIMIT + 1);
-    if (result.error || !Array.isArray(result.data)) {
-      return { rows: [], truncated: false };
+      .lte("due_date", todayKey);
+    query = which === "total" ? query.neq("status", "cancelled") : query.eq("status", "completed");
+    const result = await query;
+    if (result.error) {
+      return 0;
     }
-    const truncated = result.data.length > TOOL_WEEKLY_LIMIT;
-    const rows: WeeklyRow[] = [];
-    for (const row of result.data.slice(0, TOOL_WEEKLY_LIMIT)) {
-      const mapped = mapWeeklyRow(row);
-      if (mapped !== null) {
-        rows.push(mapped);
-      }
+    if (typeof result.count === "number") {
+      return result.count;
     }
-    return { rows, truncated };
+    return Array.isArray(result.data) ? result.data.length : 0;
   } catch {
-    return { rows: [], truncated: false };
+    return 0;
   }
 }
 
@@ -400,22 +389,33 @@ export async function buildToolContext(
   client: UserScopedClient,
   now: Date = new Date(),
 ): Promise<ToolContext> {
-  const cutoffKey = utcDateKey(new Date(now.getTime() - TOOL_WEEKLY_WINDOW_DAYS * 86_400_000));
-  const [goalsResult, tasksResult, weeklyResult, preferencesRow, rawTimezone] = await Promise.all([
+  // Phase 1 (parallel): everything except the weekly counts. The timezone is
+  // resolved BEFORE any window key exists: deriving the cutoff from UTC first
+  // shifts the window by a day at UTC+13/+14.
+  const [goalsResult, tasksResult, preferencesRow, rawTimezone] = await Promise.all([
     fetchGoals(client),
     fetchTasks(client),
-    fetchWeeklyRows(client, cutoffKey),
     fetchPreferencesRow(client),
     fetchProfileTimezone(client),
   ]);
 
   const timezone = resolveTimezone(rawTimezone, now);
-  const todayKey = toDateKeyInTimezone(now, timezone);
+  const todayKey = toDateKey(now, timezone);
+  const cutoffKey = shiftDateKey(todayKey, -TOOL_WEEKLY_WINDOW_DAYS);
 
-  const weeklyTotal = weeklyResult.rows.filter((row) => row.status !== "cancelled").length;
-  const weeklyCompleted = weeklyResult.rows.filter((row) => row.status === "completed").length;
+  // Phase 2 (parallel): the closed window `[cutoffKey, todayKey]` keeps far-
+  // future tasks out of "weekly"; exact counts need no truncation.
+  const [weeklyTotal, weeklyCompleted] = await Promise.all([
+    countWeeklyTasks(client, cutoffKey, todayKey, "total"),
+    countWeeklyTasks(client, cutoffKey, todayKey, "completed"),
+  ]);
+
   const overdueCount = tasksResult.tasks.filter((task) =>
-    isOverdue(task.dueDate, task.status, todayKey),
+    isTaskOverdue(
+      { dueDate: task.dueDate, status: task.status as TaskStatus },
+      now,
+      timezone,
+    ),
   ).length;
 
   const preferences: ToolContextPreferences | null =
@@ -440,11 +440,11 @@ export async function buildToolContext(
     weeklyProgress: {
       total: weeklyTotal,
       completed: weeklyCompleted,
-      completionRate: completionRate(weeklyCompleted, weeklyTotal),
+      completionRate: calculateCompletionRate(weeklyCompleted, weeklyTotal),
       overdueCount,
       windowDays: TOOL_WEEKLY_WINDOW_DAYS,
       timezone,
     },
-    truncated: goalsResult.truncated || tasksResult.truncated || weeklyResult.truncated,
+    truncated: goalsResult.truncated || tasksResult.truncated,
   };
 }

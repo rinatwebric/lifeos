@@ -1,14 +1,17 @@
 import { describe, expect, it } from "vitest";
 
+import { isTaskOverdue } from "@/lib/dates";
+import { calculateCompletionRate } from "@/lib/progress";
+
 import {
   TOOL_DEFINITIONS,
   TOOL_GOALS_LIMIT,
   TOOL_NAMES,
   TOOL_TASKS_LIMIT,
-  TOOL_WEEKLY_LIMIT,
   TOOL_WEEKLY_WINDOW_DAYS,
   buildToolContext,
   type ToolContext,
+  type ToolQueryResult,
   type UserScopedClient,
 } from "./tools.ts";
 
@@ -24,13 +27,19 @@ interface FakeDb {
 interface CallRecord {
   table: string;
   selectCols: string;
+  count?: string;
+  head?: boolean;
   filters: Array<{ op: string; col: string }>;
 }
 
-/** Chainable fake honoring eq/gte/order/limit/single over in-memory rows. */
+type FilterOp = "eq" | "neq" | "gte" | "lte";
+
+/** Chainable fake honoring eq/neq/gte/lte/order/limit/single + head-counts. */
 class FakeQuery {
   private selectCols = "*";
-  private filters: Array<{ op: "eq" | "gte"; col: string; val: string }> = [];
+  private countOpt?: string;
+  private headOpt?: boolean;
+  private filters: Array<{ op: FilterOp; col: string; val: string }> = [];
   private orderCol: string | null = null;
   private orderAsc = true;
   private limitN: number | null = null;
@@ -41,8 +50,10 @@ class FakeQuery {
     private readonly calls: CallRecord[],
   ) {}
 
-  select(cols: string): this {
+  select(cols: string, options?: { count?: string; head?: boolean }): this {
     this.selectCols = cols;
+    this.countOpt = options?.count;
+    this.headOpt = options?.head;
     return this;
   }
 
@@ -51,8 +62,18 @@ class FakeQuery {
     return this;
   }
 
+  neq(col: string, val: string): this {
+    this.filters.push({ op: "neq", col, val });
+    return this;
+  }
+
   gte(col: string, val: string): this {
     this.filters.push({ op: "gte", col, val });
+    return this;
+  }
+
+  lte(col: string, val: string): this {
+    this.filters.push({ op: "lte", col, val });
     return this;
   }
 
@@ -67,7 +88,7 @@ class FakeQuery {
     return this;
   }
 
-  single(): Promise<{ data: unknown; error: unknown }> {
+  single(): Promise<ToolQueryResult> {
     this.record();
     const rows = this.apply();
     if (rows.length === 0) {
@@ -76,20 +97,26 @@ class FakeQuery {
     return Promise.resolve({ data: rows[0], error: null });
   }
 
-  then<TResult1 = { data: unknown; error: unknown }, TResult2 = never>(
+  then<TResult1 = ToolQueryResult, TResult2 = never>(
     onfulfilled?:
-      | ((value: { data: unknown; error: unknown }) => TResult1 | PromiseLike<TResult1>)
+      | ((value: ToolQueryResult) => TResult1 | PromiseLike<TResult1>)
       | null,
     onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
   ): Promise<TResult1 | TResult2> {
     this.record();
-    return Promise.resolve({ data: this.apply(), error: null }).then(onfulfilled, onrejected);
+    const rows = this.apply();
+    const value: ToolQueryResult = this.headOpt
+      ? { data: [], error: null, count: rows.length }
+      : { data: rows, error: null, count: null };
+    return Promise.resolve(value).then(onfulfilled, onrejected ?? undefined);
   }
 
   private record(): void {
     this.calls.push({
       table: this.table,
       selectCols: this.selectCols,
+      count: this.countOpt,
+      head: this.headOpt,
       filters: this.filters.map((f) => ({ op: f.op, col: f.col })),
     });
   }
@@ -111,10 +138,13 @@ class FakeQuery {
     for (const filter of this.filters) {
       if (filter.op === "eq") {
         rows = rows.filter((row) => row[filter.col] === filter.val);
+      } else if (filter.op === "neq") {
+        rows = rows.filter((row) => row[filter.col] !== filter.val);
       } else {
         rows = rows.filter((row) => {
           const value = row[filter.col];
-          return typeof value === "string" && value >= filter.val;
+          if (typeof value !== "string") return false;
+          return filter.op === "gte" ? value >= filter.val : value <= filter.val;
         });
       }
     }
@@ -132,7 +162,7 @@ class FakeQuery {
         return (sa < sb ? -1 : 1) * (asc ? 1 : -1);
       });
     }
-    if (this.limitN !== null) {
+    if (this.limitN !== null && !this.headOpt) {
       rows = rows.slice(0, this.limitN);
     }
     return rows;
@@ -181,7 +211,7 @@ describe("assistant tool layer", () => {
     }
   });
 
-  it("reads active goals, nearest tasks, preferences and weekly progress in parallel", async () => {
+  it("reads active goals, nearest tasks, preferences and weekly counts", async () => {
     const calls: CallRecord[] = [];
     const db: FakeDb = {
       goals: [goalRow("g-active", "active"), goalRow("g-paused", "paused")],
@@ -206,13 +236,36 @@ describe("assistant tool layer", () => {
     });
     expect(context.weeklyProgress.windowDays).toBe(TOOL_WEEKLY_WINDOW_DAYS);
     expect(context.weeklyProgress.timezone).toBe("Europe/Berlin");
+    // Closed window [2026-10-28, 2026-11-04]: t-old + t-today in,
+    // t-future above the upper bound and t-nodate out.
+    expect(context.weeklyProgress.total).toBe(2);
+    expect(context.weeklyProgress.completed).toBe(0);
+    expect(context.weeklyProgress.completionRate).toBe(0);
+    expect(context.weeklyProgress.overdueCount).toBe(1);
     expect(context.truncated).toBe(false);
 
     const tables = calls.map((c) => c.table).sort();
-    expect(tables).toStrictEqual(["goals", "profiles", "tasks", "tasks", "user_preferences"]);
+    expect(tables).toStrictEqual([
+      "goals",
+      "profiles",
+      "tasks",
+      "tasks",
+      "tasks",
+      "user_preferences",
+    ]);
+
+    const weeklyCalls = calls.filter((c) => c.table === "tasks" && c.head === true);
+    expect(weeklyCalls).toHaveLength(2);
+    for (const call of weeklyCalls) {
+      expect(call.count).toBe("exact");
+      expect(call.filters).toContainEqual({ op: "gte", col: "due_date" });
+      expect(call.filters).toContainEqual({ op: "lte", col: "due_date" });
+    }
+    expect(weeklyCalls.map((c) => c.filters.find((f) => f.col === "status")))
+      .toStrictEqual([{ op: "neq", col: "status" }, { op: "eq", col: "status" }]);
   });
 
-  it("computes weekly progress with Dashboard formulas and excludes cancelled", async () => {
+  it("bounds the weekly window on both ends (far-future tasks stay out)", async () => {
     const db: FakeDb = {
       goals: [],
       tasks: [
@@ -220,18 +273,103 @@ describe("assistant tool layer", () => {
         taskRow("w-open", "todo", "2026-11-03"),
         taskRow("w-cancelled", "cancelled", "2026-11-03"),
         taskRow("w-old", "todo", "2026-10-01"),
-        taskRow("t-overdue", "todo", "2026-10-30"),
+        taskRow("w-far", "todo", "2029-06-01"),
+        taskRow("w-today", "todo", "2026-11-04"),
+        taskRow("w-edge", "completed", "2026-10-28"),
+        taskRow("w-edge-out", "todo", "2026-10-27"),
       ],
       preferences: null,
       profile: { timezone: "UTC" },
     };
     const context = await buildToolContext(fakeClient(db), NOW);
-    // Weekly window (UTC pre-filter): 2026-10-28.. — w-old is out, cancelled excluded from totals.
+    // Window [2026-10-28, 2026-11-04]: w-old/w-far/w-edge-out out,
+    // w-cancelled excluded from totals.
+    expect(context.weeklyProgress.total).toBe(4);
+    expect(context.weeklyProgress.completed).toBe(2);
+    expect(context.weeklyProgress.completionRate).toBe(50);
+    // Overdue over the recent-tasks slice: w-old, w-edge-out, w-open.
+    expect(context.weeklyProgress.overdueCount).toBe(3);
+  });
+
+  it("derives the window from the local today, not UTC (UTC+13)", async () => {
+    const db: FakeDb = {
+      goals: [],
+      tasks: [
+        taskRow("apia-old", "todo", "2026-10-28"),
+        taskRow("apia-yesterday", "todo", "2026-11-04"),
+        taskRow("apia-today", "completed", "2026-11-05"),
+        taskRow("apia-tomorrow", "todo", "2026-11-06"),
+        taskRow("apia-far", "todo", "2030-01-01"),
+      ],
+      preferences: null,
+      profile: { timezone: "Pacific/Apia" },
+    };
+    // 2026-11-04T12:00Z is 01:00 on 2026-11-05 in Apia (UTC+13).
+    const context = await buildToolContext(fakeClient(db), NOW);
+    expect(context.weeklyProgress.timezone).toBe("Pacific/Apia");
+    // Local window [2026-10-29, 2026-11-05]: 10-28 counted by the old UTC
+    // math, 11-06/2030 above the upper bound.
+    expect(context.weeklyProgress.total).toBe(2);
+    expect(context.weeklyProgress.completed).toBe(1);
+    expect(context.weeklyProgress.completionRate).toBe(50);
+  });
+
+  it("keeps the percentage exact past the old 200-row slice", async () => {
+    const tasks: Row[] = [];
+    for (let i = 0; i < 210; i += 1) {
+      tasks.push(taskRow(`done-${i}`, "completed", "2026-11-03"));
+    }
+    for (let i = 0; i < 40; i += 1) {
+      tasks.push(taskRow(`open-${i}`, "todo", "2026-11-03"));
+    }
+    const db: FakeDb = { goals: [], tasks, preferences: null, profile: { timezone: "UTC" } };
+    const context = await buildToolContext(fakeClient(db), NOW);
+    // The old in-memory slice capped at 200 rows (200/200 = 100%); the exact
+    // counts see all 250 rows. The tasks slice itself still truncates at 50.
+    expect(context.weeklyProgress.total).toBe(250);
+    expect(context.weeklyProgress.completed).toBe(210);
+    expect(context.weeklyProgress.completionRate).toBe(84);
+    expect(context.tasks).toHaveLength(50);
+    expect(context.truncated).toBe(true);
+  });
+
+  it("matches src/lib single-source rules (parity with dates/progress)", async () => {
+    const db: FakeDb = {
+      goals: [],
+      tasks: [
+        taskRow("done", "completed", "2026-11-02"),
+        taskRow("canc", "cancelled", "2026-11-03"),
+        taskRow("open", "todo", "2026-10-30"),
+        taskRow("today", "in_progress", "2026-11-04"),
+        taskRow("future", "todo", "2026-11-20"),
+        taskRow("nodate", "todo", null),
+      ],
+      preferences: null,
+      profile: { timezone: "UTC" },
+    };
+    const context = await buildToolContext(fakeClient(db), NOW);
+
     expect(context.weeklyProgress.total).toBe(3);
     expect(context.weeklyProgress.completed).toBe(1);
     expect(context.weeklyProgress.completionRate).toBe(33);
-    // Overdue over the recent-tasks slice: w-open? no (future vs today 2026-11-04? 11-03 < 11-04 → overdue too).
-    expect(context.weeklyProgress.overdueCount).toBeGreaterThanOrEqual(1);
+    expect(context.weeklyProgress.overdueCount).toBe(1);
+
+    // Same functions the Dashboard uses, called directly: the context must
+    // agree with them exactly (closed statuses never overdue, null rate on 0).
+    expect(context.weeklyProgress.completionRate).toBe(
+      calculateCompletionRate(
+        context.weeklyProgress.completed,
+        context.weeklyProgress.total,
+      ),
+    );
+    const expectedOverdue = context.tasks.filter((task) =>
+      isTaskOverdue(
+        { dueDate: task.dueDate, status: task.status as "todo" },
+        NOW,
+        "UTC",
+      ),
+    ).length;
+    expect(context.weeklyProgress.overdueCount).toBe(expectedOverdue);
   });
 
   it("sets truncated when tasks exceed the 50-row cap", async () => {
@@ -257,15 +395,16 @@ describe("assistant tool layer", () => {
     expect(context.truncated).toBe(true);
   });
 
-  it("sets truncated when the weekly window overflows", async () => {
-    const tasks: Row[] = [];
-    for (let i = 0; i < TOOL_WEEKLY_LIMIT + 10; i += 1) {
-      tasks.push(taskRow(`w-${i}`, "todo", "2026-11-03"));
-    }
-    const db: FakeDb = { goals: [], tasks, preferences: null, profile: { timezone: "UTC" } };
+  it("falls back to UTC on a garbage timezone", async () => {
+    const db: FakeDb = {
+      goals: [],
+      tasks: [taskRow("t1", "todo", "2026-11-04")],
+      preferences: null,
+      profile: { timezone: "Mars/Olympus" },
+    };
     const context = await buildToolContext(fakeClient(db), NOW);
-    expect(context.truncated).toBe(true);
-    expect(context.weeklyProgress.total).toBe(TOOL_WEEKLY_LIMIT);
+    expect(context.weeklyProgress.timezone).toBe("UTC");
+    expect(context.weeklyProgress.total).toBe(1);
   });
 
   it("returns honest empty context instead of fabricated rows", async () => {
