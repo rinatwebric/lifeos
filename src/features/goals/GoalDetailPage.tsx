@@ -48,7 +48,7 @@ export function GoalDetailPage() {
         <div role="status" aria-label="Loading goal">
           <span className="sr-only">Loading goal…</span>
           <Card>
-            <div className="animate-pulse space-y-3" aria-hidden="true">
+            <div className="space-y-3 motion-safe:animate-pulse" aria-hidden="true">
               <div className="h-6 w-1/2 rounded bg-surface-muted" />
               <div className="h-5 w-1/3 rounded bg-surface-muted" />
               <div className="h-2 w-full rounded-full bg-surface-muted" />
@@ -181,7 +181,7 @@ export function GoalDetailPage() {
           <div role="status" aria-label="Loading milestones">
             <span className="sr-only">Loading milestones…</span>
             <Card>
-              <div className="animate-pulse space-y-2" aria-hidden="true">
+              <div className="space-y-2 motion-safe:animate-pulse" aria-hidden="true">
                 <div className="h-5 w-2/3 rounded bg-surface-muted" />
                 <div className="h-5 w-1/2 rounded bg-surface-muted" />
               </div>

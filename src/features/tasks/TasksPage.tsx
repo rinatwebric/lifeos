@@ -29,7 +29,7 @@ function taskCountLabel(count: number): string {
 function TaskRowSkeleton() {
   return (
     <li className="px-4 py-3" aria-hidden="true">
-      <div className="animate-pulse space-y-2">
+      <div className="space-y-2 motion-safe:animate-pulse">
         <div className="h-4 w-2/3 rounded bg-surface-muted" />
         <div className="flex gap-2">
           <div className="h-5 w-20 rounded-full bg-surface-muted" />
