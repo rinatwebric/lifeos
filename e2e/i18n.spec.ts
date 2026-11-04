@@ -17,6 +17,10 @@ test.describe("i18n EN/RU + theme", () => {
     skipWithoutCreds();
     await signIn(page, E2E_EMAIL, E2E_PASSWORD);
     await dismissOnboarding(page);
+    // Precondition, not assertion: the shared account may be left RU/dark by
+    // an interrupted run or a parallel agent. Start from the EN/light
+    // baseline through REST (asserted), the UI round-trip below is the test.
+    await restoreProfileBaseline(page, request, { language: "en", theme: "light" });
     await page.goto("/settings");
     await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
 

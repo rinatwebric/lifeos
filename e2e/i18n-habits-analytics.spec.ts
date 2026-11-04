@@ -27,6 +27,9 @@ test.describe("i18n RU habits/analytics", () => {
     skipWithoutCreds();
     await signIn(page, process.env.E2E_EMAIL ?? "", process.env.E2E_PASSWORD ?? "");
     await dismissOnboarding(page);
+    // Precondition (asserted): EN/light baseline regardless of who touched
+    // the shared account before this run.
+    await restoreProfileBaseline(page, request, { language: "en", theme: "light" });
 
     await page.goto("/settings");
     await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
@@ -79,6 +82,9 @@ test.describe("i18n RU habits/analytics", () => {
     await page.setViewportSize({ width: 375, height: 812 });
     await signIn(page, process.env.E2E_EMAIL ?? "", process.env.E2E_PASSWORD ?? "");
     await dismissOnboarding(page);
+    // Precondition (asserted): EN/light baseline regardless of who touched
+    // the shared account before this run.
+    await restoreProfileBaseline(page, request, { language: "en", theme: "light" });
 
     await page.goto("/settings");
     const langSelect = page.getByLabel("Язык").or(page.getByLabel("Language"));
