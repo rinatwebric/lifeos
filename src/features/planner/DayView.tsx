@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { cn } from "@/lib/cn";
 import type { BlockType } from "@/types/domain";
 
 import { formatDurationMinutes, type PlannerDay, type PlannerDayBlock } from "./usePlannerDay";
@@ -53,9 +54,15 @@ function DayStat({
   );
 }
 
-function DayBlockRow({ block }: { block: PlannerDayBlock }) {
-  return (
-    <li className="flex flex-col gap-2 rounded-control border border-line bg-surface-muted p-3 sm:flex-row sm:items-start sm:gap-4">
+function DayBlockRow({
+  block,
+  onEdit,
+}: {
+  block: PlannerDayBlock;
+  onEdit?: (block: PlannerDayBlock) => void;
+}) {
+  const content = (
+    <>
       <p className="flex shrink-0 items-baseline gap-1 text-ui text-content tabular-nums sm:min-w-32">
         <time dateTime={block.start}>{block.startLabel}</time>
         <span aria-hidden="true">–</span>
@@ -75,6 +82,30 @@ function DayBlockRow({ block }: { block: PlannerDayBlock }) {
           {block.crossesSleep ? <Badge tone="danger">Outside waking hours</Badge> : null}
         </div>
       </div>
+    </>
+  );
+
+  // The row is one hit area once the page passes a handler: an overlay button
+  // instead of a nested icon, so the row keeps its layout and the markup stays
+  // valid (a <button> may not wrap the row's block content). The hover tint
+  // lives on the row, never on the overlay: an opaque overlay would cover the
+  // text it sits on.
+  return (
+    <li
+      className={cn(
+        "relative flex flex-col gap-2 rounded-control border border-line bg-surface-muted p-3 sm:flex-row sm:items-start sm:gap-4",
+        onEdit && "transition-[background-color] duration-fast ease-standard hover:bg-surface",
+      )}
+    >
+      {content}
+      {onEdit ? (
+        <button
+          type="button"
+          onClick={() => onEdit(block)}
+          aria-label={`Edit ${block.title}, ${block.startLabel} to ${block.endLabel}`}
+          className="absolute inset-0 cursor-pointer rounded-control"
+        />
+      ) : null}
     </li>
   );
 }
@@ -117,9 +148,21 @@ export interface DayViewProps {
   onRetry: () => void;
   /** Next step for the empty state; the page supplies the link. */
   emptyAction?: ReactNode;
+  /**
+   * Opens the block editor. Without it the rows stay static text, so the view
+   * keeps working for readers that only render the day.
+   */
+  onEditBlock?: (block: PlannerDayBlock) => void;
 }
 
-export function DayView({ day, isLoading, isError, onRetry, emptyAction }: DayViewProps) {
+export function DayView({
+  day,
+  isLoading,
+  isError,
+  onRetry,
+  emptyAction,
+  onEditBlock,
+}: DayViewProps) {
   if (isLoading) {
     return <DayViewSkeleton />;
   }
@@ -175,7 +218,7 @@ export function DayView({ day, isLoading, isError, onRetry, emptyAction }: DayVi
         </div>
         <ol className="space-y-3">
           {day.blocks.map((block) => (
-            <DayBlockRow key={block.id} block={block} />
+            <DayBlockRow key={block.id} block={block} onEdit={onEditBlock} />
           ))}
         </ol>
       </Card>

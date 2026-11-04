@@ -95,6 +95,88 @@ async function assertTaskOwnedByUser(taskId: string, userId: string): Promise<vo
   }
 }
 
+type BlocksClient = ReturnType<typeof getSupabaseClient>;
+
+/** One task's mirror pair, ready to write. */
+interface TaskMirrorWrite {
+  taskId: string;
+  scheduledStart: string | null;
+  scheduledEnd: string | null;
+}
+
+/**
+ * The mirror pair a task must carry once `removedBlockId` stops belonging to
+ * it: the earliest remaining block, or a cleared pair when none is left.
+ *
+ * One rule, two callers (a deleted block and a block moved to another task), so
+ * `scheduled_start` / `scheduled_end` can never point at a block that is not
+ * there — the Dashboard reads tasks, not blocks (Д8).
+ */
+async function mirrorAfterBlockLeavesTask(
+  client: BlocksClient,
+  userId: string,
+  taskId: string,
+  removedBlockId: string,
+): Promise<TaskMirrorWrite> {
+  const { data, error } = await client
+    .from("time_blocks")
+    .select("start_time,end_time")
+    .eq("task_id", taskId)
+    .eq("user_id", userId)
+    .neq("id", removedBlockId)
+    .order("start_time", { ascending: true })
+    .limit(1);
+
+  if (error) {
+    throw toBlockError(error);
+  }
+
+  const survivor = (Array.isArray(data) ? data : [])[0] as
+    | Pick<TimeBlocksRow, "start_time" | "end_time">
+    | undefined;
+
+  return survivor
+    ? { taskId, scheduledStart: survivor.start_time, scheduledEnd: survivor.end_time }
+    : { taskId, scheduledStart: null, scheduledEnd: null };
+}
+
+/**
+ * Every mirror write of one block mutation, sent as a single batch: a relink
+ * writes both the previous and the new task in one await with the requests
+ * dispatched side by side, so the previous task can no longer be left showing
+ * a schedule with no block behind it (the gap unit 3 left open).
+ *
+ * PostgREST cannot update two rows with different values in one statement and
+ * the mirror has no RPC (no migration in this unit), so "one batch" means one
+ * round trip of two writes rather than one SQL statement. The first failure is
+ * rethrown as a coded error; neither write is retried here.
+ */
+async function writeTaskMirrors(
+  client: BlocksClient,
+  userId: string,
+  writes: readonly TaskMirrorWrite[],
+): Promise<void> {
+  if (writes.length === 0) {
+    return;
+  }
+
+  const results = await Promise.all(
+    writes.map((write) =>
+      client
+        .from("tasks")
+        .update({ scheduled_start: write.scheduledStart, scheduled_end: write.scheduledEnd })
+        .eq("id", write.taskId)
+        .eq("user_id", userId),
+    ),
+  );
+
+  const failed = results.find((result) => result.error);
+
+  if (failed?.error) {
+    throw toBlockError(failed.error);
+  }
+}
+
 /**
  * One query per range, ordered by start. Overlap is strict (`end > from`
  * and `start < to`): a block ending exactly at the range start belongs to
@@ -169,8 +251,11 @@ export async function createBlock(input: CreateBlockInput): Promise<TimeBlock> {
  * always points at an existing block. When the patch moves either edge
  * (`startTime` and/or `endTime`) of a task block, the linked task is
  * updated with the final row's pair in one `update` by `id + user_id`.
- * Blocks without a task (`break`/`personal`) never touch `tasks`. A
- * failed mirror write throws (code from `errors.ts`) instead of silently
+ * When the patch changes the link itself — another task, or a type change
+ * that drops the task — BOTH tasks are written in one batch: the old one is
+ * repointed at its earliest remaining block or cleared, the new one gets the
+ * final pair. Blocks without a task (`break`/`personal`) never touch `tasks`.
+ * A failed mirror write throws (code from `errors.ts`) instead of silently
  * returning the updated block — the block row stays changed, the caller
  * sees the error.
  */
@@ -262,21 +347,30 @@ export async function updateBlock(id: string, patch: UpdateBlockInput): Promise<
 
     const updatedRow = data as TimeBlocksRow;
     const touchesTime = patch.startTime !== undefined || patch.endTime !== undefined;
+    const nextTaskId = updatedRow.task_id;
+    // `current` is read only when the patch touches the link, and then it is
+    // exact — never "no previous task" by accident.
+    const previousTaskId = current?.task_id ?? null;
+    const relinked = current !== null && previousTaskId !== nextTaskId;
+    const mirrorWrites: TaskMirrorWrite[] = [];
 
-    if (touchesTime && updatedRow.task_id !== null) {
-      const { error: mirrorError } = await client
-        .from("tasks")
-        .update({
-          scheduled_start: updatedRow.start_time,
-          scheduled_end: updatedRow.end_time,
-        })
-        .eq("id", updatedRow.task_id)
-        .eq("user_id", userId);
-
-      if (mirrorError) {
-        throw toBlockError(mirrorError);
-      }
+    if (relinked && previousTaskId !== null) {
+      // The old task loses this block: repoint its mirror at whatever it still
+      // has, or clear it. Without this the old task keeps a phantom schedule.
+      mirrorWrites.push(
+        await mirrorAfterBlockLeavesTask(client, userId, previousTaskId, id),
+      );
     }
+
+    if (nextTaskId !== null && (relinked || touchesTime)) {
+      mirrorWrites.push({
+        taskId: nextTaskId,
+        scheduledStart: updatedRow.start_time,
+        scheduledEnd: updatedRow.end_time,
+      });
+    }
+
+    await writeTaskMirrors(client, userId, mirrorWrites);
 
     return mapTimeBlockRowToTimeBlock(updatedRow);
   } catch (error) {
@@ -316,36 +410,8 @@ export async function deleteBlock(id: string): Promise<void> {
     const taskId = (current as Pick<TimeBlocksRow, "task_id"> | null)?.task_id ?? null;
 
     if (taskId !== null) {
-      const { data: siblings, error: siblingsError } = await client
-        .from("time_blocks")
-        .select("id,start_time,end_time")
-        .eq("task_id", taskId)
-        .eq("user_id", userId)
-        .neq("id", id)
-        .order("start_time", { ascending: true })
-        .limit(1);
-
-      if (siblingsError) {
-        throw toBlockError(siblingsError);
-      }
-
-      const survivor = (Array.isArray(siblings) ? siblings : [])[0] as
-        | Pick<TimeBlocksRow, "start_time" | "end_time">
-        | undefined;
-
-      const { error: mirrorError } = await client
-        .from("tasks")
-        .update(
-          survivor
-            ? { scheduled_start: survivor.start_time, scheduled_end: survivor.end_time }
-            : { scheduled_start: null, scheduled_end: null },
-        )
-        .eq("id", taskId)
-        .eq("user_id", userId);
-
-      if (mirrorError) {
-        throw toBlockError(mirrorError);
-      }
+      const mirror = await mirrorAfterBlockLeavesTask(client, userId, taskId, id);
+      await writeTaskMirrors(client, userId, [mirror]);
     }
 
     const { error: deleteError } = await client
