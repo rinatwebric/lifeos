@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { formatLongDate, localDateTimeToIso } from "@/lib/dates";
 import type { Priority } from "@/types/domain";
 
 import { formatDurationMinutes } from "./usePlannerDay";
@@ -226,10 +227,16 @@ export function PlanPreview({
     summary.needsEstimateCount === 0 &&
     preview.alreadyPlanned.length === 0;
 
+  const planDate = formatLongDate(
+    new Date(localDateTimeToIso(`${preview.dateKey}T12:00`, preview.timeZone)),
+    preview.timeZone,
+  );
+
   return (
     <Card className="space-y-6">
       <header className="space-y-1">
         <h2 className="text-heading text-content">Plan preview</h2>
+        <p className="text-ui text-muted text-pretty">Plan for {planDate}.</p>
         <p className="text-ui text-muted text-pretty">Nothing is saved until you accept.</p>
       </header>
 

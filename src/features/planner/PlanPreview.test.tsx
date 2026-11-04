@@ -193,6 +193,13 @@ describe("PlanPreview", () => {
     ).toBeInTheDocument();
   });
 
+  it("names the planned day in the header", () => {
+    renderPreview(READY);
+
+    expect(screen.getByText("Plan for Wednesday, November 4, 2026.")).toBeInTheDocument();
+    expect(screen.getByText("Nothing is saved until you accept.")).toBeInTheDocument();
+  });
+
   it("lists the slots with their time, duration, priority and why", () => {
     renderPreview(READY);
 
