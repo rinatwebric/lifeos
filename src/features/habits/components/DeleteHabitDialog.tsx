@@ -3,6 +3,8 @@ import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import { useDeleteHabit } from "@/features/habits/hooks";
+import { pluralCategory, tmpl } from "@/lib/i18n/format";
+import { useLocale, useMessages } from "@/lib/i18n/I18nContext";
 import type { Habit } from "@/types/domain";
 
 interface DeleteHabitDialogProps {
@@ -14,6 +16,9 @@ interface DeleteHabitDialogProps {
 }
 
 export function DeleteHabitDialog({ open, onClose, habit, loggedDays }: DeleteHabitDialogProps) {
+  const locale = useLocale();
+  const m = useMessages();
+  const t = m.habits.remove;
   const deleteHabit = useDeleteHabit();
   const [serverError, setServerError] = useState<string | null>(null);
 
@@ -26,20 +31,28 @@ export function DeleteHabitDialog({ open, onClose, habit, loggedDays }: DeleteHa
       await deleteHabit.mutateAsync(habit.id);
       onClose();
     } catch (error) {
-      setServerError(error instanceof Error ? error.message : "Could not delete the habit.");
+      setServerError(error instanceof Error ? error.message : t.loadError);
     }
   };
+
+  const description =
+    loggedDays === 0
+      ? t.description
+      : tmpl(
+          pluralCategory(locale, loggedDays) === "one"
+            ? t.descriptionWithLogsOne
+            : pluralCategory(locale, loggedDays) === "few"
+              ? t.descriptionWithLogsFew
+              : t.descriptionWithLogsMany,
+          { count: loggedDays },
+        );
 
   return (
     <Dialog
       open={open}
       onClose={onClose}
-      title={habit ? `Delete ${habit.title}?` : "Delete habit?"}
-      description={
-        loggedDays === 0
-          ? "The habit and its schedule history will be removed. This cannot be undone."
-          : `${loggedDays} ${loggedDays === 1 ? "logged day" : "logged days"} will be deleted too. This cannot be undone.`
-      }
+      title={habit ? tmpl(t.titleWithName, { title: habit.title }) : t.titleGeneric}
+      description={description}
     >
       {serverError ? (
         <p role="alert" className="text-micro text-danger">
@@ -49,10 +62,10 @@ export function DeleteHabitDialog({ open, onClose, habit, loggedDays }: DeleteHa
 
       <div className="flex justify-end gap-2">
         <Button variant="secondary" size="lg" data-autofocus onClick={onClose} disabled={deleteHabit.isPending}>
-          Cancel
+          {t.cancel}
         </Button>
         <Button variant="danger" size="lg" onClick={() => void handleConfirm()} loading={deleteHabit.isPending}>
-          Delete habit
+          {t.deleteAction}
         </Button>
       </div>
     </Dialog>

@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useForm, type Resolver } from "react-hook-form";
 
 import { Button } from "@/components/ui/Button";
@@ -9,7 +9,14 @@ import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Textarea } from "@/components/ui/Textarea";
 import { useCreateHabit, useUpdateHabit } from "@/features/habits/hooks";
-import { createHabitSchema, updateHabitSchema } from "@/features/habits/schemas";
+import {
+  MAX_SQL_INTEGER,
+  createHabitFormSchemas,
+  type CreateHabitInput,
+} from "@/features/habits/schemas";
+import { tmpl } from "@/lib/i18n/format";
+import { useMessages } from "@/lib/i18n/I18nContext";
+import { useRevalidateOnLocaleChange } from "@/lib/i18n/useRevalidate";
 import { HABIT_STATUSES, type Habit, type RecurrenceFrequency } from "@/types/domain";
 
 interface HabitFormDialogProps {
@@ -19,32 +26,13 @@ interface HabitFormDialogProps {
   habit: Habit | null;
 }
 
-type HabitFormValues = {
-  title: string;
-  description: string | null;
-  frequency: RecurrenceFrequency;
-  weekdays: number[];
-  targetCount: number;
-  reminderTime?: string | null;
-  startDate: string;
-  status: Habit["status"];
-};
+type HabitFormValues = CreateHabitInput;
 
-const FREQUENCY_OPTIONS: Array<{ value: RecurrenceFrequency; label: string }> = [
-  { value: "daily", label: "Daily" },
-  { value: "weekdays", label: "Specific weekdays" },
-  { value: "weekly", label: "Weekly target" },
-];
+const FREQUENCY_VALUES: RecurrenceFrequency[] = ["daily", "weekdays", "weekly"];
 
-const WEEKDAY_OPTIONS: Array<{ value: number; label: string }> = [
-  { value: 0, label: "Sun" },
-  { value: 1, label: "Mon" },
-  { value: 2, label: "Tue" },
-  { value: 3, label: "Wed" },
-  { value: 4, label: "Thu" },
-  { value: 5, label: "Fri" },
-  { value: 6, label: "Sat" },
-];
+const WEEKDAY_VALUES = [0, 1, 2, 3, 4, 5, 6] as const;
+
+const WEEKDAY_KEYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
 
 function defaultValuesFor(habit: Habit | null): HabitFormValues {
   if (habit) {
@@ -72,20 +60,31 @@ function defaultValuesFor(habit: Habit | null): HabitFormValues {
   };
 }
 
-const HABIT_FORM_COPY = {
-  createTitle: "New habit",
-  editTitle: "Edit habit",
-  frequencyHelp: "Daily counts each day; weekdays count the selected days; weekly sums the whole week, Monday to Sunday.",
-  reminderHelp: "Stored only — reminders are not sent yet.",
-  createAction: "Create habit",
-  saveAction: "Save changes",
-  loadError: "Could not save the habit. Please try again.",
-} as const;
-
 export function HabitFormDialog({ open, onClose, habit }: HabitFormDialogProps) {
+  const m = useMessages();
+  const t = m.habits.form;
   const createHabit = useCreateHabit();
   const updateHabit = useUpdateHabit();
   const [serverError, setServerError] = useState<string | null>(null);
+
+  const schemas = useMemo(
+    () =>
+      createHabitFormSchemas({
+        titleRequired: m.validation.titleRequired,
+        titleTooLong: m.validation.titleTooLong,
+        descriptionTooLong: m.validation.descriptionTooLong,
+        dateFormat: m.validation.dateFormat,
+        timeFormat: m.validation.timeFormat,
+        weekdayRequired: m.validation.weekdayRequired,
+        targetCountMin: m.validation.targetCountMin,
+        targetCountMax: tmpl(m.validation.targetCountMax, { max: MAX_SQL_INTEGER }),
+        validHabit: m.validation.validHabit,
+        completedCountMin: m.validation.completedCountMin,
+        completedCountMax: tmpl(m.validation.completedCountMax, { max: MAX_SQL_INTEGER }),
+        noteTooLong: m.validation.noteTooLong,
+      }),
+    [m.validation],
+  );
 
   const {
     register,
@@ -93,11 +92,16 @@ export function HabitFormDialog({ open, onClose, habit }: HabitFormDialogProps) 
     watch,
     setValue,
     reset,
+    trigger,
     formState: { errors },
   } = useForm<HabitFormValues>({
-    resolver: zodResolver(habit ? updateHabitSchema : createHabitSchema) as Resolver<HabitFormValues>,
+    resolver: zodResolver(
+      habit ? (schemas.updateHabitSchema as never) : (schemas.createHabitSchema as never),
+    ) as Resolver<HabitFormValues>,
     defaultValues: defaultValuesFor(habit),
   });
+
+  useRevalidateOnLocaleChange(trigger, Object.keys(errors).length > 0);
 
   // RHF reads `defaultValues` only on first mount, but this dialog stays
   // mounted while `habit`/`open` change. Re-sync on every open so Edit shows
@@ -117,6 +121,12 @@ export function HabitFormDialog({ open, onClose, habit }: HabitFormDialogProps) 
   const frequency = watch("frequency");
   const weekdays = watch("weekdays") ?? [];
   const saving = createHabit.isPending || updateHabit.isPending;
+
+  const frequencyLabel = (value: RecurrenceFrequency): string =>
+    value === "daily" ? t.frequencyDaily : value === "weekly" ? t.frequencyWeekly : t.frequencyWeekdays;
+
+  const weekdayLabel = (value: number): string =>
+    m.enums.weekdayShort[WEEKDAY_KEYS[value] ?? "mon"];
 
   const toggleWeekday = (day: number): void => {
     const next = weekdays.includes(day)
@@ -142,7 +152,7 @@ export function HabitFormDialog({ open, onClose, habit }: HabitFormDialogProps) 
       }
       onClose();
     } catch (error) {
-      setServerError(error instanceof Error ? error.message : HABIT_FORM_COPY.loadError);
+      setServerError(error instanceof Error ? error.message : t.loadError);
     }
   });
 
@@ -150,35 +160,35 @@ export function HabitFormDialog({ open, onClose, habit }: HabitFormDialogProps) 
     <Dialog
       open={open}
       onClose={handleClose}
-      title={habit ? HABIT_FORM_COPY.editTitle : HABIT_FORM_COPY.createTitle}
+      title={habit ? t.editTitle : t.createTitle}
     >
       <form
         onSubmit={(event) => void onSubmit(event)}
         className="space-y-4"
         noValidate
       >
-        <Field id="habit-title" label="Title" error={errors.title?.message} required>
+        <Field id="habit-title" label={t.fieldTitle} error={errors.title?.message} required>
           <Input
             {...register("title")}
             data-autofocus
-            placeholder="Read 20 minutes"
+            placeholder={t.titlePlaceholder}
             aria-invalid={Boolean(errors.title)}
           />
         </Field>
 
-        <Field id="habit-description" label="Description" error={errors.description?.message}>
+        <Field id="habit-description" label={t.fieldDescription} error={errors.description?.message}>
           <Textarea
             {...register("description")}
-            placeholder="Why this habit matters"
+            placeholder={t.descriptionPlaceholder}
             rows={2}
           />
         </Field>
 
-        <Field id="habit-frequency" label="Frequency" error={errors.frequency?.message} hint={HABIT_FORM_COPY.frequencyHelp}>
+        <Field id="habit-frequency" label={t.fieldFrequency} error={errors.frequency?.message} hint={t.frequencyHelp}>
           <Select {...register("frequency")} aria-invalid={Boolean(errors.frequency)}>
-            {FREQUENCY_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
+            {FREQUENCY_VALUES.map((value) => (
+              <option key={value} value={value}>
+                {frequencyLabel(value)}
               </option>
             ))}
           </Select>
@@ -186,23 +196,23 @@ export function HabitFormDialog({ open, onClose, habit }: HabitFormDialogProps) 
 
         {frequency === "weekdays" ? (
           <fieldset>
-            <legend className="text-ui font-medium text-content">Days</legend>
+            <legend className="text-ui font-medium text-content">{t.daysLegend}</legend>
             <div className="mt-2 flex flex-wrap gap-2">
-              {WEEKDAY_OPTIONS.map((option) => {
-                const checked = weekdays.includes(option.value);
+              {WEEKDAY_VALUES.map((value) => {
+                const checked = weekdays.includes(value);
                 return (
                   <label
-                    key={option.value}
+                    key={value}
                     className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-card border border-line px-3 py-2 text-ui text-content"
                   >
                     <input
                       type="checkbox"
                       checked={checked}
-                      onChange={() => toggleWeekday(option.value)}
-                      aria-label={option.label}
+                      onChange={() => toggleWeekday(value)}
+                      aria-label={weekdayLabel(value)}
                       className="size-4 shrink-0 accent-current"
                     />
-                    {option.label}
+                    {weekdayLabel(value)}
                   </label>
                 );
               })}
@@ -216,7 +226,7 @@ export function HabitFormDialog({ open, onClose, habit }: HabitFormDialogProps) 
         ) : null}
 
         <div className="grid grid-cols-2 gap-4">
-          <Field id="habit-target" label="Target count" error={errors.targetCount?.message}>
+          <Field id="habit-target" label={t.fieldTarget} error={errors.targetCount?.message}>
             <Input
               type="number"
               min={1}
@@ -226,7 +236,7 @@ export function HabitFormDialog({ open, onClose, habit }: HabitFormDialogProps) 
             />
           </Field>
 
-          <Field id="habit-start" label="Start date" error={errors.startDate?.message}>
+          <Field id="habit-start" label={t.fieldStart} error={errors.startDate?.message}>
             <Input
               type="date"
               {...register("startDate")}
@@ -236,7 +246,7 @@ export function HabitFormDialog({ open, onClose, habit }: HabitFormDialogProps) 
         </div>
 
         <div className="grid grid-cols-2 gap-4">
-          <Field id="habit-reminder" label="Reminder time" error={errors.reminderTime?.message} hint={HABIT_FORM_COPY.reminderHelp}>
+          <Field id="habit-reminder" label={t.fieldReminder} error={errors.reminderTime?.message} hint={t.reminderHelp}>
             <Input
               type="time"
               {...register("reminderTime")}
@@ -244,11 +254,11 @@ export function HabitFormDialog({ open, onClose, habit }: HabitFormDialogProps) 
             />
           </Field>
 
-          <Field id="habit-status" label="Status" error={errors.status?.message}>
+          <Field id="habit-status" label={t.fieldStatus} error={errors.status?.message}>
             <Select {...register("status")} aria-invalid={Boolean(errors.status)}>
               {HABIT_STATUSES.map((status) => (
                 <option key={status} value={status}>
-                  {status === "active" ? "Active" : status === "paused" ? "Paused" : "Archived"}
+                  {m.enums.status[status]}
                 </option>
               ))}
             </Select>
@@ -263,10 +273,10 @@ export function HabitFormDialog({ open, onClose, habit }: HabitFormDialogProps) 
 
         <div className="flex justify-end gap-2">
           <Button variant="secondary" size="lg" onClick={handleClose} disabled={saving} type="button">
-            Cancel
+            {t.cancel}
           </Button>
           <Button size="lg" loading={saving} type="submit">
-            {habit ? HABIT_FORM_COPY.saveAction : HABIT_FORM_COPY.createAction}
+            {habit ? t.saveAction : t.createAction}
           </Button>
         </div>
       </form>

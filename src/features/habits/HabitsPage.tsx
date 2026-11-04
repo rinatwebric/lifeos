@@ -13,20 +13,9 @@ import { LogHabitDialog } from "@/features/habits/components/LogHabitDialog";
 import { useHabitsWithStats, useSetHabitStatus } from "@/features/habits/hooks";
 import { getProfile, profileQueryKey } from "@/features/settings/api";
 import { toDateKey } from "@/lib/dates";
+import { pluralCategory, tmpl } from "@/lib/i18n/format";
+import { useLocale, useMessages } from "@/lib/i18n/I18nContext";
 import type { Habit } from "@/types/domain";
-
-const HABITS_COPY = {
-  title: "Habits",
-  description: "Small recurring actions, tracked without punishment for missed days.",
-  newHabit: "New habit",
-  createFirst: "Create your first habit",
-  emptyTitle: "No habits yet",
-  emptyDescription: "Small actions, repeated often, beat occasional big efforts. Create your first habit to start your streak.",
-  loadingLabel: "Loading habits",
-  loadingText: "Loading habits…",
-  errorText: "Could not load habits. Please try again.",
-  retry: "Retry",
-} as const;
 
 /**
  * Lifetime stats need the whole log history, not a sliding window —
@@ -50,6 +39,9 @@ function HabitRowSkeleton() {
 }
 
 export function HabitsPage() {
+  const locale = useLocale();
+  const m = useMessages();
+  const t = m.habits;
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<Habit | null>(null);
   const [logging, setLogging] = useState<Habit | null>(null);
@@ -95,28 +87,32 @@ export function HabitsPage() {
     setStatus.mutate({ id: habit.id, status: next });
   };
 
+  const countCat = pluralCategory(locale, rows.length);
+  const countLabel = tmpl(
+    countCat === "one" ? t.countOne : countCat === "few" ? t.countFew : t.countMany,
+    { count: rows.length },
+  );
+
   return (
     <div className="space-y-6">
       <PageHeader
-        title={HABITS_COPY.title}
-        description={HABITS_COPY.description}
+        title={t.title}
+        description={t.description}
         actions={
           <Button onClick={() => setCreating(true)}>
             <Plus className="size-4" aria-hidden="true" />
-            {HABITS_COPY.newHabit}
+            {t.newHabit}
           </Button>
         }
       />
 
       <p className="text-ui text-muted tabular-nums" aria-live="polite">
-        {loading
-          ? HABITS_COPY.loadingText
-          : `${rows.length} ${rows.length === 1 ? "habit" : "habits"}`}
+        {loading ? t.loadingText : countLabel}
       </p>
 
       {loading ? (
-        <div role="status" aria-label={HABITS_COPY.loadingLabel}>
-          <span className="sr-only">{HABITS_COPY.loadingText}</span>
+        <div role="status" aria-label={t.loadingLabel}>
+          <span className="sr-only">{t.loadingText}</span>
           <Card className="p-0">
             <ul className="divide-y divide-line">
               <HabitRowSkeleton />
@@ -127,22 +123,22 @@ export function HabitsPage() {
         </div>
       ) : loadError ? (
         <div role="alert" className="rounded-card border border-line bg-surface p-4">
-          <p className="text-ui text-content">{HABITS_COPY.errorText}</p>
+          <p className="text-ui text-content">{t.errorText}</p>
           <div className="mt-3">
             <Button variant="secondary" size="sm" onClick={refetchAll}>
-              {HABITS_COPY.retry}
+              {m.common.retry}
             </Button>
           </div>
         </div>
       ) : rows.length === 0 ? (
         <EmptyState
           icon={Repeat2}
-          title={HABITS_COPY.emptyTitle}
-          description={HABITS_COPY.emptyDescription}
+          title={t.emptyTitle}
+          description={t.emptyDescription}
           action={
             <Button onClick={() => setCreating(true)}>
               <Plus className="size-4" aria-hidden="true" />
-              {HABITS_COPY.createFirst}
+              {t.createFirst}
             </Button>
           }
         />
@@ -166,7 +162,7 @@ export function HabitsPage() {
 
       {setStatus.isError ? (
         <p role="alert" className="text-micro text-danger">
-          Could not change the habit status. Please try again.
+          {t.statusError}
         </p>
       ) : null}
 

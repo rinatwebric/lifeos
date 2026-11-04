@@ -29,27 +29,10 @@ import { useHabitsWithStats } from "@/features/habits/hooks";
 import { getProfile, profileQueryKey } from "@/features/settings/api";
 import { useTasks } from "@/features/tasks/hooks";
 import { isTaskOverdue, toDateKey } from "@/lib/dates";
+import { tmpl } from "@/lib/i18n/format";
+import { useLocale, useMessages } from "@/lib/i18n/I18nContext";
 
 const PERIODS: AnalyticsPeriod[] = ["day", "week", "month", "year"];
-
-const ANALYTICS_COPY = {
-  title: "Analytics",
-  description: "Whether your daily actions are moving you toward your goals — not just how many boxes you ticked.",
-  tasksTitle: "Tasks",
-  goalsTitle: "Goals",
-  habitsTitle: "Habits",
-  categoriesTitle: "Tasks by goal category",
-  completionsTitle: "Completed tasks",
-  goalsProgressTitle: "Goal progress",
-  habitsCompletionTitle: "Habit completion",
-  emptyTasks: "No tasks yet — create one to see completion here.",
-  emptyGoals: "No goals yet — goal progress appears once you create one.",
-  emptyHabits: "No habits yet — habit consistency appears once you start one.",
-  emptyCompletions: "Nothing completed in this period yet.",
-  loadingLabel: "Loading analytics",
-  errorText: "Could not load analytics. Please try again.",
-  retry: "Retry",
-} as const;
 
 function ChartShell({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -61,6 +44,9 @@ function ChartShell({ title, children }: { title: string; children: React.ReactN
 }
 
 export function AnalyticsPage() {
+  const locale = useLocale();
+  const m = useMessages();
+  const t = m.analytics;
   const [period, setPeriod] = useState<AnalyticsPeriod>("week");
 
   const profileQuery = useQuery({
@@ -92,37 +78,48 @@ export function AnalyticsPage() {
     () => countCompletionsPerBucket(tasks, buckets, timeZone),
     [tasks, buckets, timeZone],
   );
-  const categories = useMemo(() => groupTasksByGoalCategory(tasks, goals), [tasks, goals]);
+  const categories = useMemo(() => {
+    const raw = groupTasksByGoalCategory(tasks, goals);
+    // DB enums stay untouched; only the display label is localized.
+    // Goal-less tasks keep their own visible bucket, never merged.
+    return raw.map((entry) => ({
+      ...entry,
+      category:
+        entry.category === "no-goal"
+          ? t.noGoal
+          : ((m.enums.category as Record<string, string>)[entry.category] ?? entry.category),
+    }));
+  }, [tasks, goals, m.enums.category, t.noGoal]);
 
   const completedInPeriod = useMemo(
     () =>
       tasks.filter(
-        (t) =>
-          t.status === "completed" &&
-          t.completedAt &&
-          toDateKey(new Date(t.completedAt), timeZone) >= range.from &&
-          toDateKey(new Date(t.completedAt), timeZone) <= range.to,
+        (task) =>
+          task.status === "completed" &&
+          task.completedAt &&
+          toDateKey(new Date(task.completedAt), timeZone) >= range.from &&
+          toDateKey(new Date(task.completedAt), timeZone) <= range.to,
       ).length,
     [tasks, range, timeZone],
   );
   const dueInPeriod = useMemo(
     () =>
       tasks.filter(
-        (t) =>
-          t.dueDate !== null &&
-          t.dueDate >= range.from &&
-          t.dueDate <= range.to &&
-          t.status !== "cancelled",
+        (task) =>
+          task.dueDate !== null &&
+          task.dueDate >= range.from &&
+          task.dueDate <= range.to &&
+          task.status !== "cancelled",
       ).length,
     [tasks, range],
   );
   const pending = useMemo(
-    () => tasks.filter((t) => t.status === "todo" || t.status === "in_progress").length,
+    () => tasks.filter((task) => task.status === "todo" || task.status === "in_progress").length,
     [tasks],
   );
   const now = useMemo(() => new Date(), []);
   const overdue = useMemo(
-    () => tasks.filter((t) => isTaskOverdue(t, now, timeZone)).length,
+    () => tasks.filter((task) => isTaskOverdue(task, now, timeZone)).length,
     [tasks, now, timeZone],
   );
 
@@ -150,15 +147,19 @@ export function AnalyticsPage() {
   const weekFrom = useMemo(() => getPeriodRange("week", todayKey).from, [todayKey]);
   const reviewLines = useMemo(
     () =>
-      buildWeeklyReview({
-        tasks,
-        goals,
-        habitRows: habitsBundle.rows,
-        weekFrom,
-        todayKey,
-        timeZone,
-      }),
-    [tasks, goals, habitsBundle.rows, weekFrom, todayKey, timeZone],
+      buildWeeklyReview(
+        {
+          tasks,
+          goals,
+          habitRows: habitsBundle.rows,
+          weekFrom,
+          todayKey,
+          timeZone,
+        },
+        locale,
+        m.weeklyReview,
+      ),
+    [tasks, goals, habitsBundle.rows, weekFrom, todayKey, timeZone, locale, m.weeklyReview],
   );
 
   const refetchAll = (): void => {
@@ -167,11 +168,14 @@ export function AnalyticsPage() {
     void habitsBundle.habitsQuery.refetch();
   };
 
+  const periodLabel = (p: AnalyticsPeriod): string =>
+    p === "day" ? t.periodDay : p === "week" ? t.periodWeek : p === "month" ? t.periodMonth : t.periodYear;
+
   return (
     <div className="space-y-6">
-      <PageHeader title={ANALYTICS_COPY.title} description={ANALYTICS_COPY.description} />
+      <PageHeader title={t.title} description={t.description} />
 
-      <div className="flex flex-wrap gap-2" role="group" aria-label="Analytics period">
+      <div className="flex flex-wrap gap-2" role="group" aria-label={t.periodLabel}>
         {PERIODS.map((p) => (
           <Button
             key={p}
@@ -180,14 +184,14 @@ export function AnalyticsPage() {
             onClick={() => setPeriod(p)}
             aria-pressed={p === period}
           >
-            {p === "day" ? "Day" : p === "week" ? "Week" : p === "month" ? "Month" : "Year"}
+            {periodLabel(p)}
           </Button>
         ))}
       </div>
 
       {loading ? (
-        <div role="status" aria-label={ANALYTICS_COPY.loadingLabel}>
-          <span className="sr-only">{ANALYTICS_COPY.loadingLabel}</span>
+        <div role="status" aria-label={t.loadingLabel}>
+          <span className="sr-only">{t.loadingLabel}</span>
           <Card>
             <div className="animate-pulse space-y-2" aria-hidden="true">
               <div className="h-4 w-1/3 rounded bg-surface-muted" />
@@ -197,10 +201,10 @@ export function AnalyticsPage() {
         </div>
       ) : loadError ? (
         <div role="alert" className="rounded-card border border-line bg-surface p-4">
-          <p className="text-ui text-content">{ANALYTICS_COPY.errorText}</p>
+          <p className="text-ui text-content">{t.errorText}</p>
           <div className="mt-3">
             <Button variant="secondary" size="sm" onClick={refetchAll}>
-              {ANALYTICS_COPY.retry}
+              {m.common.retry}
             </Button>
           </div>
         </div>
@@ -208,23 +212,23 @@ export function AnalyticsPage() {
         <>
           <div className="grid gap-4 md:grid-cols-3">
             <Card>
-              <h2 className="text-title font-semibold text-content">{ANALYTICS_COPY.tasksTitle}</h2>
+              <h2 className="text-title font-semibold text-content">{t.tasksTitle}</h2>
               {tasks.length === 0 ? (
-                <p className="text-ui text-muted mt-2">{ANALYTICS_COPY.emptyTasks}</p>
+                <p className="text-ui text-muted mt-2">{t.emptyTasks}</p>
               ) : (
                 <dl className="mt-2 space-y-1 text-ui tabular-nums">
                   <div className="flex justify-between gap-2">
-                    <dt className="text-muted">Completed in period</dt>
+                    <dt className="text-muted">{t.completedInPeriod}</dt>
                     <dd className="text-content">
-                      {completedInPeriod} of {dueInPeriod} due
+                      {tmpl(t.completedOfDue, { completed: completedInPeriod, due: dueInPeriod })}
                     </dd>
                   </div>
                   <div className="flex justify-between gap-2">
-                    <dt className="text-muted">Pending now</dt>
+                    <dt className="text-muted">{t.pendingNow}</dt>
                     <dd className="text-content">{pending}</dd>
                   </div>
                   <div className="flex justify-between gap-2">
-                    <dt className="text-muted">Overdue now</dt>
+                    <dt className="text-muted">{t.overdueNow}</dt>
                     <dd className="text-content">{overdue}</dd>
                   </div>
                 </dl>
@@ -232,19 +236,19 @@ export function AnalyticsPage() {
             </Card>
 
             <Card>
-              <h2 className="text-title font-semibold text-content">{ANALYTICS_COPY.goalsTitle}</h2>
+              <h2 className="text-title font-semibold text-content">{t.goalsTitle}</h2>
               {goals.length === 0 ? (
-                <p className="text-ui text-muted mt-2">{ANALYTICS_COPY.emptyGoals}</p>
+                <p className="text-ui text-muted mt-2">{t.emptyGoals}</p>
               ) : (
                 <dl className="mt-2 space-y-1 text-ui tabular-nums">
                   <div className="flex justify-between gap-2">
-                    <dt className="text-muted">Active goals</dt>
+                    <dt className="text-muted">{t.activeGoals}</dt>
                     <dd className="text-content">{activeGoals.length}</dd>
                   </div>
                   <div className="flex justify-between gap-2">
-                    <dt className="text-muted">Average progress</dt>
+                    <dt className="text-muted">{t.averageProgress}</dt>
                     <dd className="text-content">
-                      {avgGoalProgress === null ? "No active goals" : `${avgGoalProgress}%`}
+                      {avgGoalProgress === null ? t.noActiveGoals : `${avgGoalProgress}%`}
                     </dd>
                   </div>
                 </dl>
@@ -252,20 +256,22 @@ export function AnalyticsPage() {
             </Card>
 
             <Card>
-              <h2 className="text-title font-semibold text-content">{ANALYTICS_COPY.habitsTitle}</h2>
+              <h2 className="text-title font-semibold text-content">{t.habitsTitle}</h2>
               {plannedHabitRows.length === 0 ? (
-                <p className="text-ui text-muted mt-2">{ANALYTICS_COPY.emptyHabits}</p>
+                <p className="text-ui text-muted mt-2">{t.emptyHabits}</p>
               ) : (
                 <dl className="mt-2 space-y-1 text-ui tabular-nums">
                   <div className="flex justify-between gap-2">
-                    <dt className="text-muted">Habits with obligations</dt>
+                    <dt className="text-muted">{t.habitsWithObligations}</dt>
                     <dd className="text-content">{plannedHabitRows.length}</dd>
                   </div>
                   <div className="flex justify-between gap-2">
-                    <dt className="text-muted">Units done</dt>
+                    <dt className="text-muted">{t.unitsDoneLabel}</dt>
                     <dd className="text-content">
-                      {plannedHabitRows.reduce((s, r) => s + r.stats.completed, 0)} of{" "}
-                      {plannedHabitRows.reduce((s, r) => s + r.stats.planned, 0)} planned
+                      {tmpl(t.unitsDone, {
+                        done: plannedHabitRows.reduce((s, r) => s + r.stats.completed, 0),
+                        planned: plannedHabitRows.reduce((s, r) => s + r.stats.planned, 0),
+                      })}
                     </dd>
                   </div>
                 </dl>
@@ -276,16 +282,16 @@ export function AnalyticsPage() {
           {tasks.length === 0 ? (
             <EmptyState
               icon={BarChart3}
-              title="No data to chart yet"
-              description="Complete a task to see per-day completion here."
+              title={t.noDataTitle}
+              description={t.noDataHint}
             />
           ) : completions.every((c) => c.completed === 0) ? (
             <Card>
-              <h2 className="text-title font-semibold text-content">{ANALYTICS_COPY.completionsTitle}</h2>
-              <p className="text-ui text-muted mt-2">{ANALYTICS_COPY.emptyCompletions}</p>
+              <h2 className="text-title font-semibold text-content">{t.completionsTitle}</h2>
+              <p className="text-ui text-muted mt-2">{t.emptyCompletions}</p>
             </Card>
           ) : (
-            <ChartShell title={ANALYTICS_COPY.completionsTitle}>
+            <ChartShell title={t.completionsTitle}>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={completions}>
                   <CartesianGrid strokeDasharray="3 3" stroke="currentColor" opacity={0.2} />
@@ -299,7 +305,7 @@ export function AnalyticsPage() {
           )}
 
           {categories.length > 0 ? (
-            <ChartShell title={ANALYTICS_COPY.categoriesTitle}>
+            <ChartShell title={t.categoriesTitle}>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={categories} layout="vertical">
                   <CartesianGrid strokeDasharray="3 3" stroke="currentColor" opacity={0.2} />
@@ -313,7 +319,7 @@ export function AnalyticsPage() {
           ) : null}
 
           {activeGoals.length > 0 ? (
-            <ChartShell title={ANALYTICS_COPY.goalsProgressTitle}>
+            <ChartShell title={t.goalsProgressTitle}>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart
                   data={activeGoals.map((g) => ({ name: g.title, progress: g.progress }))}
@@ -330,7 +336,7 @@ export function AnalyticsPage() {
           ) : null}
 
           {habitRates.length > 0 ? (
-            <ChartShell title={ANALYTICS_COPY.habitsCompletionTitle}>
+            <ChartShell title={t.habitsCompletionTitle}>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={habitRates} layout="vertical">
                   <CartesianGrid strokeDasharray="3 3" stroke="currentColor" opacity={0.2} />
