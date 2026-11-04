@@ -9,7 +9,7 @@ import { useMemo } from "react";
 
 import { calculateHabitStats } from "@/lib/habits";
 import { toDateKey } from "@/lib/dates";
-import type { HabitStatus } from "@/types/domain";
+import type { HabitLog, HabitScheduleVersion, HabitStatus } from "@/types/domain";
 
 import {
   createHabit,
@@ -136,26 +136,30 @@ export function useHabitsWithStats(range: { from: string; to: string }, todayKey
 
   const resolvedToday = todayKey ?? toDateKey(new Date(), "UTC");
 
+  const habitList = habitsQuery.data;
+  const logList = logsQuery.data;
+  const versionList = versionsQuery.data;
+
   const rows = useMemo(() => {
-    if (!habitsQuery.data) {
+    if (!habitList) {
       return [];
     }
 
-    const logsByHabit = new Map<string, typeof logsQuery.data>();
-    for (const entry of logsQuery.data ?? []) {
+    const logsByHabit = new Map<string, HabitLog[]>();
+    for (const entry of logList ?? []) {
       const list = logsByHabit.get(entry.habitId) ?? [];
       list.push(entry);
       logsByHabit.set(entry.habitId, list);
     }
 
-    const versionsByHabit = new Map<string, typeof versionsQuery.data>();
-    for (const entry of versionsQuery.data ?? []) {
+    const versionsByHabit = new Map<string, HabitScheduleVersion[]>();
+    for (const entry of versionList ?? []) {
       const list = versionsByHabit.get(entry.habitId) ?? [];
       list.push(entry);
       versionsByHabit.set(entry.habitId, list);
     }
 
-    return habitsQuery.data.map((habit) => ({
+    return habitList.map((habit) => ({
       habit,
       stats: calculateHabitStats({
         habit,
@@ -164,7 +168,7 @@ export function useHabitsWithStats(range: { from: string; to: string }, todayKey
         todayKey: resolvedToday,
       }),
     }));
-  }, [habitsQuery.data, logsQuery.data, versionsQuery.data, resolvedToday]);
+  }, [habitList, logList, versionList, resolvedToday]);
 
   return { habitsQuery, logsQuery, versionsQuery, rows, todayKey: resolvedToday };
 }

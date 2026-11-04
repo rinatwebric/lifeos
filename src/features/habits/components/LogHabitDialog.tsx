@@ -56,9 +56,13 @@ export function LogHabitDialog({ open, onClose, habit, todayKey }: LogHabitDialo
   useEffect(() => {
     if (open) {
       reset({ logDate: todayKey, completedCount: habit?.targetCount ?? 1, note: null });
-      setServerError(null);
     }
   }, [open, habit, todayKey, reset]);
+
+  const handleClose = (): void => {
+    setServerError(null);
+    onClose();
+  };
 
   const onSubmit = handleSubmit(async (values) => {
     if (!habit || logHabit.isPending) {
@@ -81,7 +85,7 @@ export function LogHabitDialog({ open, onClose, habit, todayKey }: LogHabitDialo
   return (
     <Dialog
       open={open}
-      onClose={onClose}
+      onClose={handleClose}
       title={habit ? `Log ${habit.title}` : "Log habit"}
       description={
         habit
@@ -122,7 +126,7 @@ export function LogHabitDialog({ open, onClose, habit, todayKey }: LogHabitDialo
         ) : null}
 
         <div className="flex justify-end gap-2">
-          <Button variant="secondary" size="lg" onClick={onClose} disabled={logHabit.isPending} type="button">
+          <Button variant="secondary" size="lg" onClick={handleClose} disabled={logHabit.isPending} type="button">
             Cancel
           </Button>
           <Button size="lg" loading={logHabit.isPending} type="submit">

@@ -102,12 +102,17 @@ export function HabitFormDialog({ open, onClose, habit }: HabitFormDialogProps) 
   // RHF reads `defaultValues` only on first mount, but this dialog stays
   // mounted while `habit`/`open` change. Re-sync on every open so Edit shows
   // the selected habit and a fresh create never reuses previous values.
+  // (Server errors clear on close/submit, never inside this effect.)
   useEffect(() => {
     if (open) {
       reset(defaultValuesFor(habit));
-      setServerError(null);
     }
   }, [open, habit, reset]);
+
+  const handleClose = (): void => {
+    setServerError(null);
+    onClose();
+  };
 
   const frequency = watch("frequency");
   const weekdays = watch("weekdays") ?? [];
@@ -144,7 +149,7 @@ export function HabitFormDialog({ open, onClose, habit }: HabitFormDialogProps) 
   return (
     <Dialog
       open={open}
-      onClose={onClose}
+      onClose={handleClose}
       title={habit ? HABIT_FORM_COPY.editTitle : HABIT_FORM_COPY.createTitle}
     >
       <form
@@ -257,7 +262,7 @@ export function HabitFormDialog({ open, onClose, habit }: HabitFormDialogProps) 
         ) : null}
 
         <div className="flex justify-end gap-2">
-          <Button variant="secondary" size="lg" onClick={onClose} disabled={saving} type="button">
+          <Button variant="secondary" size="lg" onClick={handleClose} disabled={saving} type="button">
             Cancel
           </Button>
           <Button size="lg" loading={saving} type="submit">
