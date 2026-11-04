@@ -53,6 +53,7 @@ import {
   parseChatRequestBody,
   parseDecideRequestBody,
 } from "./request.ts";
+import { CORS_HEADERS, preflightResponse } from "./cors.ts";
 import { buildToolContext, TOOL_DEFINITIONS, type UserScopedClient } from "./tools.ts";
 import { validateActions, type ValidateContext } from "./validate.ts";
 
@@ -79,7 +80,10 @@ const SYSTEM_PROMPT = [
 function json(status: number, body: Record<string, unknown>): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "Content-Type": "application/json" },
+    // Every answer must be readable cross-origin, including 4xx/5xx: the
+    // browser drops responses without CORS headers, which used to surface
+    // as a misleading "Network error" in the app.
+    headers: { "Content-Type": "application/json", ...CORS_HEADERS },
   });
 }
 
@@ -883,6 +887,10 @@ async function handleDecision(req: Request): Promise<Response> {
 
 Deno.serve(async (req: Request): Promise<Response> => {
   try {
+    // Browser preflight: no auth, no body, just the CORS permissions.
+    if (req.method === "OPTIONS") {
+      return preflightResponse();
+    }
     if (req.method === "POST") {
       let hasAction = false;
       try {
