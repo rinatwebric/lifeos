@@ -32,43 +32,54 @@ interface ThemeContextValue {
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
-function readDeviceTheme(): ProfileTheme | null {
-  return getStoredTheme();
+function readDeviceEntry(): { value: ProfileTheme; userId: string | null } | null {
+  const stored = readStoredPreference(THEME_STORAGE_KEY, isThemeValue);
+  return stored ? { value: stored.value, userId: stored.userId } : null;
 }
 
 /**
  * Owns the UI theme. Priority: session override → device storage (same
- * user) → server profile → stored/initial default (no flash: the inline
- * script in `index.html` already applied the device value).
- *
- * Explicit choices apply instantly (class + storage) and sync with
- * `PATCH profiles {theme}` — a single field. Serialized queue, last wins,
- * stale responses ignored, refetch never overwrites a newer choice.
+ * user) → server profile → light. Explicit choices apply instantly (class +
+ * storage) and sync with `PATCH profiles {theme}` — a single field.
+ * Effect-driven queue: one request at a time, last choice wins.
  */
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const { status, user } = useAuth();
   const queryClient = useQueryClient();
   const [override, setOverrideState] = useState<ProfileTheme | null>(null);
-  const [deviceTheme, setDeviceTheme] = useState<ProfileTheme | null>(() => readDeviceTheme());
-  const [syncStatus, setSyncStatus] = useState<ThemeSyncStatus>("idle");
+  const [deviceTheme, setDeviceTheme] = useState<ProfileTheme | null>(
+    () => readDeviceEntry()?.value ?? null,
+  );
+  const [pending, setPending] = useState<ProfileTheme | null>(null);
+  const [saved, setSaved] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
+  const [retryKey, setRetryKey] = useState(0);
+  const sendingRef = useRef(false);
 
   const userId = user?.id ?? null;
   const canSync = status === "authenticated" && isSupabaseConfigured;
 
-  const desiredRef = useRef<ProfileTheme | null>(null);
-  const savingRef = useRef(false);
-  const userIdRef = useRef<string | null>(userId);
-  userIdRef.current = userId;
-
+  const userIdRef = useRef<string | null>(null);
   useEffect(() => {
+    userIdRef.current = userId;
+  }, [userId]);
+
+  // Account switch: session state belongs to the previous user.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setOverrideState(null);
-    setSyncStatus("idle");
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setPending(null);
+    sendingRef.current = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSaved(false);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSyncError(null);
-    desiredRef.current = null;
-    savingRef.current = false;
-    const stored = readStoredPreference(THEME_STORAGE_KEY, isThemeValue);
-    setDeviceTheme(stored && stored.userId === userId ? stored.value : null);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setRetryKey(0);
+    const entry = readDeviceEntry();
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setDeviceTheme(entry && entry.userId === userId ? entry.value : null);
   }, [userId]);
 
   const profileQuery = useQuery({
@@ -80,102 +91,79 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   const serverTheme: ProfileTheme | null = profileQuery.data?.theme ?? null;
 
-  // Same-user device-first after reload; first run for a user adopts the
-  // server so another account's device copy never overwrites this profile.
+  // Same-user device-first after reload; first run adopts the server.
   useEffect(() => {
     if (!canSync || !profileQuery.data || !userId) return;
-    if (override !== null || desiredRef.current !== null || savingRef.current) return;
+    if (override !== null || pending !== null || sendingRef.current) return;
 
-    const stored = readStoredPreference(THEME_STORAGE_KEY, isThemeValue);
+    const entry = readDeviceEntry();
 
-    if (stored && stored.userId === userId && isThemeValue(stored.value)) {
-      if (profileQuery.data.theme !== stored.value) {
-        desiredRef.current = stored.value;
-        setSyncStatus("saving");
-        setSyncError(null);
-        void flushRef.current?.();
+    if (entry && entry.userId === userId && isThemeValue(entry.value)) {
+      if (profileQuery.data.theme !== entry.value) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setPending(entry.value);
       }
-    } else if (!stored || stored.userId !== userId) {
+    } else if (!entry || entry.userId !== userId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setDeviceTheme(profileQuery.data.theme);
       writeStoredPreference(THEME_STORAGE_KEY, profileQuery.data.theme, userId);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canSync, profileQuery.data, userId, override]);
+  }, [canSync, profileQuery.data, userId, override, pending]);
 
-  const flushRef = useRef<(() => void) | null>(null);
+  useEffect(() => {
+    if (!pending || sendingRef.current) return;
+    if (!canSync || !userId) return;
 
-  const flush = useCallback(() => {
-    const desired = desiredRef.current;
-    const currentUserId = userIdRef.current;
+    const sent = pending;
+    const sendUserId = userId;
+    sendingRef.current = true;
 
-    if (!desired || savingRef.current) return;
-    if (!currentUserId) {
-      desiredRef.current = null;
+    void updateProfile({ theme: sent })
+      .then((updated) => {
+        sendingRef.current = false;
+        if (userIdRef.current !== sendUserId) return;
+        setPending((current) => (current === sent ? null : current));
+        if (readDeviceEntry()?.value === sent) {
+          setSaved(true);
+          queryClient.setQueryData(profileQueryKey, updated);
+        }
+      })
+      .catch((error: unknown) => {
+        sendingRef.current = false;
+        if (userIdRef.current !== sendUserId) return;
+        setSyncError(error instanceof Error && error.message ? error.message : "Please try again.");
+      });
+  }, [pending, canSync, userId, queryClient, retryKey]);
+
+  const setTheme = useCallback((next: ProfileTheme) => {
+    setOverrideState(next);
+    setDeviceTheme(next);
+    try {
+      applyTheme(next);
+    } catch {
+      // Non-DOM test env: ignore.
+    }
+    writeStoredPreference(THEME_STORAGE_KEY, next, userIdRef.current);
+    setSaved(false);
+    setSyncError(null);
+
+    if (!userIdRef.current) {
+      setPending(null);
       return;
     }
 
-    savingRef.current = true;
-    setSyncStatus("saving");
-    setSyncError(null);
-
-    void updateProfile({ theme: desired })
-      .then((updated) => {
-        savingRef.current = false;
-
-        if (desiredRef.current !== null && desiredRef.current !== desired) {
-          flush();
-          return;
-        }
-
-        desiredRef.current = null;
-        setSyncStatus("saved");
-        queryClient.setQueryData(profileQueryKey, updated);
-      })
-      .catch((error: unknown) => {
-        savingRef.current = false;
-
-        if (desiredRef.current !== null && desiredRef.current !== desired) {
-          flush();
-          return;
-        }
-
-        setSyncStatus("error");
-        setSyncError(error instanceof Error && error.message ? error.message : "Please try again.");
-      });
-  }, [queryClient]);
-
-  flushRef.current = flush;
-
-  const setTheme = useCallback(
-    (next: ProfileTheme) => {
-      setOverrideState(next);
-      setDeviceTheme(next);
-      applyTheme(next);
-      writeStoredPreference(THEME_STORAGE_KEY, next, userIdRef.current);
-      desiredRef.current = next;
-      setSyncError(null);
-
-      if (!userIdRef.current) {
-        desiredRef.current = null;
-        setSyncStatus("idle");
-        return;
-      }
-
-      flush();
-    },
-    [flush],
-  );
+    setPending(next);
+  }, []);
 
   const retrySync = useCallback(() => {
-    if (desiredRef.current === null) {
-      const stored = readStoredPreference(THEME_STORAGE_KEY, isThemeValue);
-      if (stored && stored.userId === userIdRef.current) {
-        desiredRef.current = stored.value;
-      }
-    }
-
-    if (desiredRef.current !== null) flush();
-  }, [flush]);
+    setSyncError(null);
+    setPending((current) => {
+      if (current !== null) return current;
+      const entry = readDeviceEntry();
+      return entry && entry.userId === userIdRef.current ? entry.value : null;
+    });
+    setRetryKey((k) => k + 1);
+  }, []);
 
   const theme: ProfileTheme = override ?? deviceTheme ?? serverTheme ?? "light";
 
@@ -187,11 +175,21 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     }
   }, [theme]);
 
+  const syncStatus: ThemeSyncStatus = !canSync
+    ? "idle"
+    : syncError !== null
+      ? "error"
+      : pending !== null
+        ? "saving"
+        : saved
+          ? "saved"
+          : "idle";
+
   const value = useMemo<ThemeContextValue>(
     () => ({
       theme,
       setTheme,
-      syncStatus: canSync ? syncStatus : "idle",
+      syncStatus,
       syncError: canSync ? syncError : null,
       retrySync,
     }),

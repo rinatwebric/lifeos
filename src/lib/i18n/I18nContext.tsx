@@ -43,10 +43,6 @@ interface I18nContextValue {
 
 export const I18nContext = createContext<I18nContextValue | null>(null);
 
-function readDeviceLocale(): Locale | null {
-  return readStoredPreference(LANGUAGE_STORAGE_KEY, isLocaleValue)?.value ?? null;
-}
-
 function readDeviceEntry(): { value: Locale; userId: string | null } | null {
   const stored = readStoredPreference(LANGUAGE_STORAGE_KEY, isLocaleValue);
   return stored ? { value: stored.value, userId: stored.userId } : null;
@@ -57,36 +53,48 @@ function readDeviceEntry(): { value: Locale; userId: string | null } | null {
  * session override → device storage (same user) → server profile → English.
  * `ky` profiles fall back to English with `isKyFallback` (value preserved).
  *
- * Every explicit choice applies instantly (context + `html lang` + device
- * storage) and syncs in the background with `PATCH profiles {language}` —
- * a single field, never the whole profile. One request at a time (queue),
- * so ru→en→ru always ends on the last choice; stale responses are ignored
- * and a newer choice re-sends after the in-flight one lands.
+ * Explicit choices apply instantly (context + `html lang` + device storage)
+ * and sync in the background with `PATCH profiles {language}` — a single
+ * field. An effect-driven queue sends one request at a time, so ru→en→ru
+ * always ends on the last choice; stale responses are ignored.
  */
 export function LocaleProvider({ children }: { children: ReactNode }) {
   const { status, user } = useAuth();
   const queryClient = useQueryClient();
   const [override, setOverrideState] = useState<Locale | null>(null);
-  const [deviceLocale, setDeviceLocale] = useState<Locale | null>(() => readDeviceLocale());
-  const [syncStatus, setSyncStatus] = useState<PreferenceSyncStatus>("idle");
+  const [deviceLocale, setDeviceLocale] = useState<Locale | null>(
+    () => readDeviceEntry()?.value ?? null,
+  );
+  const [pending, setPending] = useState<Locale | null>(null);
+  const [saved, setSaved] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
+  const [retryKey, setRetryKey] = useState(0);
+  const sendingRef = useRef(false);
 
   const userId = user?.id ?? null;
   const canSync = status === "authenticated" && isSupabaseConfigured;
 
-  const desiredRef = useRef<Locale | null>(null);
-  const savingRef = useRef(false);
-  const userIdRef = useRef<string | null>(userId);
-  userIdRef.current = userId;
-
-  // Account switch: drop session state. Cache is cleared by AuthProvider.
+  const userIdRef = useRef<string | null>(null);
   useEffect(() => {
+    userIdRef.current = userId;
+  }, [userId]);
+
+  // Account switch: session state belongs to the previous user. Cache is
+  // cleared by AuthProvider; the device copy is re-read for the new user.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setOverrideState(null);
-    setSyncStatus("idle");
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setPending(null);
+    sendingRef.current = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSaved(false);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSyncError(null);
-    desiredRef.current = null;
-    savingRef.current = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setRetryKey(0);
     const entry = readDeviceEntry();
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setDeviceLocale(entry && entry.userId === userId ? entry.value : null);
   }, [userId]);
 
@@ -106,111 +114,85 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
 
   const isKyFallback = profileQuery.data?.language === "ky" && override === null;
 
-  // Device-first for the same user after reload: if the stored copy belongs
-  // to this user and differs from the server, it is the newer choice —
-  // keep it and push it in the background (also covers failed saves).
+  // Same-user device-first after reload; first run for a user adopts the
+  // server so another account's device copy never overwrites this profile.
   useEffect(() => {
     if (!canSync || !profileQuery.data || !userId) return;
-    if (override !== null || desiredRef.current !== null || savingRef.current) return;
+    if (override !== null || pending !== null || sendingRef.current) return;
 
     const entry = readDeviceEntry();
+
     if (entry && entry.userId === userId && (entry.value === "en" || entry.value === "ru")) {
       if (profileQuery.data.language !== entry.value) {
-        desiredRef.current = entry.value;
-        setSyncStatus("saving");
-        setSyncError(null);
-        void flushRef.current?.();
-      } else {
-        setSyncStatus((s) => (s === "idle" ? s : s));
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setPending(entry.value);
       }
     } else if (!entry || entry.userId !== userId) {
-      // First run for this user (or legacy entry): adopt the server value
-      // so another account's device copy never overwrites this profile.
       const server = profileQuery.data.language;
       if (server === "en" || server === "ru") {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setDeviceLocale(server);
         writeStoredPreference(LANGUAGE_STORAGE_KEY, server, userId);
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canSync, profileQuery.data, userId, override]);
+  }, [canSync, profileQuery.data, userId, override, pending]);
 
-  const flushRef = useRef<(() => void) | null>(null);
+  // Effect-driven queue: one PATCH at a time; a newer choice queued mid-flight
+  // triggers a follow-up send, so the last choice always wins. `retryKey`
+  // re-runs the send after a failure without changing the queued value.
+  useEffect(() => {
+    if (!pending || sendingRef.current) return;
+    if (!canSync || !userId) return;
 
-  const flush = useCallback(() => {
-    const desired = desiredRef.current;
-    const currentUserId = userIdRef.current;
+    const sent = pending;
+    const sendUserId = userId;
+    sendingRef.current = true;
 
-    if (!desired || savingRef.current) return;
-    if (!currentUserId) {
-      desiredRef.current = null;
-      return;
-    }
-
-    savingRef.current = true;
-    setSyncStatus("saving");
-    setSyncError(null);
-
-    void updateProfile({ language: desired })
+    void updateProfile({ language: sent })
       .then((updated) => {
-        savingRef.current = false;
-
-        // A newer choice arrived while saving → send it instead of
-        // reporting success for a stale value.
-        if (desiredRef.current !== null && desiredRef.current !== desired) {
-          flush();
-          return;
+        sendingRef.current = false;
+        if (userIdRef.current !== sendUserId) return;
+        setPending((current) => (current === sent ? null : current));
+        if (readDeviceEntry()?.value === sent) {
+          setSaved(true);
+          queryClient.setQueryData(profileQueryKey, updated);
         }
-
-        desiredRef.current = null;
-        setSyncStatus("saved");
-        queryClient.setQueryData(profileQueryKey, updated);
       })
       .catch((error: unknown) => {
-        savingRef.current = false;
-
-        if (desiredRef.current !== null && desiredRef.current !== desired) {
-          flush();
-          return;
-        }
-
-        setSyncStatus("error");
+        sendingRef.current = false;
+        if (userIdRef.current !== sendUserId) return;
+        // Keep `pending` so Retry re-sends the same choice.
         setSyncError(error instanceof Error && error.message ? error.message : "Please try again.");
       });
-  }, [queryClient]);
-
-  flushRef.current = flush;
+  }, [pending, canSync, userId, queryClient, retryKey]);
 
   const setLocale = useCallback(
     (next: Locale) => {
       setOverrideState(next);
       setDeviceLocale(next);
       writeStoredPreference(LANGUAGE_STORAGE_KEY, next, userIdRef.current);
-      desiredRef.current = next;
+      setSaved(false);
       setSyncError(null);
 
       if (!userIdRef.current) {
-        // Anonymous / unconfigured: device-only, nothing to sync.
-        desiredRef.current = null;
-        setSyncStatus("idle");
+        setPending(null);
         return;
       }
 
-      flush();
+      setPending(next);
     },
-    [flush],
+    [],
   );
 
   const retrySync = useCallback(() => {
-    if (desiredRef.current === null) {
-      // Re-queue the effective choice (device wins for this user).
+    setSyncError(null);
+    setPending((current) => {
+      if (current !== null) return current;
       const entry = readDeviceEntry();
-      const fallback = entry && entry.userId === userIdRef.current ? entry.value : null;
-      if (fallback) desiredRef.current = fallback;
-    }
-
-    if (desiredRef.current !== null) flush();
-  }, [flush]);
+      return entry && entry.userId === userIdRef.current ? entry.value : null;
+    });
+    setRetryKey((k) => k + 1);
+  }, []);
 
   const locale: Locale = override ?? deviceLocale ?? serverLocale ?? "en";
 
@@ -222,6 +204,16 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
     }
   }, [locale]);
 
+  const syncStatus: PreferenceSyncStatus = !canSync
+    ? "idle"
+    : syncError !== null
+      ? "error"
+      : pending !== null
+        ? "saving"
+        : saved
+          ? "saved"
+          : "idle";
+
   const value = useMemo<I18nContextValue>(
     () => ({
       locale,
@@ -229,7 +221,7 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
       messages: DICTIONARIES[locale],
       isKyFallback,
       setLocale,
-      syncStatus: canSync ? syncStatus : "idle",
+      syncStatus,
       syncError: canSync ? syncError : null,
       retrySync,
     }),

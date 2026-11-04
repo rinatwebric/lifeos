@@ -8,6 +8,7 @@ import { zodResolver } from "@/features/auth/resolver";
 import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
 import { Input } from "@/components/ui/Input";
+import { useMessages } from "@/lib/i18n/I18nContext";
 
 export const PREFERENCES_FORM_COPY = {
   timezoneLabel: "Time zone",
@@ -39,9 +40,11 @@ interface PreferencesFormProps {
 export function PreferencesForm({
   defaultValues,
   onSaved,
-  submitLabel = PREFERENCES_FORM_COPY.submit,
+  submitLabel,
   idPrefix = "prefs",
 }: PreferencesFormProps) {
+  const m = useMessages();
+  const t = m.preferences;
   const queryClient = useQueryClient();
   const [isPending, setIsPending] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
@@ -75,9 +78,7 @@ export function PreferencesForm({
         await queryClient.invalidateQueries({ queryKey: profileQueryKey });
       } else {
         ok = false;
-        setProfileError(
-          `${PREFERENCES_FORM_COPY.profileErrorPrefix} ${messageOf(profileResult.reason)}`,
-        );
+        setProfileError(`${t.profileErrorPrefix} ${messageOf(profileResult.reason, t.fallbackError)}`);
       }
 
       if (preferencesResult.status === "fulfilled") {
@@ -85,7 +86,7 @@ export function PreferencesForm({
       } else {
         ok = false;
         setPreferencesError(
-          `${PREFERENCES_FORM_COPY.preferencesErrorPrefix} ${messageOf(preferencesResult.reason)}`,
+          `${t.preferencesErrorPrefix} ${messageOf(preferencesResult.reason, t.fallbackError)}`,
         );
       }
 
@@ -106,27 +107,27 @@ export function PreferencesForm({
     <form noValidate onSubmit={(event) => void handleSubmit(onSubmit)(event)} className="space-y-4">
       <Field
         id={timezoneId}
-        label={PREFERENCES_FORM_COPY.timezoneLabel}
-        hint={PREFERENCES_FORM_COPY.timezoneHint}
+        label={t.timezoneLabel}
+        hint={t.timezoneHint}
         error={errors.timezone?.message}
       >
         <Input
           type="text"
           autoComplete="off"
-          placeholder={PREFERENCES_FORM_COPY.timezonePlaceholder}
+          placeholder={t.timezonePlaceholder}
           disabled={isPending}
           {...register("timezone")}
         />
       </Field>
 
       <div className="grid grid-cols-2 gap-3">
-        <Field id={wakeId} label={PREFERENCES_FORM_COPY.wakeLabel} error={errors.wakeUpTime?.message}>
+        <Field id={wakeId} label={t.wakeLabel} error={errors.wakeUpTime?.message}>
           <Input type="time" disabled={isPending} {...register("wakeUpTime")} />
         </Field>
 
         <Field
           id={sleepId}
-          label={PREFERENCES_FORM_COPY.sleepLabel}
+          label={t.sleepLabel}
           error={errors.sleepTime?.message}
         >
           <Input type="time" disabled={isPending} {...register("sleepTime")} />
@@ -145,17 +146,17 @@ export function PreferencesForm({
       ) : null}
       {saved ? (
         <p role="status" className="text-micro text-success">
-          {PREFERENCES_FORM_COPY.saved}
+          {t.saved}
         </p>
       ) : null}
 
       <Button type="submit" className="w-full" disabled={isPending} loading={isPending}>
-        {isPending ? PREFERENCES_FORM_COPY.saving : submitLabel}
+        {isPending ? t.saving : (submitLabel ?? t.submit)}
       </Button>
     </form>
   );
 }
 
-function messageOf(reason: unknown): string {
-  return reason instanceof Error && reason.message ? reason.message : "Please try again.";
+function messageOf(reason: unknown, fallback: string): string {
+  return reason instanceof Error && reason.message ? reason.message : fallback;
 }
