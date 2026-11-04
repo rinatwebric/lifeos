@@ -5,6 +5,7 @@ import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DashboardPage } from "./DashboardPage";
+import { useDashboardSchedule, type DashboardSchedule } from "./useDashboardSchedule";
 import { listAllMilestones, listGoals } from "@/features/goals/api";
 import { getProfile } from "@/features/settings/api";
 import { listTasks } from "@/features/tasks/api";
@@ -30,6 +31,12 @@ vi.mock("@/features/goals/api", () => ({
 
 vi.mock("@/features/tasks/hooks", () => ({
   useSetTaskStatus: vi.fn(),
+}));
+
+// The schedule card reads its own hook; stubbing it keeps this file on the
+// dashboard's own data flow (no blocks request leaves the test).
+vi.mock("./useDashboardSchedule", () => ({
+  useDashboardSchedule: vi.fn(),
 }));
 
 const TIME_ZONE = "Asia/Bishkek";
@@ -119,6 +126,18 @@ interface DashboardStub {
   todoTasks?: Task[];
   goals?: Goal[];
   slices?: MilestoneProgressSlice[];
+  schedule?: DashboardSchedule;
+}
+
+function makeSchedule(overrides: Partial<DashboardSchedule> = {}): DashboardSchedule {
+  return {
+    blocks: [],
+    totals: { task: 0, break: 0, personal: 0, scheduled: 0 },
+    dayBlockCount: 0,
+    isEmpty: true,
+    isAllPast: false,
+    ...overrides,
+  };
 }
 
 function stubDashboard(stub: DashboardStub = {}): { setStatusMutate: ReturnType<typeof vi.fn> } {
@@ -140,6 +159,14 @@ function stubDashboard(stub: DashboardStub = {}): { setStatusMutate: ReturnType<
     isPending: false,
     isError: false,
   } as unknown as ReturnType<typeof useSetTaskStatus>);
+  vi.mocked(useDashboardSchedule).mockReturnValue({
+    dateKey: todayKey(),
+    timeZone: TIME_ZONE,
+    schedule: stub.schedule ?? makeSchedule(),
+    isLoading: false,
+    isError: false,
+    retry: vi.fn(),
+  });
   return { setStatusMutate };
 }
 
@@ -288,17 +315,20 @@ describe("DashboardPage", () => {
     expect(screen.queryByText("No insights")).not.toBeInTheDocument();
   });
 
-  it("keeps the schedule block an honest placeholder without actions", async () => {
+  it("offers the planner from an empty schedule card", async () => {
     stubDashboard();
     renderDashboard();
 
-    expect(
-      await screen.findByText("Nothing scheduled yet. Time blocking arrives in Phase 3."),
-    ).toBeInTheDocument();
-    const heading = screen.getByRole("heading", { name: "Schedule" });
+    const heading = await screen.findByRole("heading", { name: "Schedule" });
     const card = heading.closest("section") as HTMLElement;
-    expect(within(card).queryByRole("button")).not.toBeInTheDocument();
-    expect(within(card).queryByRole("link")).not.toBeInTheDocument();
+    expect(within(card).getByText("Nothing scheduled today")).toBeInTheDocument();
+    expect(
+      within(card).getByText(/Time blocks you plan for today show up here/),
+    ).toBeInTheDocument();
+    expect(within(card).getByRole("link", { name: "Open planner" })).toHaveAttribute(
+      "href",
+      "/planner",
+    );
   });
 
   it("toggles a dashboard task through setTaskStatus", async () => {
@@ -352,6 +382,38 @@ describe("DashboardPage", () => {
     await user.click(screen.getAllByRole("button", { name: "Retry" })[0]);
 
     expect(vi.mocked(listTasks).mock.calls.length).toBeGreaterThan(callsBefore);
+  });
+
+  it("renders the Schedule card with today's next blocks", async () => {
+    stubDashboard({
+      todayTasks: [],
+      todoTasks: [],
+      goals: [],
+      slices: [],
+      schedule: makeSchedule({
+        blocks: [
+          {
+            id: "block-1",
+            blockType: "task",
+            title: "Deep work",
+            taskId: "task-1",
+            start: "2026-11-04T07:00:00.000Z",
+            end: "2026-11-04T07:30:00.000Z",
+            startLabel: "13:00",
+            endLabel: "13:30",
+            durationMinutes: 30,
+          },
+        ],
+        totals: { task: 30, break: 0, personal: 0, scheduled: 30 },
+        dayBlockCount: 1,
+        isEmpty: false,
+      }),
+    });
+    renderDashboard();
+
+    expect(await screen.findByText("Deep work")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Open planner" })).toHaveAttribute("href", "/planner");
+    expect(vi.mocked(useDashboardSchedule)).toHaveBeenCalled();
   });
 
   it("links each active goal to its detail page", async () => {
