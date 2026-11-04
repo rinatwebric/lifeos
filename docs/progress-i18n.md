@@ -22,7 +22,7 @@ This file is the journal for the i18n track. Do not write here from Phase 5; gen
 
 - `npm run typecheck` — clean.
 - `npm run lint` — 0 errors (36 pre-existing `react-refresh/only-export-components` warnings on COPY+component files, same pattern as base).
-- `npm test` — 86 files / 807 tests pass (incl. `explainSlotParts`, `slotReason` EN/RU, RU preview re-render, language reload/init/account-switch ×4, theme reload/switch ×3).
+- `npm test` — 88 files / 816 tests pass (incl. `explainSlotParts`, `slotReason` EN/RU, RU preview re-render, language reload/init/account-switch/saved-clearing ×5, theme reload/switch ×3, duration RU 1/2/5/11/21, applyPlan/assistant schema RU + parity).
 - `npm run build` — succeeds (pre-existing chunk-size warning only).
 - `git diff --check` — clean.
 - UI-leftovers grep (`rounded-lg|rounded-xl|text-xs|text-sm|min-h-screen|text-red-|text-green-|transition-all`) — no matches.
@@ -39,10 +39,11 @@ This file is the journal for the i18n track. Do not write here from Phase 5; gen
 
 ## Known limitations / follow-ups
 
-1. Zod validation for planner `applyPlanSchema`/`planSlotSchema` + assistant `proposalIdSchema`/`selectedIndexesSchema`: static English (used in edge paths, not the main forms which are localized via factories).
-2. Duration units (`formatDurationMinutes` → "1 h 30 min") not localized (RU would be "1 ч 30 мин"). Tests assert current format; changing needs test updates + dict.
+1. Zod validation for assistant `proposalIdSchema`/`selectedIndexesSchema` static exports: English (service-layer only; failures map to stable codes already translated at render). Localized `createAssistantSchemas` factories + RU/parity tests added; no form consumes these schemas directly, so no revalidation hook applies — code-mapped errors already re-render on language switch.
+2. Duration units localized (`formatDurationMinutes(minutes, locale)`; RU 1 час/2 часа/5 часов/минута/минуты/минут via `Intl.PluralRules`); call sites pass `useLocale()`; EN output byte-identical.
 3. Anonymous language switcher: instant controls live in Settings (auth). Anonymous users get device/browser default; no UI to switch before sign-in. Consider adding a compact switcher to `AuthLayout` later.
-4. Authenticated E2E (`e2e/i18n.spec.ts`) + authenticated RU mobile/desktop matrix still to run in an idle window (Phase 5 agent active now).
+4. Saved-status hygiene: language/theme providers clear `saved` on every new choice; name/day/availability forms clear their saved notice on the next edit. Cross-form notices are independent (partial PATCH per field). Covered by `sync.test.tsx` (stale-saved → saving) + `SettingsPage.test.tsx` (name/day re-edit).
+5. Authenticated E2E (`e2e/i18n.spec.ts`) + authenticated RU mobile/desktop matrix still to run in an idle window (Phase 5 agent active now).
 
 ## Conflicts for integration after Phase 5
 

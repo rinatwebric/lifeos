@@ -246,4 +246,24 @@ describe("language sync", () => {
     await new Promise((r) => setTimeout(r, 50));
     expect(mocks.updateCalls.length).toBe(callsAfterU1);
   });
+
+  it("clears a stale saved status as soon as a newer choice is made", async () => {
+    const user = userEvent.setup();
+    renderStatus();
+    await screen.findByText("en");
+
+    await user.click(screen.getByRole("button", { name: "to-ru" }));
+    await waitFor(() => expect(screen.getByTestId("status")).toHaveTextContent("saved"));
+
+    // Hold the next request in flight: the notice must drop to saving,
+    // never freeze on the previous "saved".
+    let release!: (v: unknown) => void;
+    mocks.updateImpl = () => new Promise((resolve) => (release = resolve));
+    await user.click(screen.getByRole("button", { name: "to-en" }));
+
+    await waitFor(() => expect(screen.getByTestId("status")).toHaveTextContent("saving"));
+    release({ ...mocks.profile, language: "en" });
+    await waitFor(() => expect(screen.getByTestId("status")).toHaveTextContent("saved"));
+    expect(mocks.updateCalls.at(-1)).toStrictEqual({ language: "en" });
+  });
 });

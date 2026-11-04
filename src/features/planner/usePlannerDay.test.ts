@@ -230,9 +230,27 @@ describe("buildPlannerDay", () => {
 describe("planner day helpers", () => {
   it("formats durations with a unit", () => {
     expect(formatDurationMinutes(0)).toBe("0 min");
+    expect(formatDurationMinutes(1)).toBe("1 min");
+    expect(formatDurationMinutes(2)).toBe("2 min");
+    expect(formatDurationMinutes(5)).toBe("5 min");
+    expect(formatDurationMinutes(21)).toBe("21 min");
     expect(formatDurationMinutes(45)).toBe("45 min");
     expect(formatDurationMinutes(60)).toBe("1 h");
+    expect(formatDurationMinutes(61)).toBe("1 h 1 min");
     expect(formatDurationMinutes(90)).toBe("1 h 30 min");
+    expect(formatDurationMinutes(125)).toBe("2 h 5 min");
+  });
+
+  it("formats durations in Russian with 1/2/5/11/21 forms", () => {
+    expect(formatDurationMinutes(0, "ru")).toBe("0 минут");
+    expect(formatDurationMinutes(1, "ru")).toBe("1 минута");
+    expect(formatDurationMinutes(2, "ru")).toBe("2 минуты");
+    expect(formatDurationMinutes(5, "ru")).toBe("5 минут");
+    expect(formatDurationMinutes(21, "ru")).toBe("21 минута");
+    expect(formatDurationMinutes(60, "ru")).toBe("1 час");
+    expect(formatDurationMinutes(61, "ru")).toBe("1 час 1 минута");
+    expect(formatDurationMinutes(90, "ru")).toBe("1 час 30 минут");
+    expect(formatDurationMinutes(125, "ru")).toBe("2 часа 5 минут");
   });
 
   it("labels minutes after local midnight", () => {

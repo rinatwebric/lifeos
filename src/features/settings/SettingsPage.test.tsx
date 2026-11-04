@@ -235,6 +235,37 @@ describe("SettingsPage", () => {
     expect(screen.getByText(en.settings.title)).toBeInTheDocument();
   });
 
+  it("clears the name-saved notice as soon as the name is edited again", async () => {
+    const user = userEvent.setup();
+    renderSettings();
+
+    await screen.findByLabelText(en.settings.nameLabel);
+    await user.clear(screen.getByLabelText(en.settings.nameLabel));
+    await user.type(screen.getByLabelText(en.settings.nameLabel), "Ada Lovelace");
+    await user.click(screen.getByRole("button", { name: en.settings.nameSubmit }));
+
+    expect(await screen.findByText(en.settings.nameSaved)).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText(en.settings.nameLabel), " Cooper");
+
+    await waitFor(() => expect(screen.queryByText(en.settings.nameSaved)).not.toBeInTheDocument());
+  });
+
+  it("clears the day-setup saved notice when its fields are edited again", async () => {
+    const user = userEvent.setup();
+    renderSettings();
+
+    await screen.findByLabelText(en.preferences.wakeLabel);
+    await user.click(screen.getByRole("button", { name: en.preferences.submit }));
+
+    expect(await screen.findByText(en.preferences.saved)).toBeInTheDocument();
+
+    await user.clear(screen.getByLabelText(en.preferences.timezoneLabel));
+    await user.type(screen.getByLabelText(en.preferences.timezoneLabel), "Europe/Berlin");
+
+    await waitFor(() => expect(screen.queryByText(en.preferences.saved)).not.toBeInTheDocument());
+  });
+
   it("saves the day setup across both tables and invalidates both keys", async () => {
     const user = userEvent.setup();
     const { invalidateSpy } = renderSettings();

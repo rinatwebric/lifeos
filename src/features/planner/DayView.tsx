@@ -41,12 +41,13 @@ function DayStat({
   unavailable?: boolean;
 }) {
   const m = useMessages();
+  const locale = useLocale();
 
   return (
     <div className="space-y-0.5">
       <dt className="text-micro text-muted">{label}</dt>
       <dd className="text-body font-medium text-content tabular-nums">
-        {unavailable ? m.planner.unknown : formatDurationMinutes(minutes)}
+        {unavailable ? m.planner.unknown : formatDurationMinutes(minutes, locale)}
       </dd>
     </div>
   );
@@ -61,6 +62,7 @@ function DayBlockRow({
 }) {
   const m = useMessages();
   const t = m.planner;
+  const locale = useLocale();
   const content = (
     <>
       <p className="flex shrink-0 items-baseline gap-1 text-ui text-content tabular-nums sm:min-w-32">
@@ -76,7 +78,7 @@ function DayBlockRow({
             {m.enums.blockType[block.blockType]}
           </Badge>
           <span className="text-micro text-muted tabular-nums">
-            {formatDurationMinutes(block.durationMinutes)}
+            {formatDurationMinutes(block.durationMinutes, locale)}
           </span>
           {block.overlaps ? <Badge tone="danger">{t.overlapsBadge}</Badge> : null}
           {block.crossesSleep ? <Badge tone="danger">{t.outsideBadge}</Badge> : null}
@@ -257,7 +259,7 @@ export function DayView({
                     {window.startLabel} – {window.endLabel}
                   </span>
                   <span className="text-micro text-muted tabular-nums">
-                    {formatDurationMinutes(window.durationMinutes)}
+                    {formatDurationMinutes(window.durationMinutes, locale)}
                   </span>
                 </li>
               ))}

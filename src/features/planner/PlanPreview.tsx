@@ -7,7 +7,7 @@ import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { formatLongDate, localDateTimeToIso } from "@/lib/dates";
 import { tmpl } from "@/lib/i18n/format";
-import { useIntlLocale, useMessages } from "@/lib/i18n/I18nContext";
+import { useIntlLocale, useLocale, useMessages } from "@/lib/i18n/I18nContext";
 import type { Priority } from "@/types/domain";
 
 import { formatDurationMinutes } from "./usePlannerDay";
@@ -70,6 +70,7 @@ function PreviewNotice({ children }: { children: ReactNode }) {
 function SlotRow({ slot }: { slot: PlanPreviewSlot }) {
   const m = useMessages();
   const t = m.planner;
+  const locale = useLocale();
   const priorityLabels: Record<Priority, string> = {
     low: t.lowPriority,
     medium: t.mediumPriority,
@@ -90,7 +91,7 @@ function SlotRow({ slot }: { slot: PlanPreviewSlot }) {
         <div className="flex flex-wrap items-center gap-1.5">
           <Badge tone="outline">{priorityLabel(slot.priority, priorityLabels)}</Badge>
           <span className="text-micro text-muted tabular-nums">
-            {formatDurationMinutes(slot.durationMinutes)}
+            {formatDurationMinutes(slot.durationMinutes, locale)}
           </span>
           {slot.overdue ? <Badge tone="danger">{m.enums.overdue}</Badge> : null}
           {slot.crossesMidnight ? <Badge tone="outline">{t.endsAfterMidnight}</Badge> : null}
@@ -107,6 +108,7 @@ function SlotRow({ slot }: { slot: PlanPreviewSlot }) {
 
 function AlreadyPlannedRow({ entry }: { entry: PlanPreviewAlreadyPlanned }) {
   const m = useMessages();
+  const locale = useLocale();
 
   return (
     <li className="flex flex-col gap-1 rounded-control border border-line bg-surface-muted p-3">
@@ -120,7 +122,7 @@ function AlreadyPlannedRow({ entry }: { entry: PlanPreviewAlreadyPlanned }) {
         </p>
         {entry.estimatedDurationMinutes === null ? null : (
           <span className="text-micro text-muted tabular-nums">
-            {tmpl(m.planner.estimate, { duration: formatDurationMinutes(entry.estimatedDurationMinutes) })}
+            {tmpl(m.planner.estimate, { duration: formatDurationMinutes(entry.estimatedDurationMinutes, locale) })}
           </span>
         )}
       </div>
@@ -133,6 +135,7 @@ function AlreadyPlannedRow({ entry }: { entry: PlanPreviewAlreadyPlanned }) {
 
 function IssueRow({ issue }: { issue: PlanPreviewIssue }) {
   const m = useMessages();
+  const locale = useLocale();
 
   return (
     <li className="space-y-1.5 rounded-control border border-line bg-surface-muted p-3">
@@ -140,7 +143,7 @@ function IssueRow({ issue }: { issue: PlanPreviewIssue }) {
         <p className="text-ui font-medium text-content text-pretty">{issue.taskTitle}</p>
         {issue.estimatedDurationMinutes === null ? null : (
           <span className="text-micro text-muted tabular-nums">
-            {tmpl(m.planner.estimate, { duration: formatDurationMinutes(issue.estimatedDurationMinutes) })}
+            {tmpl(m.planner.estimate, { duration: formatDurationMinutes(issue.estimatedDurationMinutes, locale) })}
           </span>
         )}
       </div>
@@ -220,6 +223,7 @@ export function PlanPreview({
   const m = useMessages();
   const t = m.planner;
   const intl = useIntlLocale();
+  const locale = useLocale();
 
   if (isLoading) {
     return <PlanPreviewSkeleton />;
@@ -264,12 +268,12 @@ export function PlanPreview({
       ) : (
         <>
           <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-            <PreviewStat label={t.planned} value={formatDurationMinutes(summary.plannedMinutes)} />
+            <PreviewStat label={t.planned} value={formatDurationMinutes(summary.plannedMinutes, locale)} />
             <PreviewStat
               label={t.leftToPlace}
               value={
                 summary.unplacedMinutes > 0
-                  ? formatDurationMinutes(summary.unplacedMinutes)
+                  ? formatDurationMinutes(summary.unplacedMinutes, locale)
                   : t.none
               }
             />

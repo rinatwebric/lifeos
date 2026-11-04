@@ -217,7 +217,12 @@ export function AvailabilityForm() {
                                 invalid={Boolean(startError)}
                                 aria-describedby={message ? messageId : undefined}
                                 disabled={isSubmitting}
-                                {...register(`days.${dayIndex}.windows.${windowIndex}.start`)}
+                                {...register(`days.${dayIndex}.windows.${windowIndex}.start`, {
+                                  onChange: () => {
+                                    setSaveError(null);
+                                    setSaved(false);
+                                  },
+                                })}
                               />
                             </div>
 
@@ -235,7 +240,12 @@ export function AvailabilityForm() {
                                 invalid={Boolean(endError)}
                                 aria-describedby={message ? messageId : undefined}
                                 disabled={isSubmitting}
-                                {...register(`days.${dayIndex}.windows.${windowIndex}.end`)}
+                                {...register(`days.${dayIndex}.windows.${windowIndex}.end`, {
+                                  onChange: () => {
+                                    setSaveError(null);
+                                    setSaved(false);
+                                  },
+                                })}
                               />
                             </div>
 

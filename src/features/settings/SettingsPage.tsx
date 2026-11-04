@@ -440,7 +440,7 @@ function ProfileNameForm({
           autoComplete="name"
           placeholder={t.namePlaceholder}
           disabled={isSubmitting}
-          {...register("fullName")}
+          {...register("fullName", { onChange: () => setSaved(false) })}
         />
       </Field>
 

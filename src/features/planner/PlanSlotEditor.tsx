@@ -4,7 +4,7 @@ import { Field } from "@/components/ui/Field";
 import { Input } from "@/components/ui/Input";
 import { isoToLocalDateTime, localDateTimeToIso } from "@/lib/dates";
 import { tmpl } from "@/lib/i18n/format";
-import { useMessages } from "@/lib/i18n/I18nContext";
+import { useLocale, useMessages } from "@/lib/i18n/I18nContext";
 import type { Messages } from "@/lib/i18n/I18nContext";
 import { findConflicts, type PlanBlock, type WeeklyAvailability } from "@/lib/planner";
 
@@ -242,6 +242,7 @@ export function PlanSlotEditor({
   onChangeSlot,
 }: PlanSlotEditorProps) {
   const m = useMessages();
+  const locale = useLocale();
   const t = m.planner;
 
   if (slots.length === 0) {
@@ -283,7 +284,7 @@ export function PlanSlotEditor({
                 <p className="text-ui font-medium text-content text-pretty">{slot.taskTitle}</p>
                 <span className="text-micro text-muted tabular-nums">
                   {Number.isFinite(durationMs) && durationMs > 0
-                    ? formatDurationMinutes(Math.round(durationMs / 60_000))
+                    ? formatDurationMinutes(Math.round(durationMs / 60_000), locale)
                     : t.durationUnset}
                 </span>
               </div>

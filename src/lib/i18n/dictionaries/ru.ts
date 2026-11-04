@@ -697,6 +697,8 @@ export const ru: EnMessages = {
     plannedOutside: "Плановое время вне часов бодрствования ({start}–{end}).",
     schemaEndAfterStart: "Конец должен быть позже начала.",
     schemaTaskLink: "Блок задачи должен ссылаться на задачу; перерыв и личное — нет.",
+    schemaTooManySlots: "Слишком много слотов в одном плане.",
+    schemaTimezoneRequired: "Часовой пояс обязателен.",
     checkTimes: "Проверьте время перед принятием",
     keepPlanAnyway: "Всё равно оставить план в это время",
     alreadyPlannedNotice: "Эти задачи уже в плане — ничего нового не сохранено.",

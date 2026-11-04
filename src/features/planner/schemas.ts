@@ -175,20 +175,60 @@ export const applyPlanSchema = z.object({
 
 export type ApplyPlanInput = z.infer<typeof applyPlanSchema>;
 
-export interface PlannerValidationMessages {
+export interface ApplyPlanValidationMessages {
+  titleTooLong: string;
+  isoDateTime: string;
+  validTask: string;
+  endAfterStart: string;
+  tooManySlots: string;
+  calendarDate: string;
+  timezoneRequired: string;
+}
+
+/**
+ * Localized plan/apply schemas. Accepted values are identical to the static
+ * exports (messages never affect parsing); the service layer keeps the
+ * static schemas and maps failures to stable error codes.
+ */
+export function createApplyPlanSchemas(v: ApplyPlanValidationMessages) {
+  const datetimeField = z.iso.datetime({ error: v.isoDateTime });
+  const planSlotSchema = z
+    .object({
+      taskId: z.string().uuid(v.validTask),
+      title: z.string().max(200, v.titleTooLong),
+      start: datetimeField,
+      end: datetimeField,
+    })
+    .refine(
+      (values) => {
+        const start = Date.parse(values.start);
+        const end = Date.parse(values.end);
+        return Number.isFinite(start) && Number.isFinite(end) && end > start;
+      },
+      { message: v.endAfterStart, path: ["end"] },
+    );
+
+  const applyPlanSchema = z.object({
+    slots: z.array(planSlotSchema).max(100, v.tooManySlots),
+    dateKey: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, v.calendarDate),
+    timeZone: z.string().min(1, v.timezoneRequired),
+    allowConflicts: z.boolean().optional(),
+  });
+
+  return { planSlotSchema, applyPlanSchema };
+}
+
+export interface BlockValidationMessages {
   titleRequired: string;
   titleTooLong: string;
   isoDateTime: string;
   validTask: string;
   endAfterStart: string;
   taskLink: string;
-  tooManySlots?: string;
-  calendarDate?: string;
-  timezoneRequired?: string;
 }
 
 /** Localized factories for forms; static exports above stay English for tests. */
-export function createBlockFormSchemas(v: PlannerValidationMessages) {
+export function createBlockFormSchemas(v: BlockValidationMessages) {
   const titleField = z.string().trim().min(1, v.titleRequired).max(200, v.titleTooLong);
   const datetimeField = z.iso.datetime({ error: v.isoDateTime });
   const blockTypeField = z.enum(BLOCK_TYPES);

@@ -65,20 +65,16 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }, [userId]);
 
   // Account switch: session state belongs to the previous user.
+  // Intentional external-state sync on account change, not a render cascade.
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- drop previous account's session state
     setOverrideState(null);
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setPending(null);
     sendingRef.current = false;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSaved(false);
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSyncError(null);
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setRetryKey(0);
     const entry = readDeviceEntry();
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setDeviceTheme(entry && entry.userId === userId ? entry.value : null);
   }, [userId]);
 
@@ -100,11 +96,10 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
     if (entry && entry.userId === userId && isThemeValue(entry.value)) {
       if (profileQuery.data.theme !== entry.value) {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- adopt newer device copy after reload
         setPending(entry.value);
       }
     } else if (!entry || entry.userId !== userId) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setDeviceTheme(profileQuery.data.theme);
       writeStoredPreference(THEME_STORAGE_KEY, profileQuery.data.theme, userId);
     }

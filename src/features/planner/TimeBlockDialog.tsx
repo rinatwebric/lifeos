@@ -345,7 +345,7 @@ export function TimeBlockDialog({
         <p className="text-caption text-muted tabular-nums">
           {durationMinutes === null
             ? t.durationUnset
-            : tmpl(t.durationSet, { duration: formatDurationMinutes(durationMinutes) })}
+            : tmpl(t.durationSet, { duration: formatDurationMinutes(durationMinutes, locale) })}
         </p>
 
         {form.blockType === "task" && form.taskId !== "" ? (

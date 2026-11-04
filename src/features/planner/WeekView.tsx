@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { tmpl } from "@/lib/i18n/format";
-import { useMessages } from "@/lib/i18n/I18nContext";
+import { useLocale, useMessages } from "@/lib/i18n/I18nContext";
 import type { BlockType } from "@/types/domain";
 
 import { formatDurationMinutes } from "./usePlannerDay";
@@ -97,6 +97,7 @@ function dayLinkLabel(
 function WeekDayCard({ day, href }: { day: PlannerWeekDay; href: string }) {
   const m = useMessages();
   const t = m.planner;
+  const locale = useLocale();
   const plannedTypes = TYPE_ORDER.filter((type) => day.totals[type] > 0);
 
   return (
@@ -118,7 +119,7 @@ function WeekDayCard({ day, href }: { day: PlannerWeekDay; href: string }) {
         ) : (
           <div className="space-y-1">
             <p className="text-body font-medium tabular-nums">
-              {formatDurationMinutes(day.totals.scheduled)}
+              {formatDurationMinutes(day.totals.scheduled, locale)}
             </p>
             <p className="text-micro text-muted tabular-nums">
               {formatBlockCount(day.blockCount, { blocksOne: t.blocksOne, blocksMany: t.blocksMany })}
@@ -128,7 +129,7 @@ function WeekDayCard({ day, href }: { day: PlannerWeekDay; href: string }) {
                 <div key={type} className="flex items-baseline justify-between gap-2">
                   <dt className="text-micro text-muted">{m.enums.blockType[type]}</dt>
                   <dd className="text-micro text-content tabular-nums">
-                    {formatDurationMinutes(day.totals[type])}
+                    {formatDurationMinutes(day.totals[type], locale)}
                   </dd>
                 </div>
               ))}
@@ -182,6 +183,7 @@ export function WeekView({
 }: WeekViewProps) {
   const m = useMessages();
   const t = m.planner;
+  const locale = useLocale();
 
   if (isLoading) {
     return <WeekViewSkeleton />;
@@ -214,10 +216,10 @@ export function WeekView({
           </span>
         </div>
         <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-          <WeekStat label={t.scheduled} value={formatDurationMinutes(week.totals.scheduled)} />
-          <WeekStat label={t.task} value={formatDurationMinutes(week.totals.task)} />
-          <WeekStat label={t.break} value={formatDurationMinutes(week.totals.break)} />
-          <WeekStat label={t.personal} value={formatDurationMinutes(week.totals.personal)} />
+          <WeekStat label={t.scheduled} value={formatDurationMinutes(week.totals.scheduled, locale)} />
+          <WeekStat label={t.task} value={formatDurationMinutes(week.totals.task, locale)} />
+          <WeekStat label={t.break} value={formatDurationMinutes(week.totals.break, locale)} />
+          <WeekStat label={t.personal} value={formatDurationMinutes(week.totals.personal, locale)} />
           <WeekStat label={t.plannedDays} value={tmpl(t.daysOfSeven, { count: week.plannedDays })} />
         </dl>
         <p className="text-micro text-muted tabular-nums">

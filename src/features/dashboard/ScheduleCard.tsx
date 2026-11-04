@@ -12,7 +12,8 @@ import {
   type DashboardScheduleBlock,
   type DashboardScheduleTotals,
 } from "./useDashboardSchedule";
-import { useMessages } from "@/lib/i18n/I18nContext";
+import { useLocale, useMessages } from "@/lib/i18n/I18nContext";
+import type { Locale } from "@/lib/i18n/types";
 
 /**
  * Compact "Schedule" card: the next blocks of today, how loaded the day is,
@@ -30,9 +31,10 @@ const OPEN_PLANNER_CLASS =
 function typeBreakdown(
   totals: DashboardScheduleTotals,
   labels: Record<BlockType, string>,
+  locale: Locale,
 ): string {
   return TYPE_ORDER.filter((type) => totals[type] > 0)
-    .map((type) => `${labels[type]} ${formatDurationMinutes(totals[type])}`)
+    .map((type) => `${labels[type]} ${formatDurationMinutes(totals[type], locale)}`)
     .join(" · ");
 }
 
@@ -90,6 +92,7 @@ function ScheduleEmptyState({ allPast }: { allPast: boolean }) {
 
 function ScheduleBlockRow({ block }: { block: DashboardScheduleBlock }) {
   const m = useMessages();
+  const locale = useLocale();
 
   return (
     <li className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
@@ -106,7 +109,7 @@ function ScheduleBlockRow({ block }: { block: DashboardScheduleBlock }) {
             {m.enums.blockType[block.blockType]}
           </Badge>
           <span className="text-micro text-muted tabular-nums">
-            {formatDurationMinutes(block.durationMinutes)}
+            {formatDurationMinutes(block.durationMinutes, locale)}
           </span>
         </div>
       </div>
@@ -122,8 +125,9 @@ export interface ScheduleCardProps {
 export function ScheduleCard({ now }: ScheduleCardProps) {
   const m = useMessages();
   const t = m.dashboard;
+  const locale = useLocale();
   const { schedule, isLoading, isError, retry } = useDashboardSchedule({ now });
-  const breakdown = typeBreakdown(schedule.totals, m.enums.blockType);
+  const breakdown = typeBreakdown(schedule.totals, m.enums.blockType, locale);
 
   return (
     <Card className="space-y-3">
@@ -153,7 +157,7 @@ export function ScheduleCard({ now }: ScheduleCardProps) {
               <div className="space-y-0.5">
                 <dt className="text-micro text-muted">{t.scheduledToday}</dt>
                 <dd className="text-ui font-medium text-content tabular-nums">
-                  {formatDurationMinutes(schedule.totals.scheduled)}
+                  {formatDurationMinutes(schedule.totals.scheduled, locale)}
                 </dd>
               </div>
               <div className="space-y-0.5">

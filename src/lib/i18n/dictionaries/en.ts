@@ -696,6 +696,8 @@ export const en = {
     plannedOutside: "This planned time runs outside your waking hours ({start}–{end}).",
     schemaEndAfterStart: "End must be after start.",
     schemaTaskLink: "A task block must link to a task; break and personal blocks must not.",
+    schemaTooManySlots: "Too many slots in one plan.",
+    schemaTimezoneRequired: "Time zone is required.",
     checkTimes: "Check these times before accepting",
     keepPlanAnyway: "Keep this plan at these times anyway",
     alreadyPlannedNotice: "These tasks are already in your plan — nothing new was saved.",

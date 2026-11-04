@@ -116,13 +116,17 @@ export function PreferencesForm({
           autoComplete="off"
           placeholder={t.timezonePlaceholder}
           disabled={isPending}
-          {...register("timezone")}
+          {...register("timezone", { onChange: () => setSaved(false) })}
         />
       </Field>
 
       <div className="grid grid-cols-2 gap-3">
         <Field id={wakeId} label={t.wakeLabel} error={errors.wakeUpTime?.message}>
-          <Input type="time" disabled={isPending} {...register("wakeUpTime")} />
+          <Input
+            type="time"
+            disabled={isPending}
+            {...register("wakeUpTime", { onChange: () => setSaved(false) })}
+          />
         </Field>
 
         <Field
@@ -130,7 +134,11 @@ export function PreferencesForm({
           label={t.sleepLabel}
           error={errors.sleepTime?.message}
         >
-          <Input type="time" disabled={isPending} {...register("sleepTime")} />
+          <Input
+            type="time"
+            disabled={isPending}
+            {...register("sleepTime", { onChange: () => setSaved(false) })}
+          />
         </Field>
       </div>
 
