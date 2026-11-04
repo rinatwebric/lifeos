@@ -1,20 +1,126 @@
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { expect, test } from "@playwright/test";
 
 import { dismissOnboarding, E2E_EMAIL, E2E_PASSWORD, signIn, skipWithoutCreds } from "./helpers";
 
 /**
- * Live recurrence flow (Phase 2.5, Unit 7). Hits the real Supabase project
- * with the shared e2e account — no `service_role`, only UI paths. Creates a
- * daily rule with a close end date (3 instances) plus scheduled times,
- * checks the Repeat badge and that the second instance keeps the wall
- * times (09:00–10:00 shifted by whole days), reloads (no duplicates),
- * then deletes the instances it created.
+ * Live recurrence flow (Phase 2.5, Unit 7; hygiene in iteration 3, unit 3).
+ * Hits the real Supabase project with the shared e2e account — no
+ * `service_role`, only UI paths for create/assert, plus anon-key REST for
+ * cleanup. Creates a daily rule with a close end date (3 instances) plus
+ * scheduled times, checks the Repeat badge and that the second instance
+ * keeps the wall times (09:00–10:00 shifted by whole days), reloads (no
+ * duplicates), then deletes the rule FIRST and the tasks after it.
+ *
+ * Rule-first matters: an in-flight sign-in top-up can re-insert a deleted
+ * date while the rule still exists (read-then-insert race). With the rule
+ * gone the top-up is a no-op, so no retry loop is needed.
  */
 
 skipWithoutCreds();
 
 function toDateKey(date: Date): string {
   return date.toISOString().slice(0, 10);
+}
+
+function loadEnvFile(name: string): Record<string, string> {
+  const file = join(process.cwd(), name);
+
+  if (!existsSync(file)) {
+    return {};
+  }
+
+  const values: Record<string, string> = {};
+
+  for (const line of readFileSync(file, "utf8").split(/\r?\n/)) {
+    const trimmed = line.trim();
+
+    if (!trimmed || trimmed.startsWith("#")) {
+      continue;
+    }
+
+    const separator = trimmed.indexOf("=");
+
+    if (separator === -1) {
+      continue;
+    }
+
+    values[trimmed.slice(0, separator).trim()] = trimmed.slice(separator + 1).trim();
+  }
+
+  return values;
+}
+
+/**
+ * Deletes the series created by this test via anon-key REST (same posture
+ * as `scripts/seed-demo.mjs`): sign in, find the rule ids behind `title`,
+ * delete the rules first, then the tasks. RLS keeps every step scoped to
+ * the signed-in user — no `service_role` anywhere.
+ */
+async function cleanupRecurrenceSeries(title: string): Promise<void> {
+  const local = loadEnvFile(".env.local");
+  const supabaseUrl = process.env.VITE_SUPABASE_URL ?? local.VITE_SUPABASE_URL ?? "";
+  const anonKey = process.env.VITE_SUPABASE_ANON_KEY ?? local.VITE_SUPABASE_ANON_KEY ?? "";
+
+  if (!supabaseUrl || !anonKey) {
+    throw new Error("VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY required for recurrence cleanup");
+  }
+
+  const authResponse = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=password`, {
+    method: "POST",
+    headers: { apikey: anonKey, "Content-Type": "application/json" },
+    body: JSON.stringify({ email: E2E_EMAIL, password: E2E_PASSWORD }),
+  });
+
+  if (!authResponse.ok) {
+    throw new Error(`recurrence cleanup sign-in failed: ${authResponse.status}`);
+  }
+
+  const { access_token: token } = (await authResponse.json()) as { access_token: string };
+  const headers = {
+    apikey: anonKey,
+    Authorization: `Bearer ${token}`,
+    "Content-Type": "application/json",
+  };
+  const titleFilter = `title=eq.${encodeURIComponent(title)}`;
+
+  const tasksResponse = await fetch(
+    `${supabaseUrl}/rest/v1/tasks?${titleFilter}&select=id,recurrence_rule_id`,
+    { headers },
+  );
+
+  if (!tasksResponse.ok) {
+    throw new Error(`recurrence cleanup lookup failed: ${tasksResponse.status}`);
+  }
+
+  const rows = (await tasksResponse.json()) as Array<{
+    id: string;
+    recurrence_rule_id: string | null;
+  }>;
+  const ruleIds = [...new Set(rows.map((row) => row.recurrence_rule_id).filter(Boolean))];
+
+  // Rule first: with no rule the sign-in top-up cannot resurrect a date.
+  if (ruleIds.length > 0) {
+    const deleteRules = await fetch(
+      `${supabaseUrl}/rest/v1/recurrence_rules?id=in.(${ruleIds.join(",")})`,
+      { method: "DELETE", headers },
+    );
+
+    if (!deleteRules.ok) {
+      throw new Error(`recurrence cleanup rule delete failed: ${deleteRules.status}`);
+    }
+  }
+
+  const deleteTasks = await fetch(`${supabaseUrl}/rest/v1/tasks?${titleFilter}`, {
+    method: "DELETE",
+    headers,
+  });
+
+  if (!deleteTasks.ok) {
+    throw new Error(`recurrence cleanup tasks delete failed: ${deleteTasks.status}`);
+  }
 }
 
 test("recurrence: create daily series, badge, reload without duplicates, cleanup", async ({
@@ -64,22 +170,9 @@ test("recurrence: create daily series, badge, reload without duplicates, cleanup
   await expect(page.getByRole("heading", { name: "Tasks", exact: true })).toBeVisible();
   await expect(page.locator("li", { hasText: title })).toHaveCount(3);
 
-  // Cleanup: delete every instance created above, leaving the orphan rule
-  // with no template (future top-ups generate nothing). The sign-in top-up
-  // may still be in flight and resurrect one deleted date once (read-then-
-  // insert race), so loop generously until the count is stably 0 instead of
-  // asserting an exact decrease per iteration.
-  for (let i = 0; i < 12; i += 1) {
-    const remaining = page.locator("li", { hasText: title });
-    if ((await remaining.count()) === 0) {
-      break;
-    }
-    await remaining.first().getByRole("button", { name: `Delete ${title}` }).click();
-    const confirm = page.getByRole("dialog");
-    await confirm.getByRole("button", { name: "Delete", exact: true }).click();
-    await expect(confirm).toHaveCount(0);
-    await page.waitForTimeout(800);
-  }
-
+  // Cleanup: rule first (top-up becomes a no-op), then the instances.
+  await cleanupRecurrenceSeries(title);
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Tasks", exact: true })).toBeVisible();
   await expect(page.locator("li", { hasText: title })).toHaveCount(0);
 });

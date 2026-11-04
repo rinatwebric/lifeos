@@ -1,6 +1,13 @@
 import { expect, test } from "@playwright/test";
 
-import { dismissOnboarding, E2E_EMAIL, E2E_PASSWORD, signIn, skipWithoutCreds } from "./helpers";
+import {
+  dismissOnboarding,
+  E2E_EMAIL,
+  E2E_PASSWORD,
+  E2E_SIGNUP_EMAIL,
+  signIn,
+  skipWithoutCreds,
+} from "./helpers";
 
 /**
  * Live-auth suite (iteration 1.2, unit 6). Hits the real Supabase project.
@@ -89,11 +96,20 @@ test("sign out returns to /sign-in and / becomes unavailable", async ({ page }) 
   await expect(page).toHaveURL(/\/sign-in$/);
 });
 
-test("sign-up with a fresh address shows the check-email screen", async ({ page }) => {
-  // A unique address on a real domain: Supabase Auth rejects @example.com,
-  // and the confirmation email itself is never opened in this suite.
+test("sign-up with confirmation OFF lands directly in the app", async ({ page }) => {
+  // Needs a real inbox: fake `e2e.signup.*@gmail.com` senders got the
+  // project's default SMTP restricted, and with `Confirm email = OFF`
+  // sign-up returns a session immediately (no "Check your email" screen).
+  test.skip(
+    !E2E_SIGNUP_EMAIL,
+    "E2E_SIGNUP_EMAIL is not set — copy .env.e2e.example. Skipping live sign-up.",
+  );
+
+  // A `+`-alias of the real mailbox: unique user per run, same inbox.
+  // The user stays (no admin API to remove it); cleanup is a dashboard job.
   const stamp = Date.now();
-  const email = `e2e.signup.${stamp}@gmail.com`;
+  const [local, domain] = E2E_SIGNUP_EMAIL.split("@");
+  const email = `${local}+e2e${stamp}@${domain}`;
 
   await page.goto("/sign-up");
   await page.getByLabel("Full name (optional)").fill("E2E Signup");
@@ -101,6 +117,6 @@ test("sign-up with a fresh address shows the check-email screen", async ({ page 
   await page.getByLabel("Password").fill(`E2e-pass-${stamp}`);
   await page.getByRole("button", { name: "Create account" }).click();
 
-  await expect(page.getByRole("heading", { name: "Check your email" })).toBeVisible();
-  await expect(page.getByText(email)).toBeVisible();
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.getByRole("heading", { name: /Welcome back/ })).toBeVisible();
 });

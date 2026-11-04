@@ -8,6 +8,14 @@ import { expect, type Page, test } from "@playwright/test";
 
 export const E2E_EMAIL = process.env.E2E_EMAIL ?? "";
 export const E2E_PASSWORD = process.env.E2E_PASSWORD ?? "";
+/**
+ * Real inbox for the live sign-up test (a `+`-alias of a real mailbox).
+ * The suite never invents addresses: fake `e2e.signup.*@gmail.com` senders
+ * got the project's default SMTP restricted for bounce rate, and with
+ * `Confirm email = OFF` sign-up returns a session immediately (no
+ * check-email screen). Absent → the sign-up test skips, the rest stay green.
+ */
+export const E2E_SIGNUP_EMAIL = process.env.E2E_SIGNUP_EMAIL ?? "";
 
 export function skipWithoutCreds(): void {
   test.skip(
