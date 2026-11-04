@@ -575,6 +575,47 @@ describe("planDay", () => {
     }
     expect(result.doesNotFit).toEqual([]);
   });
+
+  it("does not re-plan a task that already has a block that day", () => {
+    const planned = makeTask({ id: "planned", estimatedDurationMinutes: 60 });
+    const fresh = makeTask({ id: "fresh", estimatedDurationMinutes: 60 });
+    const existing = {
+      ...makeBlock("existing", "2026-11-05T09:00:00.000Z", "2026-11-05T10:00:00.000Z"),
+      taskId: "planned",
+      blockType: "task" as const,
+    };
+
+    const result = planDay({ ...dayInput, blocks: [existing], tasks: [planned, fresh] });
+
+    expect(result.slots.map((slot) => slot.taskId)).toEqual(["fresh"]);
+    expect(result.doesNotFit).toEqual([]);
+    expect(result.alreadyPlanned).toEqual([
+      {
+        taskId: "planned",
+        blockId: "existing",
+        start: "2026-11-05T09:00:00.000Z",
+        end: "2026-11-05T10:00:00.000Z",
+      },
+    ]);
+  });
+
+  it("keeps the block belonging to the same task out of free windows", () => {
+    const planned = makeTask({ id: "planned", estimatedDurationMinutes: 60 });
+    const other = makeTask({ id: "other", estimatedDurationMinutes: 60 });
+    const existing = {
+      ...makeBlock("existing", "2026-11-05T09:00:00.000Z", "2026-11-05T10:00:00.000Z"),
+      taskId: "planned",
+      blockType: "task" as const,
+    };
+
+    const result = planDay({ ...dayInput, blocks: [existing], tasks: [planned, other] });
+
+    expect(result.slots.map((slot) => slot.taskId)).toEqual(["other"]);
+    expect(result.slots[0]).toMatchObject({
+      start: "2026-11-05T10:00:00.000Z",
+      end: "2026-11-05T11:00:00.000Z",
+    });
+  });
 });
 
 describe("explainSlot", () => {

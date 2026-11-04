@@ -62,6 +62,7 @@ describe("buildPlanPreview", () => {
     expect(preview.slots).toEqual([]);
     expect(preview.doesNotFit).toEqual([]);
     expect(preview.needsEstimate).toEqual([]);
+    expect(preview.alreadyPlanned).toEqual([]);
     expect(preview.summary).toEqual({
       candidateCount: 0,
       slotCount: 0,
@@ -69,6 +70,7 @@ describe("buildPlanPreview", () => {
       unplacedCount: 0,
       unplacedMinutes: 0,
       needsEstimateCount: 0,
+      alreadyPlannedCount: 0,
       hasWakingHours: true,
       hasFreeWindows: true,
     });
@@ -156,6 +158,31 @@ describe("buildPlanPreview", () => {
     });
     expect(preview.summary.candidateCount).toBe(2);
     expect(preview.summary.unplacedCount).toBe(1);
+  });
+
+  it("reports an already planned task instead of planning it twice", () => {
+    const preview = build({
+      blocks: [{ id: "block-1", startTime: at("09:00"), endTime: at("10:00"), taskId: "t1" }],
+      tasks: [
+        makeTask({ id: "t1", title: "Planned already", estimatedDurationMinutes: 60 }),
+        makeTask({ id: "t2", title: "Fresh task", estimatedDurationMinutes: 30 }),
+      ],
+    });
+
+    expect(preview.slots.map((slot) => slot.taskId)).toEqual(["t2"]);
+    expect(preview.doesNotFit).toEqual([]);
+    expect(preview.alreadyPlanned).toEqual([
+      expect.objectContaining({
+        taskId: "t1",
+        taskTitle: "Planned already",
+        blockId: "block-1",
+        startLabel: "09:00",
+        endLabel: "10:00",
+      }),
+    ]);
+    expect(preview.summary.alreadyPlannedCount).toBe(1);
+    expect(preview.summary.candidateCount).toBe(1);
+    expect(preview.canAccept).toBe(true);
   });
 
   it("orders the slots by start time and repeats itself exactly", () => {

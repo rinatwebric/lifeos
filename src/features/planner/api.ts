@@ -1,3 +1,4 @@
+import { localDateTimeToIso } from "@/lib/dates";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import { mapTimeBlockRowToTimeBlock, type TimeBlocksRow } from "@/types/database";
 import type { BlockType, TimeBlock } from "@/types/domain";
@@ -441,6 +442,13 @@ export interface ApplyPlanResult {
   blocks: TimeBlock[];
   /** Tasks whose mirror was rewritten by this call. */
   mirroredTaskIds: string[];
+  /**
+   * Tasks with a slot in this call that was NOT inserted because the task
+   * already owns a block on the planned day (B1: never a silent double).
+   * Sorted for determinism. Exact-pair repeats land here too — the block
+   * they repeat is already in the plan.
+   */
+  skippedTaskIds: string[];
 }
 
 /**
@@ -465,14 +473,51 @@ function planSlotKey(taskId: string, start: string, end: string): string | null 
 }
 
 /**
+ * `[local midnight, next local midnight)` of one day in `timeZone`, as epoch
+ * milliseconds. The same edges `plannerDayBounds` reads — never a UTC
+ * calendar date — resolved per edge so a DST shift cannot move the boundary.
+ */
+function plannedDayBoundsMs(dateKey: string, timeZone: string): { startMs: number; endMs: number } {
+  const parts = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateKey);
+
+  if (!parts) {
+    throw new BlockServiceError("validation", BLOCK_ERROR_MESSAGES.validation);
+  }
+
+  const nextKey = new Date(
+    Date.UTC(Number(parts[1]), Number(parts[2]) - 1, Number(parts[3])) + 86_400_000,
+  )
+    .toISOString()
+    .slice(0, 10);
+
+  let startMs: number;
+  let endMs: number;
+
+  try {
+    startMs = Date.parse(localDateTimeToIso(`${dateKey}T00:00`, timeZone));
+    endMs = Date.parse(localDateTimeToIso(`${nextKey}T00:00`, timeZone));
+  } catch {
+    throw new BlockServiceError("validation", BLOCK_ERROR_MESSAGES.validation);
+  }
+
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) {
+    throw new BlockServiceError("validation", BLOCK_ERROR_MESSAGES.validation);
+  }
+
+  return { startMs, endMs };
+}
+
+/**
  * Batch accept of a plan preview (plan.md Unit 9): the only preview path
  * that writes. Every slot becomes a `block_type = 'task'` block and the
  * linked task's `scheduled_start` / `scheduled_end` mirror is rewritten in
  * the same call through the shared `writeTaskMirrors` batch.
  *
  * Idempotency without a migration: the existing pairs are read with one
- * query over the plan's own span and only the missing ones are inserted, so
- * a repeated Accept of the same plan inserts nothing and mirrors nothing.
+ * query over the union of the plan's span and the planned day. Only the
+ * missing ones are inserted, so a repeated Accept of the same plan inserts
+ * nothing and mirrors nothing; a slot whose task already owns a block on
+ * that day is skipped and reported in `skippedTaskIds` (B1).
  * Identity comes from the JWT (`requireUserId`); RLS stays untouched.
  *
  * Partial failure is never silent: an insert failure throws before any
@@ -510,7 +555,7 @@ export async function applyPlan(input: ApplyPlanInput): Promise<ApplyPlanResult>
     }
 
     if (slots.length === 0) {
-      return { blocks: [], mirroredTaskIds: [] };
+      return { blocks: [], mirroredTaskIds: [], skippedTaskIds: [] };
     }
 
     const client = getSupabaseClient();
@@ -551,12 +596,14 @@ export async function applyPlan(input: ApplyPlanInput): Promise<ApplyPlanResult>
       return { ...slot, title };
     });
 
-    // One query for every pair: the blocks overlapping the plan's own span,
-    // narrowed to exact (`task_id`, `start_time`, `end_time`) matches here.
+    // One query for every pair: the blocks overlapping the union of the
+    // plan's own span and the planned day, narrowed to exact (`task_id`, `start_time`, `end_time`) matches here.
     // A slot always lies strictly inside [minStart, maxEnd), so the strict
     // window cannot miss a pair it is looking for. Bounds are picked by
     // instant (Date.parse), not lexicographically: "Z" and "+00:00" shapes
-    // of the same moment order differently as strings.
+    // of the same moment order differently as strings. The day half of the
+    // union feeds the B1 same-day skip: a slot whose task already owns a
+    // block that day is reported, never duplicated.
     const minStartMs = resolved.reduce(
       (min, slot) => Math.min(min, Date.parse(slot.start)),
       Date.parse(resolved[0].start),
@@ -570,12 +617,16 @@ export async function applyPlan(input: ApplyPlanInput): Promise<ApplyPlanResult>
       throw new BlockServiceError("validation", BLOCK_ERROR_MESSAGES.validation);
     }
 
-    const minStart = new Date(minStartMs).toISOString();
-    const maxEnd = new Date(maxEndMs).toISOString();
+    const { startMs: dayStartMs, endMs: dayEndMs } = plannedDayBoundsMs(
+      parsed.data.dateKey,
+      parsed.data.timeZone,
+    );
+    const minStart = new Date(Math.min(dayStartMs, minStartMs)).toISOString();
+    const maxEnd = new Date(Math.max(dayEndMs, maxEndMs)).toISOString();
 
     const { data: existing, error: existingError } = await client
       .from("time_blocks")
-      .select("task_id,start_time,end_time")
+      .select("id,task_id,start_time,end_time")
       .eq("user_id", userId)
       .gt("end_time", minStart)
       .lt("start_time", maxEnd)
@@ -589,9 +640,10 @@ export async function applyPlan(input: ApplyPlanInput): Promise<ApplyPlanResult>
     // carry the Postgres "+00:00" shape while the slot carries "Z".
     // Rows without a task have no pair and stay out of the set entirely.
     const present = new Set<string>();
+    const dayTaskIds = new Set<string>();
 
     for (const row of ((existing ?? []) as Array<
-      Pick<TimeBlocksRow, "task_id" | "start_time" | "end_time">
+      Pick<TimeBlocksRow, "id" | "task_id" | "start_time" | "end_time">
     >)) {
       if (row.task_id === null) {
         continue;
@@ -602,7 +654,35 @@ export async function applyPlan(input: ApplyPlanInput): Promise<ApplyPlanResult>
       if (key !== null) {
         present.add(key);
       }
+
+      const startMs = Date.parse(row.start_time);
+      const endMs = Date.parse(row.end_time);
+
+      if (
+        Number.isFinite(startMs) &&
+        Number.isFinite(endMs) &&
+        endMs > dayStartMs &&
+        startMs < dayEndMs
+      ) {
+        dayTaskIds.add(row.task_id);
+      }
     }
+
+    const skippedTaskIds = [
+      ...new Set(
+        resolved
+          .filter((slot) => {
+            const key = planSlotKey(slot.taskId, slot.start, slot.end);
+
+            if (key === null) {
+              throw new BlockServiceError("validation", BLOCK_ERROR_MESSAGES.validation);
+            }
+
+            return present.has(key) || dayTaskIds.has(slot.taskId);
+          })
+          .map((slot) => slot.taskId),
+      ),
+    ].sort();
 
     const missing = resolved.filter((slot) => {
       const key = planSlotKey(slot.taskId, slot.start, slot.end);
@@ -611,11 +691,11 @@ export async function applyPlan(input: ApplyPlanInput): Promise<ApplyPlanResult>
         throw new BlockServiceError("validation", BLOCK_ERROR_MESSAGES.validation);
       }
 
-      return !present.has(key);
+      return !present.has(key) && !dayTaskIds.has(slot.taskId);
     });
 
     if (missing.length === 0) {
-      return { blocks: [], mirroredTaskIds: [] };
+      return { blocks: [], mirroredTaskIds: [], skippedTaskIds };
     }
 
     const payload: Array<Omit<TimeBlocksRow, "id" | "created_at" | "updated_at">> = missing.map(
@@ -664,7 +744,7 @@ export async function applyPlan(input: ApplyPlanInput): Promise<ApplyPlanResult>
       })),
     );
 
-    return { blocks, mirroredTaskIds: [...earliestByTask.keys()] };
+    return { blocks, mirroredTaskIds: [...earliestByTask.keys()], skippedTaskIds };
   } catch (error) {
     throw toBlockError(error);
   }

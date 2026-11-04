@@ -16,6 +16,8 @@ vi.mock("./api", () => ({
 }));
 
 const TASK_ID = "11111111-1111-4111-8111-111111111111";
+const DATE_KEY = "2026-11-04";
+const TIME_ZONE = "UTC";
 
 function createClient() {
   return new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
@@ -34,12 +36,18 @@ beforeEach(() => {
 describe("useApplyPlan", () => {
   it("writes through the service and refreshes planner ranges plus linked tasks", async () => {
     const client = createClient();
-    vi.mocked(applyPlan).mockResolvedValue({ blocks: [], mirroredTaskIds: [TASK_ID] });
+    vi.mocked(applyPlan).mockResolvedValue({
+      blocks: [],
+      mirroredTaskIds: [TASK_ID],
+      skippedTaskIds: [],
+    });
     const invalidateSpy = vi.spyOn(client, "invalidateQueries");
 
     const { result } = renderHook(() => useApplyPlan(), { wrapper: wrapper(client) });
 
     result.current.mutate({
+      dateKey: DATE_KEY,
+      timeZone: TIME_ZONE,
       slots: [
         {
           taskId: TASK_ID,
@@ -64,12 +72,16 @@ describe("useApplyPlan", () => {
 
   it("never touches the goals list", async () => {
     const client = createClient();
-    vi.mocked(applyPlan).mockResolvedValue({ blocks: [], mirroredTaskIds: [TASK_ID] });
+    vi.mocked(applyPlan).mockResolvedValue({
+      blocks: [],
+      mirroredTaskIds: [TASK_ID],
+      skippedTaskIds: [],
+    });
     const invalidateSpy = vi.spyOn(client, "invalidateQueries");
 
     const { result } = renderHook(() => useApplyPlan(), { wrapper: wrapper(client) });
 
-    result.current.mutate({ slots: [] });
+    result.current.mutate({ dateKey: DATE_KEY, timeZone: TIME_ZONE, slots: [] });
 
     await waitFor(() => {
       expect(applyPlan).toHaveBeenCalledTimes(1);
@@ -89,9 +101,11 @@ describe("useApplyPlan", () => {
     const { result } = renderHook(() => useApplyPlan(), { wrapper: wrapper(client) });
 
     let failure: unknown = null;
-    await result.current.mutateAsync({ slots: [] }).catch((error: unknown) => {
-      failure = error;
-    });
+    await result.current
+      .mutateAsync({ dateKey: DATE_KEY, timeZone: TIME_ZONE, slots: [] })
+      .catch((error: unknown) => {
+        failure = error;
+      });
 
     expect(failure).toMatchObject({ code: "forbidden" });
   });

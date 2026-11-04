@@ -6,6 +6,7 @@ import { createBlock, deleteBlock, listBlocks, updateBlock } from "./api";
 import { PlanPreview } from "./PlanPreview";
 import type {
   PlanPreview as PlanPreviewModel,
+  PlanPreviewAlreadyPlanned,
   PlanPreviewIssue,
   PlanPreviewSlot,
 } from "./usePlanPreview";
@@ -51,16 +52,37 @@ function makeIssue(
   };
 }
 
+function makeAlreadyPlanned(
+  overrides: Partial<PlanPreviewAlreadyPlanned> &
+    Pick<PlanPreviewAlreadyPlanned, "taskId" | "taskTitle">,
+): PlanPreviewAlreadyPlanned {
+  return {
+    priority: "medium",
+    estimatedDurationMinutes: 60,
+    blockId: `block-${overrides.taskId}`,
+    start: `${DATE_KEY}T08:00:00.000Z`,
+    end: `${DATE_KEY}T09:00:00.000Z`,
+    startLabel: "09:00",
+    endLabel: "10:00",
+    crossesMidnight: false,
+    explanation:
+      "Already in your plan on this day, 09:00–10:00. Accepting the plan leaves this block untouched.",
+    ...overrides,
+  };
+}
+
 function makePreview({
   slots = [],
   doesNotFit = [],
   needsEstimate = [],
+  alreadyPlanned = [],
   hasWakingHours = true,
   hasFreeWindows = true,
 }: {
   slots?: PlanPreviewSlot[];
   doesNotFit?: PlanPreviewIssue[];
   needsEstimate?: PlanPreviewIssue[];
+  alreadyPlanned?: PlanPreviewAlreadyPlanned[];
   hasWakingHours?: boolean;
   hasFreeWindows?: boolean;
 }): PlanPreviewModel {
@@ -76,6 +98,7 @@ function makePreview({
     slots,
     doesNotFit,
     needsEstimate,
+    alreadyPlanned,
     summary: {
       candidateCount: slots.length + doesNotFit.length,
       slotCount: slots.length,
@@ -83,6 +106,7 @@ function makePreview({
       unplacedCount: doesNotFit.length,
       unplacedMinutes,
       needsEstimateCount: needsEstimate.length,
+      alreadyPlannedCount: alreadyPlanned.length,
       hasWakingHours,
       hasFreeWindows,
     },
@@ -252,6 +276,23 @@ describe("PlanPreview", () => {
       ),
     ).toBeInTheDocument();
     expect(screen.getByText("Estimate: 1 h")).toBeInTheDocument();
+  });
+
+  it("shows the tasks that are already planned with their local time", () => {
+    renderPreview(
+      makePreview({
+        slots: [makeSlot({ taskId: "t1", taskTitle: "Fresh task" })],
+        alreadyPlanned: [makeAlreadyPlanned({ taskId: "t2", taskTitle: "Planned already" })],
+      }),
+    );
+
+    expect(screen.getByText("Already in your plan")).toBeInTheDocument();
+    expect(screen.getByText("Planned already")).toBeInTheDocument();
+    expect(screen.getByText("09:00")).toBeInTheDocument();
+    expect(screen.getByText("10:00")).toBeInTheDocument();
+    expect(
+      screen.getByText(/Accepting the plan leaves this block untouched/),
+    ).toBeInTheDocument();
   });
 
   it("says so when both problem groups are empty", () => {

@@ -200,6 +200,8 @@ export function PlanAcceptPanel({ dateKey, timeZone, now, onClose }: PlanAcceptP
 
     try {
       await applyPlan.mutateAsync({
+        dateKey,
+        timeZone,
         slots: editableSlots.map((slot) => ({
           taskId: slot.taskId,
           title: slot.taskTitle,

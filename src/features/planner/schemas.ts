@@ -157,9 +157,14 @@ export const planSlotSchema = z
 /**
  * Batch accept of a plan preview. Slots are deduplicated by the service
  * (`taskId + start + end`), so sending the same plan twice is safe.
+ * `dateKey`/`timeZone` scope the same-day check (B1): a slot whose task
+ * already owns a block on that day is skipped and reported in
+ * `skippedTaskIds`, never duplicated.
  */
 export const applyPlanSchema = z.object({
   slots: z.array(planSlotSchema).max(100, "Too many slots in one plan."),
+  dateKey: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a calendar date, e.g. 2026-11-04."),
+  timeZone: z.string().min(1, "Time zone is required."),
 });
 
 export type ApplyPlanInput = z.infer<typeof applyPlanSchema>;

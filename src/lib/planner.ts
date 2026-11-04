@@ -60,6 +60,12 @@ export interface PlanBlock {
   id: string;
   startTime: string;
   endTime: string;
+  /**
+   * Set for `task` blocks (Д4: `block_type = 'task'` ⇔ `task_id NOT NULL`).
+   * `planDay` uses it to recognise tasks that already own a block on the
+   * planned day (B1) — free-window math ignores it, every block still cuts.
+   */
+  taskId?: string | null;
 }
 
 export interface ComputeFreeWindowsInput {
@@ -120,6 +126,19 @@ export interface DoesNotFit {
   reason: "no-window" | "too-long";
 }
 
+/**
+ * A task that already owns a `task` block overlapping the planned day: it
+ * is reported, never re-planned (B1). `start`/`end` are the stored ISO
+ * instants of the earliest overlapping block — the ones the preview shows
+ * in the user's zone.
+ */
+export interface AlreadyPlanned {
+  taskId: string;
+  blockId: string;
+  start: string;
+  end: string;
+}
+
 export interface PlanDayInput {
   dateKey: string;
   timeZone: string;
@@ -136,6 +155,7 @@ export interface PlanDayResult {
   slots: PlannedSlot[];
   doesNotFit: DoesNotFit[];
   needsEstimate: Task[];
+  alreadyPlanned: AlreadyPlanned[];
 }
 
 const DATE_KEY_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
@@ -791,6 +811,12 @@ function firstWorkOverlap(range: RangeMs, input: FindConflictsInput): number | n
  * (PRD §4.3: never plan in the past). Slots never overlap and never enter
  * sleep or working/study hours, because they are carved out of the free
  * windows (Д1).
+ *
+ * B1: a task that already owns a `task` block overlapping the planned day
+ * (day bounds are the user's local midnight, the same edges
+ * `plannerDayBounds` reads — never a UTC calendar date) is reported in
+ * `alreadyPlanned` with the earliest overlapping block and takes no slot.
+ * Its block still cuts the free windows, so no other task is placed into it.
  */
 export function planDay(input: PlanDayInput): PlanDayResult {
   const initial = computeFreeWindows({
@@ -811,8 +837,44 @@ export function planDay(input: PlanDayInput): PlanDayResult {
       : initial;
 
   const longest = remaining.reduce((max, window) => Math.max(max, window.end - window.start), 0);
+
+  // B1: tasks that already own a block overlapping the planned day never
+  // take a second slot. Bounds are the user's local midnight pair — a block
+  // touching the day edge belongs to the neighbour, like in `listBlocks`.
+  const dayStartMs = Date.parse(localDateTimeToIso(`${input.dateKey}T00:00`, input.timeZone));
+  const dayEndMs = Date.parse(
+    localDateTimeToIso(`${addDays(input.dateKey, 1)}T00:00`, input.timeZone),
+  );
+  const plannedByTask = new Map<
+    string,
+    { blockId: string; start: string; end: string; startMs: number }
+  >();
+
+  for (const block of input.blocks) {
+    if (block.taskId == null) {
+      continue;
+    }
+
+    const range = parseBlockRange(block);
+
+    if (!range || range.end <= dayStartMs || range.start >= dayEndMs) {
+      continue;
+    }
+
+    const current = plannedByTask.get(block.taskId);
+
+    if (!current || range.start < current.startMs) {
+      plannedByTask.set(block.taskId, {
+        blockId: block.id,
+        start: block.startTime,
+        end: block.endTime,
+        startMs: range.start,
+      });
+    }
+  }
+
   const { candidates, needsEstimate } = selectCandidates({
-    tasks: input.tasks,
+    tasks: input.tasks.filter((task) => !plannedByTask.has(task.id)),
     now: input.now,
     timeZone: input.timeZone,
   });
@@ -864,5 +926,23 @@ export function planDay(input: PlanDayInput): PlanDayResult {
 
   slots.sort((a, b) => (a.start < b.start ? -1 : a.start > b.start ? 1 : 0));
 
-  return { slots, doesNotFit, needsEstimate };
+  // Input order is the only order here: deterministic for the same input.
+  const alreadyPlanned: AlreadyPlanned[] = input.tasks
+    .filter((task) => plannedByTask.has(task.id))
+    .map((task) => {
+      const planned = plannedByTask.get(task.id) as {
+        blockId: string;
+        start: string;
+        end: string;
+      };
+
+      return {
+        taskId: task.id,
+        blockId: planned.blockId,
+        start: planned.start,
+        end: planned.end,
+      };
+    });
+
+  return { slots, doesNotFit, needsEstimate, alreadyPlanned };
 }

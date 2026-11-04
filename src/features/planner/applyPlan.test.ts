@@ -28,6 +28,9 @@ const SLOT_B = {
   end: "2026-11-04T09:30:00.000Z",
 };
 
+/** The day being planned: applyPlan scopes the same-day check to it. */
+const DAY_INPUT = { dateKey: "2026-11-04", timeZone: "UTC" } as const;
+
 function blockRow(taskId: string, start: string, end: string, id = `block-${taskId}`): TimeBlocksRow {
   return {
     id,
@@ -132,7 +135,9 @@ describe("applyPlan", () => {
     const fromEntry = vi.fn();
     stubClient(null, fromEntry);
 
-    await expect(applyPlan({ slots: [SLOT_A] })).rejects.toMatchObject({ code: "forbidden" });
+    await expect(applyPlan({ ...DAY_INPUT, slots: [SLOT_A] })).rejects.toMatchObject({
+      code: "forbidden",
+    });
     expect(fromEntry).not.toHaveBeenCalled();
   });
 
@@ -141,6 +146,7 @@ describe("applyPlan", () => {
     stubClient("u1", fromEntry);
 
     const error = await applyPlan({
+      ...DAY_INPUT,
       slots: [{ ...SLOT_A, start: SLOT_A.end, end: SLOT_A.start }],
     }).catch((failure: unknown) => failure);
 
@@ -168,7 +174,7 @@ describe("applyPlan", () => {
     const fromEntry = queueFrom([owned, existing, insert, mirror]);
     stubClient("u1", fromEntry);
 
-    const result = await applyPlan({ slots: [SLOT_A, SLOT_B] });
+    const result = await applyPlan({ ...DAY_INPUT, slots: [SLOT_A, SLOT_B] });
 
     expect(result.blocks).toHaveLength(1);
     expect(result.blocks[0]).toMatchObject({
@@ -183,8 +189,9 @@ describe("applyPlan", () => {
     expect(owned.eq).toHaveBeenCalledWith("user_id", "u1");
     expect(owned.in).toHaveBeenCalledWith("id", [TASK_A, TASK_B]);
     expect(existing.eq).toHaveBeenCalledWith("user_id", "u1");
-    expect(existing.gt).toHaveBeenCalledWith("end_time", SLOT_A.start);
-    expect(existing.lt).toHaveBeenCalledWith("start_time", SLOT_B.end);
+    // The read covers the whole planned day in UTC, not just the slot span.
+    expect(existing.gt).toHaveBeenCalledWith("end_time", "2026-11-04T00:00:00.000Z");
+    expect(existing.lt).toHaveBeenCalledWith("start_time", "2026-11-05T00:00:00.000Z");
 
     // The existing pair is skipped: a single insert with the missing row.
     expect(insert.insert).toHaveBeenCalledOnce();
@@ -228,9 +235,9 @@ describe("applyPlan", () => {
     stubClient("u1", fromEntry);
 
     // The repeat of the previous test's Accept: the same slots, already stored.
-    const result = await applyPlan({ slots: [SLOT_A, SLOT_B] });
+    const result = await applyPlan({ ...DAY_INPUT, slots: [SLOT_A, SLOT_B] });
 
-    expect(result).toEqual({ blocks: [], mirroredTaskIds: [] });
+    expect(result).toEqual({ blocks: [], mirroredTaskIds: [], skippedTaskIds: [TASK_A, TASK_B] });
     expect(fromEntry).toHaveBeenCalledTimes(2);
   });
 
@@ -253,9 +260,9 @@ describe("applyPlan", () => {
     const fromEntry = queueFrom([owned, existing, insert, mirror]);
     stubClient("u1", fromEntry);
 
-    const result = await applyPlan({ slots: [SLOT_A] });
+    const result = await applyPlan({ ...DAY_INPUT, slots: [SLOT_A] });
 
-    expect(result).toEqual({ blocks: [], mirroredTaskIds: [] });
+    expect(result).toEqual({ blocks: [], mirroredTaskIds: [], skippedTaskIds: [TASK_A] });
     expect(fromEntry).toHaveBeenCalledTimes(2);
     expect(insert.insert).not.toHaveBeenCalled();
     expect(mirror.update).not.toHaveBeenCalled();
@@ -286,9 +293,9 @@ describe("applyPlan", () => {
     const fromEntry = queueFrom([owned, existing, insert, mirror]);
     stubClient("u1", fromEntry);
 
-    const result = await applyPlan({ slots: [microSlot] });
+    const result = await applyPlan({ ...DAY_INPUT, slots: [microSlot] });
 
-    expect(result).toEqual({ blocks: [], mirroredTaskIds: [] });
+    expect(result).toEqual({ blocks: [], mirroredTaskIds: [], skippedTaskIds: [TASK_A] });
     expect(fromEntry).toHaveBeenCalledTimes(2);
     expect(insert.insert).not.toHaveBeenCalled();
     expect(mirror.update).not.toHaveBeenCalled();
@@ -299,6 +306,7 @@ describe("applyPlan", () => {
     stubClient("u1", fromEntry);
 
     const error = await applyPlan({
+      ...DAY_INPUT,
       slots: [{ ...SLOT_A, start: "not-a-date" }],
     }).catch((failure: unknown) => failure);
 
@@ -316,10 +324,54 @@ describe("applyPlan", () => {
     const fromEntry = queueFrom([owned, existing, insert, mirror]);
     stubClient("u1", fromEntry);
 
-    const result = await applyPlan({ slots: [SLOT_A, SLOT_A] });
+    const result = await applyPlan({ ...DAY_INPUT, slots: [SLOT_A, SLOT_A] });
 
     expect(result.blocks).toHaveLength(1);
     expect(insert.insert.mock.calls[0]?.[0]).toHaveLength(1);
+  });
+
+  it("does not create a second block for a task that already has one that day", async () => {
+    const dayBlock = blockRow(TASK_A, SLOT_A.start, SLOT_A.end, "block-day");
+    const owned = chain({
+      data: [
+        { id: TASK_A, title: "Write the report" },
+        { id: TASK_B, title: "Reply to the client" },
+      ],
+      error: null,
+    });
+    const existing = chain({ data: [dayBlock], error: null });
+    const insertedRow = blockRow(
+      TASK_B,
+      "2026-11-04T15:00:00.000Z",
+      "2026-11-04T15:30:00.000Z",
+      "block-fresh",
+    );
+    const insert = chain({ data: [insertedRow], error: null });
+    const mirror = chain({ data: null, error: null });
+    const fromEntry = queueFrom([owned, existing, insert, mirror]);
+    stubClient("u1", fromEntry);
+
+    const sameTaskSlot = {
+      taskId: TASK_A,
+      title: "Write the report",
+      start: "2026-11-04T15:00:00.000Z",
+      end: "2026-11-04T16:00:00.000Z",
+    };
+    const freshSlot = {
+      taskId: TASK_B,
+      title: "Reply to the client",
+      start: "2026-11-04T16:00:00.000Z",
+      end: "2026-11-04T16:30:00.000Z",
+    };
+    const result = await applyPlan({ ...DAY_INPUT, slots: [sameTaskSlot, freshSlot] });
+
+    expect(insert.insert.mock.calls[0]?.[0]).toEqual([
+      expect.objectContaining({ task_id: TASK_B }),
+    ]);
+    expect(result.blocks).toHaveLength(1);
+    expect(result.mirroredTaskIds).toEqual([TASK_B]);
+    expect(result.skippedTaskIds).toEqual([TASK_A]);
+    expect(fromEntry).toHaveBeenCalledTimes(4);
   });
 
   it("falls back to the stored task title when the slot arrives untitled", async () => {
@@ -331,7 +383,7 @@ describe("applyPlan", () => {
     const fromEntry = queueFrom([owned, existing, insert, mirror]);
     stubClient("u1", fromEntry);
 
-    await applyPlan({ slots: [{ ...SLOT_A, title: "" }] });
+    await applyPlan({ ...DAY_INPUT, slots: [{ ...SLOT_A, title: "" }] });
 
     expect(insert.insert.mock.calls[0]?.[0]).toEqual([
       expect.objectContaining({ title: "Stored title" }),
@@ -343,7 +395,9 @@ describe("applyPlan", () => {
     const fromEntry = queueFrom([owned]);
     stubClient("u1", fromEntry);
 
-    const error = await applyPlan({ slots: [SLOT_A] }).catch((failure: unknown) => failure);
+    const error = await applyPlan({ ...DAY_INPUT, slots: [SLOT_A] }).catch(
+      (failure: unknown) => failure,
+    );
 
     expect(error).toBeInstanceOf(BlockServiceError);
     expect(error).toMatchObject({ code: "validation" });
@@ -357,7 +411,9 @@ describe("applyPlan", () => {
     const fromEntry = queueFrom([owned, existing, insert]);
     stubClient("u1", fromEntry);
 
-    await expect(applyPlan({ slots: [SLOT_A] })).rejects.toMatchObject({ code: "validation" });
+    await expect(applyPlan({ ...DAY_INPUT, slots: [SLOT_A] })).rejects.toMatchObject({
+      code: "validation",
+    });
     expect(fromEntry).toHaveBeenCalledTimes(3);
   });
 
@@ -372,15 +428,97 @@ describe("applyPlan", () => {
 
     // The block row stays in the database (no transaction without an RPC);
     // the caller sees the coded error instead of a silent partial accept.
-    await expect(applyPlan({ slots: [SLOT_A] })).rejects.toMatchObject({ code: "forbidden" });
+    await expect(applyPlan({ ...DAY_INPUT, slots: [SLOT_A] })).rejects.toMatchObject({
+      code: "forbidden",
+    });
     expect(insert.insert).toHaveBeenCalledOnce();
+  });
+
+  it("does not create a second block for a task that has one that day", async () => {
+    const owned = chain({ data: [{ id: TASK_A, title: "Write the report" }], error: null });
+    // The task already owns a 09:00–10:00 block on the planned day: a slot
+    // for another time is skipped, not inserted.
+    const existing = chain({
+      data: [{ task_id: TASK_A, start_time: SLOT_A.start, end_time: SLOT_A.end }],
+      error: null,
+    });
+    const fromEntry = queueFrom([owned, existing]);
+    stubClient("u1", fromEntry);
+
+    const afternoon = {
+      taskId: TASK_A,
+      title: "Write the report",
+      start: "2026-11-04T14:00:00.000Z",
+      end: "2026-11-04T15:00:00.000Z",
+    };
+    const result = await applyPlan({ ...DAY_INPUT, slots: [afternoon] });
+
+    expect(result).toEqual({ blocks: [], mirroredTaskIds: [], skippedTaskIds: [TASK_A] });
+    expect(fromEntry).toHaveBeenCalledTimes(2);
+  });
+
+  it("second accept after the plan is in blocks inserts nothing", async () => {
+    const ownedRows = {
+      data: [
+        { id: TASK_A, title: "Write the report" },
+        { id: TASK_B, title: "Reply to the client" },
+      ],
+      error: null,
+    };
+    // First accept: nothing stored yet, both slots are inserted + mirrored.
+    stubClient(
+      "u1",
+      queueFrom([
+        chain(ownedRows),
+        chain({ data: [], error: null }),
+        chain({
+          data: [blockRow(TASK_A, SLOT_A.start, SLOT_A.end), blockRow(TASK_B, SLOT_B.start, SLOT_B.end)],
+          error: null,
+        }),
+        chain({ data: null, error: null }),
+        chain({ data: null, error: null }),
+      ]),
+    );
+
+    const first = await applyPlan({ ...DAY_INPUT, slots: [SLOT_A, SLOT_B] });
+
+    expect(first.blocks).toHaveLength(2);
+    expect(first.skippedTaskIds).toEqual([]);
+
+    // Second accept: the same slots are already blocks — no insert, no mirror.
+    const insert = chain({ data: [], error: null });
+    const mirror = chain({ data: null, error: null });
+    const fromEntry = queueFrom([
+      chain(ownedRows),
+      chain({
+        data: [
+          { task_id: TASK_A, start_time: SLOT_A.start, end_time: SLOT_A.end },
+          { task_id: TASK_B, start_time: SLOT_B.start, end_time: SLOT_B.end },
+        ],
+        error: null,
+      }),
+      insert,
+      mirror,
+    ]);
+    stubClient("u1", fromEntry);
+
+    const second = await applyPlan({ ...DAY_INPUT, slots: [SLOT_A, SLOT_B] });
+
+    expect(second).toEqual({ blocks: [], mirroredTaskIds: [], skippedTaskIds: [TASK_A, TASK_B] });
+    expect(fromEntry).toHaveBeenCalledTimes(2);
+    expect(insert.insert).not.toHaveBeenCalled();
+    expect(mirror.update).not.toHaveBeenCalled();
   });
 
   it("accepts an empty plan without touching any table", async () => {
     const fromEntry = vi.fn();
     stubClient("u1", fromEntry);
 
-    await expect(applyPlan({ slots: [] })).resolves.toEqual({ blocks: [], mirroredTaskIds: [] });
+    await expect(applyPlan({ ...DAY_INPUT, slots: [] })).resolves.toEqual({
+      blocks: [],
+      mirroredTaskIds: [],
+      skippedTaskIds: [],
+    });
     expect(fromEntry).not.toHaveBeenCalled();
   });
 });

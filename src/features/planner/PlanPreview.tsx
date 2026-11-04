@@ -8,7 +8,12 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import type { Priority } from "@/types/domain";
 
 import { formatDurationMinutes } from "./usePlannerDay";
-import type { PlanPreview, PlanPreviewIssue, PlanPreviewSlot } from "./usePlanPreview";
+import type {
+  PlanPreview,
+  PlanPreviewAlreadyPlanned,
+  PlanPreviewIssue,
+  PlanPreviewSlot,
+} from "./usePlanPreview";
 
 /**
  * Plan preview panel (iteration 4, unit 8). It renders a proposal and nothing
@@ -90,6 +95,28 @@ function SlotRow({ slot }: { slot: PlanPreviewSlot }) {
   );
 }
 
+function AlreadyPlannedRow({ entry }: { entry: PlanPreviewAlreadyPlanned }) {
+  return (
+    <li className="flex flex-col gap-1 rounded-control border border-line bg-surface-muted p-3">
+      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+        <p className="text-ui font-medium text-content text-pretty">{entry.taskTitle}</p>
+        <p className="flex shrink-0 items-baseline gap-1 text-ui text-muted tabular-nums">
+          <time dateTime={entry.start}>{entry.startLabel}</time>
+          <span aria-hidden="true">–</span>
+          <span className="sr-only">to</span>
+          <time dateTime={entry.end}>{entry.endLabel}</time>
+        </p>
+        {entry.estimatedDurationMinutes === null ? null : (
+          <span className="text-micro text-muted tabular-nums">
+            Estimate: {formatDurationMinutes(entry.estimatedDurationMinutes)}
+          </span>
+        )}
+      </div>
+      <p className="text-ui text-muted text-pretty">{entry.explanation}</p>
+    </li>
+  );
+}
+
 function IssueRow({ issue }: { issue: PlanPreviewIssue }) {
   return (
     <li className="space-y-1.5 rounded-control border border-line bg-surface-muted p-3">
@@ -147,6 +174,15 @@ function PreviewSlotList({ preview }: { preview: PlanPreview }) {
   }
 
   if (preview.slots.length === 0) {
+    if (preview.alreadyPlanned.length > 0) {
+      return (
+        <p className="text-ui text-muted text-pretty">
+          No new slots were suggested. Tasks that still need a place are listed below; tasks
+          already in your plan follow them.
+        </p>
+      );
+    }
+
     return (
       <p className="text-ui text-muted text-pretty">
         No slot fits into this day. The tasks that could not be placed are listed below.
@@ -185,7 +221,10 @@ export function PlanPreview({
   }
 
   const { summary } = preview;
-  const hasNothingToPlan = summary.candidateCount === 0 && summary.needsEstimateCount === 0;
+  const hasNothingToPlan =
+    summary.candidateCount === 0 &&
+    summary.needsEstimateCount === 0 &&
+    preview.alreadyPlanned.length === 0;
 
   return (
     <Card className="space-y-6">
@@ -242,6 +281,20 @@ export function PlanPreview({
             empty="Every task with an estimate fits into this day."
             issues={preview.doesNotFit}
           />
+
+          {preview.alreadyPlanned.length > 0 ? (
+            <section className="space-y-3">
+              <h3 className="text-ui font-medium text-content">Already in your plan</h3>
+              <p className="text-ui text-muted text-pretty">
+                These tasks already have a block on this day, so the plan leaves them untouched.
+              </p>
+              <ul className="space-y-3">
+                {preview.alreadyPlanned.map((entry) => (
+                  <AlreadyPlannedRow key={entry.taskId} entry={entry} />
+                ))}
+              </ul>
+            </section>
+          ) : null}
 
           <IssueGroup
             title="Needs an estimate"

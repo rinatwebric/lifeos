@@ -81,6 +81,26 @@ export interface PlanPreviewIssue {
   explanation: string;
 }
 
+/**
+ * A task that already owns a block on the previewed day (B1): the plan
+ * leaves it untouched and says so instead of proposing a second block.
+ * Labels are the block's local wall-clock time in the user's zone.
+ */
+export interface PlanPreviewAlreadyPlanned {
+  taskId: string;
+  taskTitle: string;
+  priority: Priority;
+  estimatedDurationMinutes: number | null;
+  blockId: string;
+  /** Stored ISO instants of the existing block — never written, only shown. */
+  start: string;
+  end: string;
+  startLabel: string;
+  endLabel: string;
+  crossesMidnight: boolean;
+  explanation: string;
+}
+
 export interface PlanPreviewSummary {
   /** Open tasks with a usable estimate the planner tried to place. */
   candidateCount: number;
@@ -91,6 +111,8 @@ export interface PlanPreviewSummary {
   /** Known estimate of those tasks — the time still looking for a home. */
   unplacedMinutes: number;
   needsEstimateCount: number;
+  /** Tasks that already own a block on this day (B1, left untouched). */
+  alreadyPlannedCount: number;
   hasWakingHours: boolean;
   hasFreeWindows: boolean;
 }
@@ -101,6 +123,7 @@ export interface PlanPreview {
   slots: PlanPreviewSlot[];
   doesNotFit: PlanPreviewIssue[];
   needsEstimate: PlanPreviewIssue[];
+  alreadyPlanned: PlanPreviewAlreadyPlanned[];
   summary: PlanPreviewSummary;
   /** True when there is at least one slot to accept. */
   canAccept: boolean;
@@ -176,6 +199,7 @@ export function buildPlanPreview(input: PlanPreviewInput): PlanPreview {
       slots: [],
       doesNotFit: [],
       needsEstimate: issues,
+      alreadyPlanned: [],
       summary: {
         candidateCount: 0,
         slotCount: 0,
@@ -183,6 +207,7 @@ export function buildPlanPreview(input: PlanPreviewInput): PlanPreview {
         unplacedCount: 0,
         unplacedMinutes: 0,
         needsEstimateCount: issues.length,
+        alreadyPlannedCount: 0,
         hasWakingHours: false,
         hasFreeWindows: false,
       },
@@ -272,6 +297,36 @@ export function buildPlanPreview(input: PlanPreviewInput): PlanPreview {
   }
 
   const needsEstimate = plan.needsEstimate.map(toNeedsEstimateIssue);
+
+  // B1: the plan leaves these alone — the preview names the existing block's
+  // local time so the reader knows nothing new will be added for them.
+  const alreadyPlanned: PlanPreviewAlreadyPlanned[] = [];
+
+  for (const entry of plan.alreadyPlanned) {
+    const task = taskById.get(entry.taskId);
+
+    if (!task) {
+      continue;
+    }
+
+    const start = localParts(entry.start, input.timeZone);
+    const end = localParts(entry.end, input.timeZone);
+
+    alreadyPlanned.push({
+      taskId: task.id,
+      taskTitle: task.title,
+      priority: task.priority,
+      estimatedDurationMinutes: task.estimatedDurationMinutes ?? null,
+      blockId: entry.blockId,
+      start: entry.start,
+      end: entry.end,
+      startLabel: start.time,
+      endLabel: end.time,
+      crossesMidnight: start.date !== end.date,
+      explanation: `Already in your plan on this day, ${start.time}–${end.time}. Accepting the plan leaves this block untouched.`,
+    });
+  }
+
   const plannedMinutes = slots.reduce((total, slot) => total + slot.durationMinutes, 0);
   const unplacedMinutes = doesNotFit.reduce(
     (total, issue) => total + (issue.estimatedDurationMinutes ?? 0),
@@ -284,6 +339,7 @@ export function buildPlanPreview(input: PlanPreviewInput): PlanPreview {
     slots,
     doesNotFit,
     needsEstimate,
+    alreadyPlanned,
     summary: {
       candidateCount: slots.length + doesNotFit.length,
       slotCount: slots.length,
@@ -291,6 +347,7 @@ export function buildPlanPreview(input: PlanPreviewInput): PlanPreview {
       unplacedCount: doesNotFit.length,
       unplacedMinutes,
       needsEstimateCount: needsEstimate.length,
+      alreadyPlannedCount: alreadyPlanned.length,
       hasWakingHours: true,
       hasFreeWindows,
     },

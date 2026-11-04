@@ -104,7 +104,7 @@ beforeEach(() => {
   } as never);
   vi.mocked(listTasks).mockResolvedValue([TASK]);
   vi.mocked(listBlocks).mockResolvedValue([]);
-  vi.mocked(applyPlan).mockResolvedValue({ blocks: [], mirroredTaskIds: [TASK_ID] });
+  vi.mocked(applyPlan).mockResolvedValue({ blocks: [], mirroredTaskIds: [TASK_ID], skippedTaskIds: [] });
 });
 
 describe("PlanAcceptPanel", () => {
@@ -119,6 +119,28 @@ describe("PlanAcceptPanel", () => {
     expect(starts).toHaveValue("2026-11-04T08:00");
     expect(screen.getByLabelText(/^Ends for /)).toHaveValue("2026-11-04T09:00");
     expect(screen.getByRole("button", { name: "Accept plan" })).toBeEnabled();
+  });
+
+  it("reports the task that already has a block instead of planning it twice", async () => {
+    vi.mocked(listBlocks).mockResolvedValue([
+      block({
+        id: "existing",
+        taskId: TASK_ID,
+        blockType: "task",
+        title: TASK_TITLE,
+        startTime: "2026-11-04T09:00:00.000Z",
+        endTime: "2026-11-04T10:00:00.000Z",
+      }),
+    ]);
+    renderPanel();
+
+    expect(await screen.findByText("Already in your plan")).toBeInTheDocument();
+    expect(screen.getByText("Write the report")).toBeInTheDocument();
+    expect(screen.getByText("09:00")).toBeInTheDocument();
+    expect(screen.getByText("10:00")).toBeInTheDocument();
+    // Nothing new to accept: the only task is already planned.
+    expect(screen.getByRole("button", { name: "Accept plan" })).toBeDisabled();
+    expect(applyPlan).not.toHaveBeenCalled();
   });
 
   it("cancel writes nothing", async () => {
@@ -182,6 +204,8 @@ describe("PlanAcceptPanel", () => {
       expect(applyPlan).toHaveBeenCalledTimes(1);
     });
     expect(applyPlan).toHaveBeenCalledWith({
+      dateKey: DATE_KEY,
+      timeZone: TIME_ZONE,
       slots: [
         {
           taskId: TASK_ID,
@@ -231,6 +255,8 @@ describe("PlanAcceptPanel", () => {
       expect(applyPlan).toHaveBeenCalledTimes(1);
     });
     expect(applyPlan).toHaveBeenCalledWith({
+      dateKey: DATE_KEY,
+      timeZone: TIME_ZONE,
       slots: [
         {
           taskId: TASK_ID,
