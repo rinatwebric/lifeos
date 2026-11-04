@@ -330,7 +330,7 @@ describe("applyPlan", () => {
     expect(insert.insert.mock.calls[0]?.[0]).toHaveLength(1);
   });
 
-  it("does not create a second block for a task that already has one that day", async () => {
+  it("skips the planned task but inserts the fresh one in a mixed batch", async () => {
     const dayBlock = blockRow(TASK_A, SLOT_A.start, SLOT_A.end, "block-day");
     const owned = chain({
       data: [
