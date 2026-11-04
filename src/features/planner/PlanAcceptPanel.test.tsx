@@ -206,6 +206,7 @@ describe("PlanAcceptPanel", () => {
     expect(applyPlan).toHaveBeenCalledWith({
       dateKey: DATE_KEY,
       timeZone: TIME_ZONE,
+      allowConflicts: false,
       slots: [
         {
           taskId: TASK_ID,
@@ -257,6 +258,7 @@ describe("PlanAcceptPanel", () => {
     expect(applyPlan).toHaveBeenCalledWith({
       dateKey: DATE_KEY,
       timeZone: TIME_ZONE,
+      allowConflicts: true,
       slots: [
         {
           taskId: TASK_ID,

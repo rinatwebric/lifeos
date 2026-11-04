@@ -1,4 +1,5 @@
 import { localDateTimeToIso } from "@/lib/dates";
+import { findConflicts } from "@/lib/planner";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import { mapTimeBlockRowToTimeBlock, type TimeBlocksRow } from "@/types/database";
 import type { BlockType, TimeBlock } from "@/types/domain";
@@ -641,10 +642,11 @@ export async function applyPlan(input: ApplyPlanInput): Promise<ApplyPlanResult>
     // Rows without a task have no pair and stay out of the set entirely.
     const present = new Set<string>();
     const dayTaskIds = new Set<string>();
-
-    for (const row of ((existing ?? []) as Array<
+    const stored = (existing ?? []) as Array<
       Pick<TimeBlocksRow, "id" | "task_id" | "start_time" | "end_time">
-    >)) {
+    >;
+
+    for (const row of stored) {
       if (row.task_id === null) {
         continue;
       }
@@ -696,6 +698,52 @@ export async function applyPlan(input: ApplyPlanInput): Promise<ApplyPlanResult>
 
     if (missing.length === 0) {
       return { blocks: [], mirroredTaskIds: [], skippedTaskIds };
+    }
+
+    // S1: recheck the new slots against the blocks of the same day by
+    // instants — `findConflicts` from `@/lib/planner`, never a second
+    // implementation. Only `overlap` is enforced here: sleep/past stay
+    // client-side warnings, `work` is a soft hint by design (Д2). An
+    // overlap without explicit consent is a coded `conflict`, not a
+    // silent double-booking; with consent (the panel's checkbox) it writes.
+    if (!parsed.data.allowConflicts) {
+      const drafts = missing.map((slot, index) => ({
+        id: `plan:${slot.taskId}:${index}`,
+        startTime: slot.start,
+        endTime: slot.end,
+      }));
+      const draftIds = new Set(drafts.map((draft) => draft.id));
+      const conflicts = findConflicts(
+        [
+          ...stored.map((row) => ({
+            id: row.id,
+            startTime: row.start_time,
+            endTime: row.end_time,
+          })),
+          ...drafts,
+        ],
+        {
+          now: new Date(),
+          timeZone: parsed.data.timeZone,
+          wakeUpTime: "00:00",
+          sleepTime: "23:59",
+          workingHours: {},
+          studyHours: {},
+        },
+      );
+      const overlap = conflicts.some(
+        (conflict) =>
+          conflict.kind === "overlap" &&
+          (draftIds.has(conflict.blockId) ||
+            (conflict.otherId !== undefined && draftIds.has(conflict.otherId))),
+      );
+
+      if (overlap) {
+        throw new BlockServiceError(
+          "conflict",
+          "These planned times overlap blocks already on this day. Adjust the times or accept again with the confirmation checked.",
+        );
+      }
     }
 
     const payload: Array<Omit<TimeBlocksRow, "id" | "created_at" | "updated_at">> = missing.map(

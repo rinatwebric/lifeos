@@ -165,6 +165,12 @@ export const applyPlanSchema = z.object({
   slots: z.array(planSlotSchema).max(100, "Too many slots in one plan."),
   dateKey: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a calendar date, e.g. 2026-11-04."),
   timeZone: z.string().min(1, "Time zone is required."),
+  /**
+   * Explicit consent to write slots that overlap blocks already on this
+   * day (S1). The panel binds it to the exact draft behind its checkbox;
+   * without it an overlap is a coded `conflict`, never a silent booking.
+   */
+  allowConflicts: z.boolean().optional(),
 });
 
 export type ApplyPlanInput = z.infer<typeof applyPlanSchema>;

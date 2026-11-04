@@ -510,6 +510,106 @@ describe("applyPlan", () => {
     expect(mirror.update).not.toHaveBeenCalled();
   });
 
+  it("rejects a slot that overlaps an existing block without consent", async () => {
+    const owned = chain({ data: [{ id: TASK_A, title: "Write the report" }], error: null });
+    // Another task's 09:00-10:00 block: the 09:30-10:30 slot overlaps it.
+    const existing = chain({
+      data: [
+        {
+          id: "block-other",
+          task_id: TASK_B,
+          start_time: "2026-11-04T09:00:00.000Z",
+          end_time: "2026-11-04T10:00:00.000Z",
+        },
+      ],
+      error: null,
+    });
+    const insert = chain({ data: [], error: null });
+    const fromEntry = queueFrom([owned, existing, insert]);
+    stubClient("u1", fromEntry);
+
+    const overlap = {
+      taskId: TASK_A,
+      title: "Write the report",
+      start: "2026-11-04T09:30:00.000Z",
+      end: "2026-11-04T10:30:00.000Z",
+    };
+
+    await expect(applyPlan({ ...DAY_INPUT, slots: [overlap] })).rejects.toMatchObject({
+      code: "conflict",
+    });
+    expect(fromEntry).toHaveBeenCalledTimes(2);
+    expect(insert.insert).not.toHaveBeenCalled();
+  });
+
+  it("inserts an overlapping slot when the overlap is acknowledged", async () => {
+    const owned = chain({ data: [{ id: TASK_A, title: "Write the report" }], error: null });
+    // Another task's 09:00-10:00 block: the 09:30-10:30 slot overlaps it,
+    // but the caller passes the UI confirmation through.
+    const existing = chain({
+      data: [
+        {
+          task_id: TASK_B,
+          start_time: "2026-11-04T09:00:00.000Z",
+          end_time: "2026-11-04T10:00:00.000Z",
+        },
+      ],
+      error: null,
+    });
+    const insertedRow = blockRow(TASK_A, "2026-11-04T09:30:00.000Z", "2026-11-04T10:30:00.000Z");
+    const insert = chain({ data: [insertedRow], error: null });
+    const mirror = chain({ data: null, error: null });
+    const fromEntry = queueFrom([owned, existing, insert, mirror]);
+    stubClient("u1", fromEntry);
+
+    const overlap = {
+      taskId: TASK_A,
+      title: "Write the report",
+      start: "2026-11-04T09:30:00.000Z",
+      end: "2026-11-04T10:30:00.000Z",
+    };
+
+    const result = await applyPlan({ ...DAY_INPUT, allowConflicts: true, slots: [overlap] });
+
+    expect(result.blocks).toHaveLength(1);
+    expect(result.mirroredTaskIds).toEqual([TASK_A]);
+    expect(result.skippedTaskIds).toEqual([]);
+    expect(fromEntry).toHaveBeenCalledTimes(4);
+    expect(insert.insert).toHaveBeenCalledOnce();
+  });
+
+  it("writes an overlapping slot with explicit consent", async () => {
+    const owned = chain({ data: [{ id: TASK_A, title: "Write the report" }], error: null });
+    const existing = chain({
+      data: [
+        {
+          id: "block-other",
+          task_id: TASK_B,
+          start_time: "2026-11-04T09:00:00.000Z",
+          end_time: "2026-11-04T10:00:00.000Z",
+        },
+      ],
+      error: null,
+    });
+    const overlap = {
+      taskId: TASK_A,
+      title: "Write the report",
+      start: "2026-11-04T09:30:00.000Z",
+      end: "2026-11-04T10:30:00.000Z",
+    };
+    const insertedRow = blockRow(TASK_A, overlap.start, overlap.end);
+    const insert = chain({ data: [insertedRow], error: null });
+    const mirror = chain({ data: null, error: null });
+    const fromEntry = queueFrom([owned, existing, insert, mirror]);
+    stubClient("u1", fromEntry);
+
+    const result = await applyPlan({ ...DAY_INPUT, allowConflicts: true, slots: [overlap] });
+
+    expect(result.blocks).toHaveLength(1);
+    expect(result.skippedTaskIds).toEqual([]);
+    expect(insert.insert).toHaveBeenCalledOnce();
+  });
+
   it("accepts an empty plan without touching any table", async () => {
     const fromEntry = vi.fn();
     stubClient("u1", fromEntry);
