@@ -5,7 +5,13 @@ import {
   type ProfilesRow,
   type UserPreferencesRow,
 } from "@/types/database";
-import type { Profile, ProfileLanguage, ProfileTheme, UserPreferences } from "@/types/domain";
+import type {
+  AvailabilityWindows,
+  Profile,
+  ProfileLanguage,
+  ProfileTheme,
+  UserPreferences,
+} from "@/types/domain";
 
 export const profileQueryKey = ["profile"] as const;
 export const preferencesQueryKey = ["preferences"] as const;
@@ -21,6 +27,9 @@ export interface UpdateProfileInput {
 export interface UpdatePreferencesInput {
   wakeUpTime?: string;
   sleepTime?: string;
+  workingHours?: AvailabilityWindows;
+  studyHours?: AvailabilityWindows;
+  preferredWorkPeriods?: AvailabilityWindows;
 }
 
 /**
@@ -121,6 +130,15 @@ export async function updatePreferences(input: UpdatePreferencesInput): Promise<
   }
   if (input.sleepTime !== undefined) {
     payload.sleep_time = input.sleepTime;
+  }
+  if (input.workingHours !== undefined) {
+    payload.working_hours = input.workingHours;
+  }
+  if (input.studyHours !== undefined) {
+    payload.study_hours = input.studyHours;
+  }
+  if (input.preferredWorkPeriods !== undefined) {
+    payload.preferred_work_periods = input.preferredWorkPeriods;
   }
 
   const { data, error } = await client

@@ -159,6 +159,67 @@ describe("settings api", () => {
     expect(prefs.wakeUpTime).toBe("06:30");
   });
 
+  it("maps the availability JSONB columns to camelCase on read", async () => {
+    const workingHours = { mon: [{ start: "09:00", end: "12:00" }] };
+    const studyHours = { tue: [{ start: "18:00", end: "20:00" }] };
+    const preferredWorkPeriods = { sat: [{ start: "10:00", end: "11:00" }] };
+    const chain = selectChain(
+      singleResult({
+        ...PREFERENCES_ROW,
+        working_hours: workingHours,
+        study_hours: studyHours,
+        preferred_work_periods: preferredWorkPeriods,
+      }),
+    );
+    stubClient("u1", chain.entry);
+
+    const prefs = await getPreferences();
+
+    expect(prefs.workingHours).toStrictEqual(workingHours);
+    expect(prefs.studyHours).toStrictEqual(studyHours);
+    expect(prefs.preferredWorkPeriods).toStrictEqual(preferredWorkPeriods);
+  });
+
+  it("writes the three availability objects as snake_case JSONB", async () => {
+    const workingHours = { mon: [{ start: "09:00", end: "12:00" }] };
+    const studyHours = { tue: [{ start: "18:00", end: "20:00" }] };
+    const preferredWorkPeriods = { sat: [{ start: "10:00", end: "11:00" }] };
+    const chain = updateChain(
+      singleResult({
+        ...PREFERENCES_ROW,
+        working_hours: workingHours,
+        study_hours: studyHours,
+        preferred_work_periods: preferredWorkPeriods,
+      }),
+    );
+    stubClient("u1", chain.entry);
+
+    const prefs = await updatePreferences({ workingHours, studyHours, preferredWorkPeriods });
+
+    expect(chain.mocks.update).toHaveBeenCalledWith({
+      working_hours: workingHours,
+      study_hours: studyHours,
+      preferred_work_periods: preferredWorkPeriods,
+    });
+    expect(chain.mocks.eq).toHaveBeenCalledWith("user_id", "u1");
+    expect(prefs.workingHours).toStrictEqual(workingHours);
+    expect(prefs.studyHours).toStrictEqual(studyHours);
+    expect(prefs.preferredWorkPeriods).toStrictEqual(preferredWorkPeriods);
+  });
+
+  it("sends only the availability keys the caller passed", async () => {
+    const workingHours = { wed: [{ start: "08:00", end: "09:00" }] };
+    const chain = updateChain(singleResult({ ...PREFERENCES_ROW, working_hours: workingHours }));
+    stubClient("u1", chain.entry);
+
+    await updatePreferences({ workingHours });
+
+    expect(chain.mocks.update).toHaveBeenCalledWith({ working_hours: workingHours });
+    expect(chain.mocks.update).not.toHaveBeenCalledWith(
+      expect.objectContaining({ study_hours: expect.anything() }),
+    );
+  });
+
   it("markOnboarded writes onboarded_at through updateProfile", async () => {
     const stamped = { ...PROFILE_ROW, onboarded_at: "2026-11-03T00:00:00.000Z" };
     const chain = updateChain(singleResult(stamped));

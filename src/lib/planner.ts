@@ -1,5 +1,11 @@
 import { isoToLocalDateTime, isTaskOverdue, localDateTimeToIso, toDateKey } from "@/lib/dates";
-import type { Priority, Task } from "@/types/domain";
+import type {
+  AvailabilityWindow,
+  AvailabilityWindows,
+  Priority,
+  Task,
+  Weekday,
+} from "@/types/domain";
 
 /**
  * Pure planning library (iteration 4, unit 2). No React, no Supabase client,
@@ -21,13 +27,10 @@ import type { Priority, Task } from "@/types/domain";
  *   no default duration is invented.
  */
 
-export type DayKey = "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
+export type DayKey = Weekday;
 
 /** Wall-clock interval within one day, "HH:MM" (24-hour). */
-export interface DayInterval {
-  start: string;
-  end: string;
-}
+export type DayInterval = AvailabilityWindow;
 
 /**
  * Shape of the `working_hours` / `study_hours` preference objects:
@@ -36,7 +39,7 @@ export interface DayInterval {
  * a hard conflict for a MANUAL block (Д2) — they feed the soft `work`
  * warning and the score penalty instead.
  */
-export type WeeklyAvailability = Partial<Record<DayKey, DayInterval[]>>;
+export type WeeklyAvailability = AvailabilityWindows;
 
 /** Absolute interval between two UTC ISO instants. */
 export interface TimeRange {

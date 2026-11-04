@@ -1,4 +1,5 @@
 import type {
+  AvailabilityWindows,
   BlockType,
   Goal,
   GoalCategory,
@@ -39,9 +40,10 @@ export interface UserPreferencesRow {
   user_id: string;
   wake_up_time: string;
   sleep_time: string;
-  working_hours: Record<string, unknown>;
-  study_hours: Record<string, unknown>;
-  preferred_work_periods: Record<string, unknown>;
+  /** JSONB. Expected `AvailabilityWindows`; the planner skips malformed entries. */
+  working_hours: AvailabilityWindows;
+  study_hours: AvailabilityWindows;
+  preferred_work_periods: AvailabilityWindows;
   notification_preferences: Record<string, unknown>;
   created_at: string;
   updated_at: string;
