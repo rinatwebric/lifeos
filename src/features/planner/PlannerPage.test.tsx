@@ -4,10 +4,12 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { getProfile } from "@/features/settings/api";
+import { getPreferences, getProfile } from "@/features/settings/api";
+import { listTasks } from "@/features/tasks/api";
 import { localDateTimeToIso } from "@/lib/dates";
 import type { TimeBlock } from "@/types/domain";
 
+import { listBlocks } from "./api";
 import { PlannerPage } from "./PlannerPage";
 import { buildPlannerDay, usePlannerDay } from "./usePlannerDay";
 import type * as PlannerDayModule from "./usePlannerDay";
@@ -20,6 +22,17 @@ vi.mock("@/features/settings/api", () => ({
   getPreferences: vi.fn(),
   preferencesQueryKey: ["preferences"],
 }));
+
+// The dialogs mounted by the page read their own reference data; stubbing the
+// service layer keeps this a page test, not a network test.
+vi.mock("./api", () => ({
+  listBlocks: vi.fn(),
+  createBlock: vi.fn(),
+  updateBlock: vi.fn(),
+  deleteBlock: vi.fn(),
+}));
+
+vi.mock("@/features/tasks/api", () => ({ listTasks: vi.fn() }));
 
 vi.mock("./usePlannerDay", async (importOriginal) => {
   const actual = await importOriginal<typeof PlannerDayModule>();
@@ -95,6 +108,15 @@ function renderPage(entry: string) {
 }
 
 beforeEach(() => {
+  vi.clearAllMocks();
+  vi.mocked(listBlocks).mockResolvedValue([]);
+  vi.mocked(listTasks).mockResolvedValue([]);
+  vi.mocked(getPreferences).mockResolvedValue({
+    wakeUpTime: "07:00",
+    sleepTime: "23:00",
+    workingHours: {},
+    studyHours: {},
+  } as unknown as Awaited<ReturnType<typeof getPreferences>>);
   vi.mocked(getProfile).mockResolvedValue({
     timezone: TIME_ZONE,
   } as unknown as Awaited<ReturnType<typeof getProfile>>);
@@ -193,5 +215,35 @@ describe("PlannerPage view switch", () => {
       dateKey: "2026-11-06",
       now: expect.any(Date),
     });
+  });
+});
+
+describe("PlannerPage manual blocks", () => {
+  it("opens the create dialog from the header", async () => {
+    const user = userEvent.setup();
+    renderPage(`/planner?view=day&date=${DATE_KEY}`);
+
+    await user.click(screen.getByRole("button", { name: "Add block" }));
+
+    expect(screen.getByRole("dialog", { name: "Add a time block" })).toBeInTheDocument();
+  });
+
+  it("opens the same dialog in edit mode when a day block is clicked", async () => {
+    const user = userEvent.setup();
+    renderPage(`/planner?view=day&date=${DATE_KEY}`);
+
+    await user.click(screen.getByRole("button", { name: "Edit Report block, 09:00 to 10:30" }));
+
+    expect(screen.getByRole("dialog", { name: "Edit block" })).toBeInTheDocument();
+    expect(screen.getByLabelText(/^Task/)).toHaveValue(TASK_ID);
+  });
+
+  it("offers Add block in the week view too", async () => {
+    const user = userEvent.setup();
+    renderPage(`/planner?view=week&date=${DATE_KEY}`);
+
+    await user.click(screen.getByRole("button", { name: "Add block" }));
+
+    expect(screen.getByRole("dialog", { name: "Add a time block" })).toBeInTheDocument();
   });
 });

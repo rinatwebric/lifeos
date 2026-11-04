@@ -46,6 +46,12 @@ export function useCreateBlock() {
 export interface UpdateBlockVariables {
   id: string;
   patch: UpdateBlockInput;
+  /**
+   * The task the block was linked to before the patch. A relink moves the
+   * mirror on both tasks inside one service call, so the previous task's
+   * cached detail would otherwise keep the old schedule until a reload.
+   */
+  previousTaskId?: string | null;
 }
 
 export function useUpdateBlock() {
@@ -57,6 +63,10 @@ export function useUpdateBlock() {
       void queryClient.invalidateQueries({ queryKey: planner.detail(variables.id) });
       invalidatePlannerBlocks(queryClient);
       invalidateLinkedTask(queryClient, block.taskId);
+
+      if (variables.previousTaskId && variables.previousTaskId !== block.taskId) {
+        invalidateLinkedTask(queryClient, variables.previousTaskId);
+      }
     },
   });
 }

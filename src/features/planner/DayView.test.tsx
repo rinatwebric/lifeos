@@ -229,4 +229,27 @@ describe("DayView", () => {
       ),
     ).not.toBeInTheDocument();
   });
+
+  it("opens the editor when a block row is activated", async () => {
+    const onEditBlock = vi.fn();
+    const user = userEvent.setup();
+
+    renderDay(BUSY_DAY, { onEditBlock });
+
+    const row = screen.getByRole("button", {
+      name: "Edit Write the report, 09:00 to 10:30",
+    });
+    await user.click(row);
+
+    expect(onEditBlock).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "task-1", taskId: TASK_ID, start: at("09:00") }),
+    );
+  });
+
+  it("keeps the rows static when no editor is wired", () => {
+    renderDay(BUSY_DAY);
+
+    expect(screen.queryByRole("button", { name: /^Edit / })).not.toBeInTheDocument();
+    expect(screen.getByText("Write the report")).toBeInTheDocument();
+  });
 });

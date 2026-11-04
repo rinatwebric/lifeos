@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 
 import { Button } from "@/components/ui/Button";
@@ -9,9 +10,11 @@ import { cn } from "@/lib/cn";
 import { formatLongDate, localDateTimeToIso, toDateKey } from "@/lib/dates";
 
 import { DayView } from "./DayView";
-import { WeekView } from "./WeekView";
-import { isValidDateKey, shiftDateKey, usePlannerDay } from "./usePlannerDay";
+import { DeleteBlockDialog, type DeleteBlockTarget } from "./DeleteBlockDialog";
+import { TimeBlockDialog, type EditableTimeBlock } from "./TimeBlockDialog";
+import { isValidDateKey, shiftDateKey, usePlannerDay, type PlannerDayBlock } from "./usePlannerDay";
 import { plannerWeekLabel, usePlannerWeek } from "./usePlannerWeek";
+import { WeekView } from "./WeekView";
 
 /**
  * The planner keeps its whole state in the URL:
@@ -86,13 +89,32 @@ interface PlannerSectionProps {
   now: Date;
 }
 
+/** A day block as the editor needs it: stored values, not display labels. */
+function toEditableBlock(block: PlannerDayBlock): EditableTimeBlock {
+  return {
+    id: block.id,
+    taskId: block.taskId,
+    blockType: block.blockType,
+    title: block.title,
+    startTime: block.start,
+    endTime: block.end,
+  };
+}
+
+/** `null` = closed; create and edit share one dialog. */
+type BlockDialogState = { mode: "create" } | { mode: "edit"; block: EditableTimeBlock } | null;
+
 /**
  * Both views need their own blocks range, so each one lives in its own
  * component: switching the view mounts exactly one of them and only that one
  * issues a request. Mounting both and hiding one would query the week while
  * the user reads a day.
  */
-function PlannerDaySection({ dateKey, now }: PlannerSectionProps) {
+function PlannerDaySection({
+  dateKey,
+  now,
+  onEditBlock,
+}: PlannerSectionProps & { onEditBlock: (block: PlannerDayBlock) => void }) {
   const { day, isLoading, isError, retry } = usePlannerDay({ dateKey, now });
 
   return (
@@ -102,6 +124,7 @@ function PlannerDaySection({ dateKey, now }: PlannerSectionProps) {
       isError={isError}
       onRetry={retry}
       emptyAction={<OpenTasksLink />}
+      onEditBlock={onEditBlock}
     />
   );
 }
@@ -123,6 +146,8 @@ function PlannerWeekSection({ dateKey, now }: PlannerSectionProps) {
 
 export function PlannerPage() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const [blockDialog, setBlockDialog] = useState<BlockDialogState>(null);
+  const [deleteTarget, setDeleteTarget] = useState<DeleteBlockTarget | null>(null);
   // Same query key as both planner hooks: one profile read, shared by all.
   const profileQuery = useQuery({
     queryKey: profileQueryKey,
@@ -163,6 +188,10 @@ export function PlannerPage() {
         description={description}
         actions={
           <div className="flex flex-wrap items-center gap-2">
+            <Button size="lg" onClick={() => setBlockDialog({ mode: "create" })}>
+              <Plus className="size-4" aria-hidden="true" />
+              Add block
+            </Button>
             <ViewSwitch view={view} dateKey={dateKey} />
             <div className="flex flex-wrap items-center gap-2">
               <Button
@@ -197,8 +226,33 @@ export function PlannerPage() {
       {view === "week" ? (
         <PlannerWeekSection dateKey={dateKey} now={now} />
       ) : (
-        <PlannerDaySection dateKey={dateKey} now={now} />
+        <PlannerDaySection
+          dateKey={dateKey}
+          now={now}
+          onEditBlock={(block) => setBlockDialog({ mode: "edit", block: toEditableBlock(block) })}
+        />
       )}
+
+      <TimeBlockDialog
+        open={blockDialog !== null}
+        onClose={() => setBlockDialog(null)}
+        timeZone={timeZone}
+        dateKey={dateKey}
+        block={blockDialog?.mode === "edit" ? blockDialog.block : null}
+        now={now}
+        onRequestDelete={(block) => {
+          // Close the editor first: one modal at a time, and the confirmation
+          // carries the block so the delete never depends on editor state.
+          setBlockDialog(null);
+          setDeleteTarget({ id: block.id, title: block.title, taskId: block.taskId });
+        }}
+      />
+
+      <DeleteBlockDialog
+        open={deleteTarget !== null}
+        onClose={() => setDeleteTarget(null)}
+        block={deleteTarget}
+      />
     </div>
   );
 }

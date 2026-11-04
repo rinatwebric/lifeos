@@ -311,6 +311,115 @@ describe("planner api", () => {
     expect(blocks.update).toHaveBeenCalledWith(expect.objectContaining({ task_id: "t2" }));
   });
 
+  it("relinking mirrors the pair on the new task and clears the old one in one batch", async () => {
+    const current = blockRow({ id: "b1", block_type: "task", task_id: "t1" });
+    const updated = blockRow({
+      id: "b1",
+      block_type: "task",
+      task_id: "t2",
+      start_time: "2026-11-04T12:00:00.000Z",
+      end_time: "2026-11-04T13:00:00.000Z",
+    });
+    const blocks = mockBuilder({ data: [], error: null }, { data: current, error: null });
+    blocks.single
+      .mockResolvedValueOnce({ data: current, error: null })
+      .mockResolvedValueOnce({ data: updated, error: null });
+
+    const taskBuilders: BuilderMocks[] = [];
+    const fromEntry = vi.fn((table: string) => {
+      if (table === "tasks") {
+        const builder = mockBuilder(
+          { data: null, error: null },
+          { data: { id: "t2" }, error: null },
+        );
+        taskBuilders.push(builder);
+        return builder.builder;
+      }
+
+      return blocks.builder;
+    });
+    stubClient("u1", fromEntry);
+
+    const result = await updateBlock("b1", { taskId: "t2" });
+
+    expect(result.taskId).toBe("t2");
+
+    // Both tasks are written in one batch: the old one is cleared, the new one
+    // gets the block's pair. Without this the previous task keeps a phantom
+    // schedule (the gap unit 3 left open).
+    const writes = taskBuilders.filter((builder) => builder.update.mock.calls.length > 0);
+    expect(writes).toHaveLength(2);
+
+    const firstPayload = (builder: BuilderMocks) =>
+      builder.update.mock.calls[0]?.[0] as {
+        scheduled_start: string | null;
+        scheduled_end: string | null;
+      };
+
+    const cleared = writes.find((builder) => firstPayload(builder).scheduled_start === null);
+    const filled = writes.find((builder) => builder !== cleared);
+
+    expect(cleared?.update).toHaveBeenCalledWith({
+      scheduled_start: null,
+      scheduled_end: null,
+    });
+    expect(cleared?.eq).toHaveBeenCalledWith("id", "t1");
+    expect(cleared?.eq).toHaveBeenCalledWith("user_id", "u1");
+
+    expect(filled?.update).toHaveBeenCalledWith({
+      scheduled_start: updated.start_time,
+      scheduled_end: updated.end_time,
+    });
+    expect(filled?.eq).toHaveBeenCalledWith("id", "t2");
+    expect(filled?.eq).toHaveBeenCalledWith("user_id", "u1");
+
+    // The old task's "survivor" lookup never counts the block that moved.
+    expect(blocks.neq).toHaveBeenCalledWith("id", "b1");
+  });
+
+  it("relinking repoints the old task at the block it still keeps", async () => {
+    const current = blockRow({ id: "b1", block_type: "task", task_id: "t1" });
+    const survivor = {
+      start_time: "2026-11-05T09:00:00.000Z",
+      end_time: "2026-11-05T10:00:00.000Z",
+    };
+    const updated = blockRow({ id: "b1", block_type: "task", task_id: "t2" });
+    const blocks = mockBuilder({ data: [survivor], error: null }, { data: current, error: null });
+    blocks.single
+      .mockResolvedValueOnce({ data: current, error: null })
+      .mockResolvedValueOnce({ data: updated, error: null });
+    const tasks = mockBuilder({ data: null, error: null }, { data: { id: "t2" }, error: null });
+    const fromEntry = vi.fn((table: string) => (table === "tasks" ? tasks.builder : blocks.builder));
+    stubClient("u1", fromEntry);
+
+    await updateBlock("b1", { taskId: "t2" });
+
+    expect(tasks.update).toHaveBeenCalledWith({
+      scheduled_start: survivor.start_time,
+      scheduled_end: survivor.end_time,
+    });
+    expect(tasks.eq).toHaveBeenCalledWith("id", "t1");
+    expect(tasks.eq).toHaveBeenCalledWith("id", "t2");
+  });
+
+  it("switching a task block to a break clears the old task mirror", async () => {
+    const current = blockRow({ id: "b1", block_type: "task", task_id: "t1" });
+    const updated = blockRow({ id: "b1", block_type: "break", task_id: null, title: "Lunch" });
+    const blocks = mockBuilder({ data: [], error: null }, { data: current, error: null });
+    blocks.single
+      .mockResolvedValueOnce({ data: current, error: null })
+      .mockResolvedValueOnce({ data: updated, error: null });
+    const mirror = mockBuilder({ data: null, error: null });
+    const fromEntry = vi.fn((table: string) => (table === "tasks" ? mirror.builder : blocks.builder));
+    stubClient("u1", fromEntry);
+
+    await updateBlock("b1", { blockType: "break", taskId: null, title: "Lunch" });
+
+    expect(mirror.update).toHaveBeenCalledOnce();
+    expect(mirror.update).toHaveBeenCalledWith({ scheduled_start: null, scheduled_end: null });
+    expect(mirror.eq).toHaveBeenCalledWith("id", "t1");
+  });
+
   it("deleteBlock clears the task mirror and deletes the block in one call", async () => {
     const blocks = mockBuilder(
       { data: [], error: null },
