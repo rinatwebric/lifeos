@@ -5,6 +5,7 @@ import {
   MAX_BODY_BYTES,
   MAX_MESSAGE_CHARS,
   parseChatRequestBody,
+  parseDecideRequestBody,
   utf8ByteLength,
 } from "./request.ts";
 
@@ -65,6 +66,53 @@ describe("parseChatRequestBody", () => {
       ok: true,
       request: { message: "Continue", conversationId: uuid },
     });
+  });
+});
+
+describe("parseDecideRequestBody (step 7)", () => {
+  const PROPOSAL_ID = "123e4567-e89b-12d3-a456-426614174000";
+
+  it("rejects bodies over MAX_BODY_BYTES before parsing", () => {
+    const oversized = "x".repeat(MAX_BODY_BYTES + 1);
+    const result = parseDecideRequestBody(oversized);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.code).toBe("too_large");
+    }
+  });
+
+  it("rejects invalid JSON and non-object bodies", () => {
+    const badJson = parseDecideRequestBody("{oops");
+    expect(badJson.ok).toBe(false);
+    if (!badJson.ok) {
+      expect(badJson.error.code).toBe("invalid_json");
+    }
+    for (const body of [`[1,2]`, `null`, `"hi"`, `{}`, `{"message":"hi"}`]) {
+      expect(parseDecideRequestBody(body).ok, body).toBe(false);
+    }
+  });
+
+  it("rejects unknown actions and non-UUID proposal ids", () => {
+    const badAction = parseDecideRequestBody(
+      JSON.stringify({ action: "chat", proposalId: PROPOSAL_ID }),
+    );
+    expect(badAction.ok).toBe(false);
+    const badId = parseDecideRequestBody(
+      JSON.stringify({ action: "approve", proposalId: "someone-else" }),
+    );
+    expect(badId.ok).toBe(false);
+    if (!badId.ok) {
+      expect(badId.error.code).toBe("invalid_schema");
+    }
+  });
+
+  it("accepts approve and reject with a UUID proposal id", () => {
+    expect(
+      parseDecideRequestBody(JSON.stringify({ action: "approve", proposalId: PROPOSAL_ID })),
+    ).toStrictEqual({ ok: true, request: { action: "approve", proposalId: PROPOSAL_ID } });
+    expect(
+      parseDecideRequestBody(JSON.stringify({ action: "reject", proposalId: PROPOSAL_ID })),
+    ).toStrictEqual({ ok: true, request: { action: "reject", proposalId: PROPOSAL_ID } });
   });
 });
 

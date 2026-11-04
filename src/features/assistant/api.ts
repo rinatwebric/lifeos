@@ -9,7 +9,7 @@ import {
 import type { AiConversation, AiMessage } from "@/types/domain";
 
 import { AssistantServiceError, ASSISTANT_ERROR_MESSAGES, toAssistantError } from "./errors";
-import { sendMessageSchema, type SendMessageInput } from "./schemas";
+import { proposalIdSchema, sendMessageSchema, type SendMessageInput } from "./schemas";
 
 /**
  * Identity comes from the local session (`auth.getSession()`), never from
@@ -95,6 +95,22 @@ export interface SendMessageResult {
   proposal: AssistantProposal;
 }
 
+export interface ApproveProposalResult {
+  proposalId: string;
+  status: "approved";
+  conversationId: string | null;
+  applied: number;
+  total: number;
+}
+
+export interface RejectProposalResult {
+  proposalId: string;
+  status: "rejected";
+  conversationId: string | null;
+  applied: number;
+  total: number;
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -174,6 +190,99 @@ export async function sendMessage(input: SendMessageInput): Promise<SendMessageR
       proposalId: data["proposalId"],
       proposal: parsedProposal.data,
     };
+  } catch (error) {
+    throw toAssistantError(error);
+  }
+}
+
+/**
+ * Validate one proposal id client-side (invalid UUID never reaches the
+ * network — same `invalid_input` contract as `sendMessage`), then call the
+ * Edge Function decide branch. Identity travels in the session JWT; the body
+ * carries only `{ action, proposalId }`, never a `user_id`. HTTP failures map
+ * through `toAssistantError` exactly like `sendMessage`.
+ */
+function parseProposalIdOrThrow(proposalId: string): string {
+  const parsed = proposalIdSchema.safeParse(proposalId);
+
+  if (!parsed.success) {
+    const firstIssue = parsed.error.issues[0];
+    const fieldPath =
+      firstIssue && firstIssue.path.length > 0 ? firstIssue.path.join(".") : "(root)";
+    throw new AssistantServiceError(
+      "invalid_input",
+      firstIssue?.message ?? ASSISTANT_ERROR_MESSAGES.invalid_input,
+      undefined,
+      fieldPath,
+    );
+  }
+
+  return parsed.data;
+}
+
+function readDecideResult(
+  data: unknown,
+  expectedStatus: "approved" | "rejected",
+): Omit<ApproveProposalResult, "status"> & { status: "approved" | "rejected" } {
+  if (
+    !isRecord(data) ||
+    typeof data["proposalId"] !== "string" ||
+    data["status"] !== expectedStatus ||
+    !("conversationId" in data) ||
+    (data["conversationId"] !== null && typeof data["conversationId"] !== "string") ||
+    typeof data["applied"] !== "number" ||
+    typeof data["total"] !== "number"
+  ) {
+    throw new AssistantServiceError(
+      "invalid_response",
+      ASSISTANT_ERROR_MESSAGES.invalid_response,
+    );
+  }
+
+  return {
+    proposalId: data["proposalId"],
+    status: expectedStatus,
+    conversationId: data["conversationId"] as string | null,
+    applied: data["applied"],
+    total: data["total"],
+  };
+}
+
+export async function approveProposal(proposalId: string): Promise<ApproveProposalResult> {
+  try {
+    const validId = parseProposalIdOrThrow(proposalId);
+    await requireUserId();
+    const client = getSupabaseClient();
+
+    const { data, error } = await client.functions.invoke("ai-assistant", {
+      body: { action: "approve", proposalId: validId },
+    });
+
+    if (error) {
+      throw toAssistantError(error);
+    }
+
+    return readDecideResult(data, "approved") as ApproveProposalResult;
+  } catch (error) {
+    throw toAssistantError(error);
+  }
+}
+
+export async function rejectProposal(proposalId: string): Promise<RejectProposalResult> {
+  try {
+    const validId = parseProposalIdOrThrow(proposalId);
+    await requireUserId();
+    const client = getSupabaseClient();
+
+    const { data, error } = await client.functions.invoke("ai-assistant", {
+      body: { action: "reject", proposalId: validId },
+    });
+
+    if (error) {
+      throw toAssistantError(error);
+    }
+
+    return readDecideResult(data, "rejected") as RejectProposalResult;
   } catch (error) {
     throw toAssistantError(error);
   }

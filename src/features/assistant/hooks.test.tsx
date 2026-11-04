@@ -3,13 +3,15 @@ import { renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { listConversations, listMessages, sendMessage } from "./api";
-import { useConversations, useMessages, useSendMessage } from "./hooks";
+import { approveProposal, listConversations, listMessages, rejectProposal, sendMessage } from "./api";
+import { useApproveProposal, useConversations, useMessages, useRejectProposal, useSendMessage } from "./hooks";
 import { assistant } from "./queryKeys";
 
 vi.mock("./api", () => ({
+  approveProposal: vi.fn(),
   listConversations: vi.fn(),
   listMessages: vi.fn(),
+  rejectProposal: vi.fn(),
   sendMessage: vi.fn(),
 }));
 
@@ -129,5 +131,67 @@ describe("assistant hooks", () => {
       });
 
     expect(failure).toMatchObject({ code: "forbidden" });
+  });
+
+  it("refreshes tasks, goals and planner blocks after an approve", async () => {
+    const client = createClient();
+    const proposalId = "22222222-2222-4222-8222-222222222222";
+    vi.mocked(approveProposal).mockResolvedValue({
+      proposalId,
+      status: "approved",
+      conversationId: CONVERSATION_ID,
+      applied: 2,
+      total: 2,
+    });
+    const invalidateSpy = vi.spyOn(client, "invalidateQueries");
+
+    const { result } = renderHook(() => useApproveProposal(), { wrapper: wrapper(client) });
+
+    result.current.mutate(proposalId);
+
+    await waitFor(() => {
+      expect(approveProposal).toHaveBeenCalledWith(proposalId);
+    });
+    await waitFor(() => {
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: assistant.proposals() });
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: assistant.messages(CONVERSATION_ID),
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["tasks"] });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["goals"] });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["planner", "blocks"] });
+  });
+
+  it("refreshes only the assistant prefix after a reject", async () => {
+    const client = createClient();
+    const proposalId = "33333333-3333-4333-8333-333333333333";
+    vi.mocked(rejectProposal).mockResolvedValue({
+      proposalId,
+      status: "rejected",
+      conversationId: CONVERSATION_ID,
+      applied: 0,
+      total: 1,
+    });
+    const invalidateSpy = vi.spyOn(client, "invalidateQueries");
+
+    const { result } = renderHook(() => useRejectProposal(), { wrapper: wrapper(client) });
+
+    result.current.mutate(proposalId);
+
+    await waitFor(() => {
+      expect(rejectProposal).toHaveBeenCalledWith(proposalId);
+    });
+    await waitFor(() => {
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: assistant.proposals() });
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: assistant.messages(CONVERSATION_ID),
+    });
+
+    for (const call of invalidateSpy.mock.calls) {
+      const key = (call[0] as { queryKey: readonly unknown[] }).queryKey;
+      expect(key[0]).toBe("assistant");
+    }
   });
 });

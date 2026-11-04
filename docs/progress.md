@@ -1290,3 +1290,88 @@ PostgREST отдаёт `timestamptz` с `"+00:00"` и `time` как `"HH:MM:SS"`
 - Владельцу: применить миграцию 0006 и задеплоить функцию отдельной командой
   после ревью (как 0005); живой прогон chat → proposal возможен только после
   этого и только с ключом провайдера (иначе stub с честным баннером).
+
+## 2026-11-04 — Итерация 5, шаг 7: apply/reject с серверной перепроверкой (+ invalid_input)
+
+**Сделано (два коммита, один шаг = один коммит)**
+
+- `3ae7139` fix(ai): `invalid_input` в сервисе ассистента — пустой/длинный
+  `message` и кривой `conversationId`/`proposalId` дают код `invalid_input`
+  с путём поля в `details` (раньше `unknown`); текст в
+  `ASSISTANT_ERROR_MESSAGES`; тест поправлен (ассёрты кода и `details`).
+- Этот коммит feat(ai): approve/reject с серверной перепроверкой.
+  Edge Function (та же `ai-assistant`, дискриминатор `action` в теле;
+  отсутствие `action` = chat, обратная совместимость; роутинг — peek через
+  `req.clone()`, `handleChat` не тронут):
+  - `supabase/functions/ai-assistant/request.ts` — `parseDecideRequestBody`
+    (`approve`|`reject` + UUID `proposalId`, те же `too_large`/`invalid_json`/
+    `invalid_schema`) + 4 теста.
+  - `supabase/functions/ai-assistant/index.ts` — `handleDecision` (auth/лимиты
+    как в chat, без rate limit) → `handleApprove`/`handleReject`:
+    чтение `ai_proposals` user-scoped клиентом (чужой id → 404 `not_found`);
+    не-`pending` → 409 `already_decided` (повторный approve НЕ noop —
+    отклонение от текста шага, повторный reject идемпотентен 200);
+    `expires_at` в прошлом → 410 `expired` (в БД не пишется, Р3);
+    затем `validateActions(actions, context)` с контекстом из собственных
+    чтений (`user_preferences` + `profiles.timezone`, дефолты
+    `07:00`/`23:00`/`UTC`/`{}`) — ДО первой записи, ошибка → 422
+    `validation_failed` `{index, actionCode}` и НИЧЕГО не записано;
+    затем применение по порядку тем же user-scoped клиентом (никакого
+    `service_role`): `create_goal` → insert goals, `create_milestone` →
+    insert milestones (`position` max+1), `complete_milestone` →
+    `completed + completed_at`, `create_task` → insert tasks,
+    `reschedule_task` → `due_date` + `recurrence_rule_id = null` (как
+    `rescheduleTask`), `schedule_blocks` → insert `time_blocks`
+    (`block_type='task'`) + зеркало `scheduled_start/end` в задачу (Д8),
+    точная пара `(task_id,start,end)` сверяется по инстантам — read-then-
+    insert; `update_preferences` → update `user_preferences`/`profiles`
+    только по ненуллевым полям. `applied_at` — только после всех записей;
+    частичный сбой → 500 `apply_failed` `{applied, total}`, предложение
+    остаётся `pending` (повтор может создать дубли — известное ограничение,
+    бэклог: RPC `apply_proposal` (атомарно), миграция 0007). Аудит: одна
+    строка `ai_messages` `role='assistant'` с `metadata`
+    `{proposalId, applied, rejected}` без секретов и без тела предложения.
+  - Frontend: `schemas.ts` — `proposalIdSchema`; `api.ts` —
+    `approveProposal`/`rejectProposal` через `functions.invoke`
+    (тот же контракт ошибок, что у `sendMessage`); `hooks.ts` —
+    `useApproveProposal`/`useRejectProposal`. Инвалидация: после approve —
+    `assistant.proposals()` + `assistant.messages(conversationId)` +
+    `["tasks"]` + `["goals"]` + `planner.blocks`; после reject — только
+    `assistant.*`. Тесты: `api.test.ts` +5 (успех без `user_id`,
+    `invalid_input` до сети, `invalid_response`, `forbidden` без сессии),
+    `hooks.test.tsx` +2 (approve трогает tasks/goals/planner, reject —
+    только assistant).
+  - `docs/plan-phase-4.md` — статус шага 7 (включая отклонения: approve-повтор
+    409, а не noop; дат-колонки через `toDateOnly`; `position` max+1).
+
+**Проверено (числа)**
+
+- `npm run typecheck` — ok
+- `npm run lint` — 0 errors, 16 warnings (те же известные классы:
+  `react-refresh/only-export-components`, `react-hooks/incompatible-library`)
+- `npm test` — **668/668 в 68 файлах** (было 657 в 68 после шага 6 и фикса:
+  +4 `request.test.ts` decide, +5 `api.test.ts` approve/reject, +2
+  `hooks.test.tsx` инвалидация)
+- `npm run build` — ok
+- `service_role` в `supabase/functions/ai-assistant/` — только комментарии
+  (`index.ts` шапка + RLS-комментарий, `README.md` строка про user-scoped);
+  `validateActions` в `index.ts` — импорт + один вызов до первой записи
+  (все записи — внутри `applyAction`, зовётся только после валидации)
+
+**Не проверено живьём (облако не настроено, живых прогонов не было)**
+
+- Миграция 0006 НЕ применена в облаке, функция НЕ задеплоена (состояние как
+  на шаге 6: REST 404 PGRST205, POST `/functions/v1/ai-assistant` 404) —
+  живые вызовы невозможны; все покрытия шага — моки клиента под Vitest и
+  чистые модули (`request`/`validate`); Deno-рантайм edge-функции локально
+  не поднимался, живого ключа у исполнителя нет и не использовался.
+
+**Осталось**
+
+- Дальше — шаг 8 из `docs/plan-phase-4.md` (UI: `AssistantPage`,
+  `ChatPanel`, `ProposalModal` с accept-all/per-action/reject и ручной
+  правкой до approve).
+- Владельцу: применить миграцию 0006 и задеплоить функцию отдельной командой
+  после ревью (как 0005); живой прогон chat → proposal → approve возможен
+  только после этого и только с ключом провайдера (иначе stub с честным
+  баннером).

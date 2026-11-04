@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import type { AiConversationsRow, AiMessagesRow } from "@/types/database";
 
-import { listConversations, listMessages, sendMessage } from "./api";
+import { approveProposal, listConversations, listMessages, rejectProposal, sendMessage } from "./api";
 import { AssistantServiceError, ASSISTANT_ERROR_MESSAGES } from "./errors";
 
 vi.mock("@/lib/supabase/client", () => ({ getSupabaseClient: vi.fn() }));
@@ -287,5 +287,98 @@ describe("assistant api", () => {
     expect(error).toMatchObject({ code: "forbidden" });
     expect(error.message).toBe(ASSISTANT_ERROR_MESSAGES.forbidden);
     expect(error.message).not.toContain("42501");
+  });
+
+  it("approves with only action and proposalId, never a user_id", async () => {
+    const response = {
+      proposalId: "22222222-2222-4222-8222-222222222222",
+      status: "approved",
+      conversationId: CONVERSATION_ID,
+      applied: 2,
+      total: 2,
+    };
+    const invokeEntry = vi.fn().mockResolvedValue({ data: response, error: null });
+    stubClient("jwt-user-7", vi.fn(), invokeEntry);
+
+    const result = await approveProposal("22222222-2222-4222-8222-222222222222");
+
+    expect(result).toStrictEqual(response);
+    expect(invokeEntry).toHaveBeenCalledOnce();
+    expect(invokeEntry).toHaveBeenCalledWith(
+      "ai-assistant",
+      expect.objectContaining({
+        body: { action: "approve", proposalId: "22222222-2222-4222-8222-222222222222" },
+      }),
+    );
+    const body = invokeEntry.mock.calls[0]?.[1]?.body as Record<string, unknown>;
+    expect(body).not.toHaveProperty("user_id");
+    expect(body).not.toHaveProperty("userId");
+  });
+
+  it("rejects with only action and proposalId and accepts a null conversation", async () => {
+    const response = {
+      proposalId: "33333333-3333-4333-8333-333333333333",
+      status: "rejected",
+      conversationId: null,
+      applied: 0,
+      total: 1,
+    };
+    const invokeEntry = vi.fn().mockResolvedValue({ data: response, error: null });
+    stubClient("u1", vi.fn(), invokeEntry);
+
+    const result = await rejectProposal("33333333-3333-4333-8333-333333333333");
+
+    expect(result).toStrictEqual(response);
+    expect(invokeEntry).toHaveBeenCalledWith(
+      "ai-assistant",
+      expect.objectContaining({
+        body: { action: "reject", proposalId: "33333333-3333-4333-8333-333333333333" },
+      }),
+    );
+  });
+
+  it("rejects decide calls with a bad proposal id before any request", async () => {
+    const invokeEntry = vi.fn();
+    stubClient("u1", vi.fn(), invokeEntry);
+
+    const approveError = (await approveProposal("not-a-uuid").catch(
+      (failure: unknown) => failure,
+    )) as AssistantServiceError;
+    expect(approveError).toMatchObject({ code: "invalid_input" });
+    expect(approveError.details).toBe("(root)");
+
+    const rejectError = (await rejectProposal("").catch(
+      (failure: unknown) => failure,
+    )) as AssistantServiceError;
+    expect(rejectError).toMatchObject({ code: "invalid_input" });
+    expect(invokeEntry).not.toHaveBeenCalled();
+  });
+
+  it("rejects a 2xx decide payload with the wrong shape", async () => {
+    const invokeEntry = vi.fn().mockResolvedValue({
+      data: { proposalId: "p-1", status: "approved" },
+      error: null,
+    });
+    stubClient("u1", vi.fn(), invokeEntry);
+
+    const error = (await approveProposal("22222222-2222-4222-8222-222222222222").catch(
+      (failure: unknown) => failure,
+    )) as AssistantServiceError;
+
+    expect(error).toBeInstanceOf(AssistantServiceError);
+    expect(error).toMatchObject({ code: "invalid_response" });
+  });
+
+  it("requires a session for decide calls and invokes nothing without one", async () => {
+    const invokeEntry = vi.fn();
+    stubClient(null, vi.fn(), invokeEntry);
+
+    await expect(
+      approveProposal("22222222-2222-4222-8222-222222222222"),
+    ).rejects.toMatchObject({ code: "forbidden" });
+    await expect(
+      rejectProposal("22222222-2222-4222-8222-222222222222"),
+    ).rejects.toMatchObject({ code: "forbidden" });
+    expect(invokeEntry).not.toHaveBeenCalled();
   });
 });

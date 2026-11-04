@@ -217,6 +217,61 @@ AI-ассистент помогает управлять целями/зада�
 
 Проверка: `npm run typecheck && npm run lint && npm test && npm run build`
 
+> Статус (2026-11-04): реализован. Фикс `invalid_input` отдельным коммитом
+> рядом: пустой/длинный `message` и кривой `conversationId`/`proposalId` дают
+> код `invalid_input` с путём поля в `details` (раньше `unknown`).
+> Edge Function — та же `ai-assistant`, дискриминатор `action` в теле
+> (`approve`|`reject`; без `action` — прежний chat, обратная совместимость).
+> Approve: чтение `ai_proposals` user-scoped клиентом (чужой id → 404
+> `not_found`); не-`pending` → 409 `already_decided` (повторный approve НЕ
+> noop — отклонение от текста выше, зафиксированное задачей); `expires_at` в
+> прошлом → 410 `expired` (статус в БД не пишется, `expired` вычисляется,
+> Р3). Затем `validateActions(actions, context)` с контекстом из собственных
+> чтений (`now`/`timeZone` из `profiles`, `wake/sleep/working/study` из
+> `user_preferences`; дефолты `07:00`/`23:00`/`UTC`/`{}` при пустых строках,
+> сам валидатор fail closed на своих чтениях) — ДО первой записи; ошибка →
+> 422 `validation_failed` `{index, actionCode}` и НИЧЕГО не записано. Затем
+> применение по порядку тем же user-scoped клиентом (никакого
+> `service_role`): `create_goal` → insert goals (дефолты `other`/`medium`/
+> `active`/`0`/`manual`, `start_date` = сегодня в поясе пользователя, но не
+> позже `target_date` — иначе CHECK `target_date >= start_date` упал бы);
+> `create_milestone` → insert milestones (`goal_id` из действия, `position`
+> max+1); `complete_milestone` → `completed + completed_at`;
+> `create_task` → insert tasks; `reschedule_task` → `due_date` +
+> `recurrence_rule_id = null` (как `rescheduleTask`); `schedule_blocks` →
+> insert `time_blocks(block_type='task')` + зеркало `scheduled_start/end` в
+> задачу (Д8), точная пара `(task_id,start,end)` сверяется по инстантам
+> (`Date.parse`, как в `applyPlan`) — read-then-insert, при повторе зеркало
+> всё равно дописывается; `update_preferences` → update
+> `user_preferences`/`profiles` только по ненуллевым полям. `applied_at`
+> выставляется только после всех записей; частичный сбой → 500
+> `apply_failed` `{applied, total}`, предложение остаётся `pending` (повтор
+> может создать дубли — известное ограничение, бэклог: RPC `apply_proposal`
+> (атомарно), миграция 0007, не в этой итерации). Даты-колонки (`start_date`,
+> `target_date`, `due_date`) нормализуются в день пользователя
+> (`toDateOnly`: `YYYY-MM-DD` как есть, инстанты через `toDateKey`), метки
+> (`start_time`, `completed_at`, `applied_at`) — инстанты как есть.
+> Reject: `pending → rejected`, `applied_at` untouched (симметричный CHECK);
+> повторный reject идемпотентен (200 с тем же телом), reject после approve →
+> 409; никаких записей в `goals/tasks/time_blocks`. Аудит в обоих случаях:
+> одна строка `ai_messages` `role='assistant'` с `metadata`
+> `{proposalId, applied, rejected}` и нейтральным `content` — без секретов и
+> без тела предложения (при `conversation_id IS NULL` аудит пропускается:
+> `ai_messages.conversation_id` NOT NULL). Frontend: `api.ts` —
+> `approveProposal`/`rejectProposal` через `functions.invoke` (тот же
+> контракт ошибок, что у `sendMessage`, плюс `proposalIdSchema` с тем же
+> `invalid_input`); `hooks.ts` — `useApproveProposal`/`useRejectProposal`.
+> Инвалидация: после approve — `assistant.proposals()` +
+> `assistant.messages(conversationId)` + `["tasks"]` (lists+details) +
+> `["goals"]` (lists+details+milestones) + `planner.blocks`; после reject —
+> только `assistant.*`. Тесты — расширения существующих файлов (отдельного
+> `applyProposal.test.ts` нет): `request.test.ts` — 4 кейса
+> `parseDecideRequestBody`; `api.test.ts` — approve/reject успех (тело без
+> `user_id`), `invalid_input` до сети, `invalid_response` на кривой форме,
+> `forbidden` без сессии; `hooks.test.tsx` — approve трогает tasks/goals/
+> planner, reject — только assistant. Живьём не проверено: миграция 0006 не
+> применена, функция не задеплоена.
+
 ### Шаг 8. UI: Assistant + ProposalModal (accept-all / per-action / reject / ручная правка)
 
 Цель: чат и модалка предложений с объяснением «почему» (§22 п. 9) и состояниями §9.4.

@@ -19,3 +19,13 @@ export const sendMessageSchema = z.object({
 });
 
 export type SendMessageInput = z.infer<typeof sendMessageSchema>;
+
+/**
+ * Proposal identity for the step-7 decide calls. The server re-reads the
+ * proposal as the caller (RLS; чужой id = 404), so the client sends only the
+ * id — never a `user_id`, never the actions (they come from the stored row
+ * and are re-validated server-side before the first write).
+ */
+export const proposalIdSchema = z
+  .string()
+  .uuid("The selected proposal is invalid. Please reload and try again.");

@@ -1,10 +1,12 @@
 /**
- * Chat-request parsing with a hard size limit (iteration 5, step 3).
+ * Chat/decide-request parsing with a hard size limit (iteration 5, steps 3+7).
  *
  * Pure module (no Deno/edge imports) so the limits are unit-tested under
  * Vitest: oversized bodies are rejected BEFORE parsing, malformed JSON and
  * shape violations map to distinct codes. Mirrors the frontend contract of
  * step 6 (`content` 1–4000 chars, `conversationId` uuid) so both sides agree.
+ * Step 7 adds the decide branch: `{ action: "approve" | "reject", proposalId }`
+ * (absence of `action` stays the chat path for backward compatibility).
  */
 
 /** 64 KiB — a chat turn is text; anything larger is rejected, not truncated. */
@@ -93,4 +95,63 @@ export function parseChatRequestBody(bodyText: string): ChatRequestParseResult {
   }
 
   return { ok: true, request: { message, conversationId } };
+}
+
+export type DecideAction = "approve" | "reject";
+
+export interface DecideRequest {
+  action: DecideAction;
+  proposalId: string;
+}
+
+export type DecideRequestErrorCode = "too_large" | "invalid_json" | "invalid_schema";
+
+export interface DecideRequestError {
+  code: DecideRequestErrorCode;
+  message: string;
+}
+
+export type DecideRequestParseResult =
+  | { ok: true; request: DecideRequest }
+  | { ok: false; error: DecideRequestError };
+
+function decideFail(code: DecideRequestErrorCode, message: string): DecideRequestParseResult {
+  return { ok: false, error: { code, message } };
+}
+
+/**
+ * Validate one already-read decide body (`approve`/`reject` with a proposal
+ * id). Same size/JSON envelope as chat; `action` is the discriminator and
+ * `proposalId` must be a UUID. Chat bodies (no `action`) never reach here —
+ * the router in `index.ts` branches on the presence of `action`.
+ */
+export function parseDecideRequestBody(bodyText: string): DecideRequestParseResult {
+  if (utf8ByteLength(bodyText) > MAX_BODY_BYTES) {
+    return decideFail("too_large", `Request body exceeds ${MAX_BODY_BYTES} bytes.`);
+  }
+
+  let data: unknown;
+  try {
+    data = JSON.parse(bodyText) as unknown;
+  } catch {
+    return decideFail("invalid_json", "Request body is not valid JSON.");
+  }
+
+  if (typeof data !== "object" || data === null || Array.isArray(data)) {
+    return decideFail("invalid_schema", "Request body must be a JSON object.");
+  }
+
+  const record = data as Record<string, unknown>;
+  const action = record.action;
+  const proposalId = record.proposalId;
+
+  if (action !== "approve" && action !== "reject") {
+    return decideFail("invalid_schema", 'action must be "approve" or "reject".');
+  }
+
+  if (typeof proposalId !== "string" || !UUID_RE.test(proposalId)) {
+    return decideFail("invalid_schema", "proposalId must be a UUID string.");
+  }
+
+  return { ok: true, request: { action, proposalId } };
 }
