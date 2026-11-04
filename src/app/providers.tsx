@@ -3,6 +3,7 @@ import { useState, type ReactNode } from "react";
 
 import { ThemeProvider } from "./theme";
 import { AuthProvider } from "@/features/auth/AuthProvider";
+import { LocaleProvider } from "@/lib/i18n/I18nContext";
 
 interface AppProvidersProps {
   children: ReactNode;
@@ -26,12 +27,15 @@ export function AppProviders({ children }: AppProvidersProps) {
   );
 
   // Order matters: AuthProvider sits inside QueryClientProvider because it
-  // calls queryClient.clear() on sign-out and account switch; ThemeProvider
-  // sits inside both because it reads the session and the profile query.
+  // calls queryClient.clear() on sign-out and account switch; LocaleProvider
+  // and ThemeProvider sit inside both because they read the session and
+  // the profile query. Locale wraps Theme so theme labels translate too.
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <ThemeProvider>{children}</ThemeProvider>
+        <LocaleProvider>
+          <ThemeProvider>{children}</ThemeProvider>
+        </LocaleProvider>
       </AuthProvider>
     </QueryClientProvider>
   );
