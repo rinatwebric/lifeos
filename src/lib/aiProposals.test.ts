@@ -9,6 +9,7 @@ import {
   toJsonSchema,
   type JsonSchemaNode,
 } from "@/lib/aiProposals";
+import { GOAL_CATEGORIES } from "@/types/domain";
 
 function expectOk(raw: unknown) {
   const result = parseProposal(raw);
@@ -397,6 +398,34 @@ describe("toJsonSchema strict-subset (Meta structured-output rules)", () => {
       "reasoning",
       "actions",
     ]);
+  });
+
+  it("nullable enum keeps its values", () => {
+    const root = toJsonSchema() as unknown as JsonRecord;
+    const actions = (root.properties as JsonRecord).actions as JsonRecord;
+    const branches = (actions.items as JsonRecord).anyOf as JsonRecord[];
+    const createGoal = branches.find((branch) => {
+      const discriminator = (branch.properties as JsonRecord).type as JsonRecord;
+      return (discriminator.enum as Array<unknown> | undefined)?.includes("create_goal");
+    });
+    expect(createGoal, "create_goal branch exists").toBeDefined();
+    const category = (createGoal?.properties as JsonRecord)?.category as JsonRecord;
+    expect(category.type).toStrictEqual(["string", "null"]);
+    expect(category.enum).toStrictEqual([...GOAL_CATEGORIES, null]);
+  });
+
+  it("int() serializes as integer", () => {
+    const root = toJsonSchema() as unknown as JsonRecord;
+    const actions = (root.properties as JsonRecord).actions as JsonRecord;
+    const branches = (actions.items as JsonRecord).anyOf as JsonRecord[];
+    const createTask = branches.find((branch) => {
+      const discriminator = (branch.properties as JsonRecord).type as JsonRecord;
+      return (discriminator.enum as Array<unknown> | undefined)?.includes("create_task");
+    });
+    expect(createTask, "create_task branch exists").toBeDefined();
+    const duration = (createTask?.properties as JsonRecord)
+      ?.estimatedDurationMinutes as JsonRecord;
+    expect(duration.type).toStrictEqual(["integer", "null"]);
   });
 });
 

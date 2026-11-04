@@ -266,7 +266,7 @@ export interface JsonSchemaNode {
   additionalProperties?: boolean;
   items?: JsonSchemaNode;
   anyOf?: JsonSchemaNode[];
-  enum?: Array<string | number | boolean>;
+  enum?: Array<string | number | boolean | null>;
 }
 
 function literalValues(values: Set<unknown>, where: string): Array<string | number | boolean> {
@@ -309,6 +309,11 @@ function convertSchema(schema: $ZodType, where: string): JsonSchemaNode {
     if (typeof inner.type !== "string" || inner.anyOf !== undefined) {
       throw new Error(`toJsonSchema: unsupported nullable inner at ${where}`);
     }
+    // Nullable enums (e.g. category/priority) must keep their values: the
+    // provider needs the allowed strings, with null added as "absent".
+    if (inner.enum !== undefined) {
+      return { type: [inner.type, "null"], enum: [...inner.enum, null] };
+    }
     return { type: [inner.type, "null"] };
   }
   if (schema instanceof z.ZodObject) {
@@ -339,7 +344,10 @@ function convertSchema(schema: $ZodType, where: string): JsonSchemaNode {
     return { type: "string" };
   }
   if (schema instanceof z.ZodNumber) {
-    return { type: "number" };
+    // Zod 4 exposes integer-ness as a public getter (`schema.isInt`); the
+    // provider schema must say "integer" so counts/durations validate.
+    const isInt = (schema as { isInt?: unknown }).isInt === true;
+    return { type: isInt ? "integer" : "number" };
   }
   if (schema instanceof z.ZodBoolean) {
     return { type: "boolean" };
