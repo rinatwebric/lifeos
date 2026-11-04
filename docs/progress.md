@@ -649,3 +649,33 @@ better-typography better-colors better-accessibility better-layout better-writin
 (`scheduled_start/end`) теперь обновляется и при правке блока, а при удалении берётся оставшийся
 блок, а не `null`. Остаток, записанный в план единицы 7: relink блока на другую задачу (старое
 зеркало у прежней задачи не чистится) — юнит 3 этот случай сознательно не покрывал.
+
+## 2026-11-04 — Дизайн, шаг 1: система токенов и примитивы (`48996e8`)
+
+**Сделано:** `src/index.css` — двухъярусные токены (`--raw-*` → `--color-*`), шкала типографики
+(`--text-title/heading/body/ui/caption/micro` с line-height и weight), `--radius-control/card`,
+`--shadow-raised/overlay`, `--ease-standard`, `--duration-*`, `--color-scrim`; 11 примитивов в
+`src/components/ui/*` переведены на токены. Менялись только классы: тексты, `aria`-атрибуты и
+пропсы не тронуты (проверено диффом — в нём только className-строки). Тёмная тема на месте,
+старые имена (`bg-surface`, `text-content`, `border-line`, `bg-accent`, `text-accent-content`,
+`border-focus`, `text-muted`, `bg-surface-muted`) сохранены 1:1.
+
+**Побочная находка:** из-за preflight-сброса отступов `<dialog>` терял центровку и открывался
+в левом верхнем углу — добавлен `m-auto`. Это существовавшая визуальная ошибка, а не следствие
+шага 1.
+
+**Проверено (ревью):** typecheck ok, lint 0 errors (14 warnings), 349/349 в 35 файлах, build ok.
+Контрасты пересчитаны независимо по WCAG 2 (sRGB). Совпали: content/surface 17.85 / 15.11,
+muted/surface-muted тёмная 6.97, accent 17.85, focus 5.17 / 7.01, control 3.80 / 3.28,
+danger/surface 6.57, success/surface 5.69, warning/surface 7.52.
+
+**Расхождение в отчёте исполнителя (не влияет на код):** три значения он мерил другой парой
+фонов. Фактически muted/surface-muted светлая — **4.76** (а не 4.97), danger тёмная — **6.39**
+(а не 6.70), success тёмная — **9.32** (а не 7.79). Все три проходят AA, код не менялся, но запас
+`muted` на `surface-muted` тонкий (4.76 при пороге 4.5): при будущей правке этих токенов мерить
+именно эту пару.
+
+**Осталось:** шаги 2–3 — оболочка (`components/layout/*`: AppLayout, Sidebar, MobileHeader,
+MobileNav, Brand, SetupBanner) и экраны (`features/**`, `AuthLayout`), где ещё остались литералы
+`rounded-lg`, `red-*`, `transition-all`, `shadow-[...]`; 44px touch-цели для мелких кнопок
+отложены осознанно (меняют раскладку).
