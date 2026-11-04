@@ -3,6 +3,107 @@
 Состояние проекта живёт в файлах и Git, а не в памяти модели. Каждая запись — дата, что сделано,
 чем проверено, что осталось.
 
+## 2026-11-06 — Phase 5: шаги 1b, 2, 3, 4 (код готов, миграции НЕ применены)
+
+**Решение владельца (2026-11-06): вариант A входит в Phase 5** — минимальная
+история расписания и пауз реализована отдельным шагом 1b, а не отложена.
+Предыдущие указания останавливаться после каждого шага заменены целью.
+
+**Сделано (коммиты от `08af9cb`)**
+
+- `ceedbed` шаг 1b: `supabase/migrations/0008_habit_schedule_versions.sql`
+  (текст, НЕ применена) — append-only `habit_schedule_versions` (владелец,
+  `habit_id`, `effective_from/effective_to`, `frequency/weekdays/target_count/
+  start_date/status`); создание + снимок и смена расписания/статуса + снимок
+  атомарны в БД (AFTER-триггер в той же транзакции, `SECURITY INVOKER`, без
+  `DEFINER`); день определяет сервер по IANA-поясу профиля
+  (`habit_current_date()`, fallback UTC); последний change дня — его снимок
+  (`UNIQUE (habit_id, effective_from)`), прошлые дни не переписываются;
+  переименование/no-op снимок не пишут; backfill без выдуманного прошлого
+  (`GREATEST(start_date, CURRENT_DATE)`); RLS 4 политики + `EXISTS`-гард
+  владения `habit_id`; CHECK/индексы как в `0007`. Типы: `HabitScheduleVersion`
+  (`domain.ts`), `HabitScheduleVersionsRow` + маппер (`database.ts`), 2 теста.
+- `2232001` шаг 2 (часть 1): `src/lib/habits.ts` + 22 теста — чистая
+  версионная математика: planned/completed/missed, current/best streak,
+  completion rate (null при пустом периоде, настоящие нули, потолок 100%,
+  перевыполнение сохраняется). Daily/weekdays — день, weekly — ISO-неделя
+  пн–вс (сумма). Сегодня/текущая неделя до завершения — не пропуск;
+  паузы/незапланированные дни/неизвестное прошлое — не провалы; смена
+  частоты/цели, частичные недели, `Asia/Bishkek` у полуночи.
+- `3007585` шаг 2 (часть 2): `habits/{api,errors,hooks,queryKeys}.ts` + 22
+  теста — CRUD, pause/resume/archive, idempotent `logHabit` (upsert по
+  `uq_habit_logs_habit_date`, повтор без дублей), история read-only из
+  триггера, patch валидируется после merge со stored row, identity из JWT,
+  постраничные range-чтения без молчаливого урезания, инвалидация только
+  `habits.*` (проверено: `goals` не трогается), `listAllHabitVersions` одним
+  запросом (без N+1).
+- `0a2aac8` + `89bf491` шаг 3: Habits UI — `HabitsPage` (loading/empty/error/
+  success, reload), `HabitFormDialog` (частоты, weekdays-чекбоксы,
+  target/start/reminder/status; reminder хранится, уведомления не обещаются),
+  `HabitRow` (streak-бейдж, completion), `LogHabitDialog` (дата/количество/
+  комментарий), `DeleteHabitDialog` ("N logged days будут удалены" + название).
+  Токены, 44px хит-зоны, keyboard/focus (`data-autofocus`, Esc, возврат
+  фокуса), English COPY, light/dark через токены, mobile-first.
+- `c79779d` шаг 4: Analytics — периоды day/week/month/year, задачи
+  (completed/pending/overdue, completed-in-period of due), цели (active, avg
+  progress), привычки (units done of planned), 4 Recharts-графика (задачи по
+  дням/месяцам, категории, прогресс целей, completion привычек — только
+  реальные данные, пустые периоды — empty states), детерминированный
+  `WeeklyReview` (без "AI", с явными знаменателями). Формулы не
+  дублируются: привычки через `src/lib/habits.ts`.
+- `d3f17eb` шаг 5 (часть 1): `e2e/habits.spec.ts` — 5 спек (create → log →
+  streak+reload, unscheduled weekday, pause/resume, RLS-негатив, analytics
+  периоды + reload). Все скипаются без provisioned таблиц (проба anon-GET,
+  как `planner.spec.ts`).
+- `9987dce` fix по независимому ревью (см. ниже).
+
+**Независимое ревью (security-auditor, 2 сессии)**
+
+- Сессия 1 — BLOCK: будущий `start_date` + tracked UPDATE = CHECK-аборт
+  всей транзакции (close ставил `effective_to = today-1` на будущую строку);
+  + should-fix: мусор в `profiles.timezone` ронял бы все tracked UPDATE
+  (нет CHECK в 0001), future `log_date` рассинхронизировал weekly
+  day-status и stats; + 5 notes.
+- Исправлено: close только `effective_from < today`, refresh будущих строк
+  в обоих путях, today-row bounded (`min(future)-1`, single-open invariant);
+  INSERT `GREATEST(start_date, creation-day)`; `habit_current_date` —
+  plpgsql с `EXCEPTION WHEN invalid_parameter_value → UTC`; weekdays
+  нормализуются в триггере (order-insensitive); weekly day-status суммирует
+  только дни `<= dateKey`; partial-week flush bounded днём смены.
+- PGlite (настоящий Postgres, WASM): тело миграции + триггер прогнаны по
+  8 сценариям — 8/8 зелёных (применение, future-start + pause без аборта,
+  same-day double upsert, rename без снимка, мусорный timezone → UTC,
+  pre-creation дни uncovered, прошлые строки побайтово неизменны). RLS в
+  PGlite не проверялась (нет JWT-контекста) — только статически.
+- Сессия 2 — **LIFT WITH NOTES** (notes: backfill CURRENT_DATE vs tz-date
+  skew задокументирован в миграции; weekdays sort без dedupe — тривиально).
+  Scope-check: дифф только 3 файла фиксов, дрейфа нет.
+
+**Проверено (числа)**
+
+- `npm run typecheck` — ok; `npm run lint` — 0 errors / 17 warnings (16
+  baseline + 1 новый `watch()` того же известного класса);
+  `npm test` — **794/794 в 82 файлах** (было 726/75);
+  `npm run build` — ok; `git diff --check` — чист.
+- `npx playwright test e2e/habits.spec.ts` — **5 skipped** (таблицы
+  отсутствуют живьём — спека корректно не падает; до фикса скипов 4 failed —
+  UI-шаги тоже требовали пробу, исправлено). Живой прогон UI невозможен до
+  применения миграций. Полный e2e не гонялся (беречь Auth rate limit).
+- Живая БД не тронута схемой: `list_migrations` — 0001–0005 (0006
+  применена вне истории, таблицы ai_* на месте); `habits*` таблиц нет.
+  Побочных записей нет (создания падали на отсутствующей таблице).
+
+**Осталось (требует владельца)**
+
+- Применить `0007`+`0008` отдельной командой после ревью + живая проверка
+  RLS (2 пользователя, rollback, снимки, паузы — инструкция шага 5 в
+  `docs/plan-phase-5.md`), затем `npm run test:e2e` (habits + analytics +
+  reload + mobile) и закрытие Phase 5 в ROADMAP/README.
+- Известно и принято: `getSession()` в habits/api (как в tasks) вместо
+  `getUser()` (RLS перепроверяет JWT — note ревью, не дефект); backfill
+  skew ≤1 день у полуночи (one-shot, задокументировано); weekday duplicates
+  `{1,1,2}` мнут шумную версию при прямом SQL (сервис/UI дубли не шлют).
+
 ## 2026-11-03 — Итерация 1.2, единица 6: e2e, RLS, закрытие итерации
 
 **Сделано**

@@ -32,7 +32,11 @@
 JSON Schema + серверная проверка каждого действия, чат и окно ревью предложений
 (принять всё / выборочно / отклонить), лимит 50 сообщений в сутки, CORS.
 
-Следующий шаг: Phase 5 — Habits & Analytics. Долг Phase 4.1: e2e на stub для
+Следующий шаг: Phase 5 — Habits & Analytics (в работе с 2026-11-05, решение A:
+минимальная история расписания и пауз входит; контракт данных `0007`, история
+`0008`, расчёты по версиям, сервисы, Habits UI и Analytics с детерминированным
+weekly review реализованы и покрыты тестами; миграции `0007`+`0008` ждут
+применения владельцем, живой e2e — после применения). Долг Phase 4.1: e2e на stub для
 approve/reject, ручная правка предложения до approve, отдельные коды для 429 и
 таймаута провайдера.
 
@@ -98,7 +102,7 @@ custom SMTP (сброс — только через Supabase Dashboard → Users
   полный план — в Planner (day/week, ручные блоки, generate → accept/cancel).
 - Безопасность: RLS на всех пользовательских таблицах (`user_id = auth.uid()`),
   identity только из проверенного JWT, `service_role` нигде не используется.
-- Проверки: 563 unit-теста (Vitest + RTL), live e2e (auth/goals/tasks/dashboard/
+- Проверки: 794 unit-теста (Vitest + RTL), live e2e (auth/goals/tasks/dashboard/
   smoke/recurrence/planner) против реального Supabase-проекта; `typecheck`, `lint`, `build` зелёные.
 
 Полное техническое задание — [docs/PRD.md](docs/PRD.md).
