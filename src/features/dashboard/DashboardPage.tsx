@@ -1,4 +1,4 @@
-import { CalendarDays, ListChecks, Target } from "lucide-react";
+import { ListChecks, Target } from "lucide-react";
 import { Link } from "react-router-dom";
 
 import { Badge } from "@/components/ui/Badge";
@@ -8,6 +8,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { ProgressBar } from "@/components/ui/ProgressBar";
 import { useDashboardData } from "@/features/dashboard/useDashboardData";
+import { ScheduleCard } from "@/features/dashboard/ScheduleCard";
 import { useSetTaskStatus } from "@/features/tasks/hooks";
 import { formatLongDate } from "@/lib/dates";
 import { humanize } from "@/lib/strings";
@@ -200,15 +201,7 @@ export function DashboardPage() {
           )}
         </Card>
 
-        <Card className="space-y-3">
-          <div className="flex items-center justify-between gap-2">
-            <h2 className="text-ui font-medium text-content">Schedule</h2>
-            <CalendarDays className="size-4.5 text-muted" aria-hidden="true" />
-          </div>
-          <p className="text-ui text-muted">
-            Nothing scheduled yet. Time blocking arrives in Phase 3.
-          </p>
-        </Card>
+        <ScheduleCard now={now} />
 
         {insightsLoading ? (
           <Card className="space-y-3">
