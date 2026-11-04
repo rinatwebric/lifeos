@@ -9,12 +9,11 @@ import type { Priority, Task } from "@/types/domain";
  * hardcoded offsets. `now` is always passed in — no `new Date()` inside.
  *
  * Decisions from docs/plan.md baked in here:
- * - Д1: free time and rest are derived, never stored; no new columns. The
- *   wake window minus busy blocks is the scheduling pool (see the NOTE on
- *   `computeFreeWindows` for how this relates to Д1's formula and Д2).
- * - Д2: working/study hours stay placeable — a block or slot over them is a
- *   soft `work` warning plus a score penalty, never a hard conflict or a
- *   refusal. Hard conflicts are overlap, sleep-intersection and past.
+ * - Д1: free time and rest are derived, never stored; no new columns. Free
+ *   windows exclude working and study hours (Д1); a MANUAL block over them
+ *   is allowed with a warning (Д2).
+ * - Д2: a manual block over working/study hours is a soft `work` warning
+ *   plus a score penalty, never a hard conflict or a refusal. Hard conflicts are overlap, sleep-intersection and past.
  * - Д3: no splitting — one task fills one window slot, the remainder goes to
  *   `doesNotFit` with a reason.
  * - Д6: overdue tasks are boosted candidates, never hidden.
@@ -33,8 +32,9 @@ export interface DayInterval {
 /**
  * Shape of the `working_hours` / `study_hours` preference objects:
  * weekday key to that day's intervals. `{}` (or a missing day) means
- * "not set". Intervals never block placement on their own (Д2) — they feed
- * the soft `work` warning and the score penalty instead.
+ * "not set". Intervals shrink auto-planning windows (Д1) but never cause
+ * a hard conflict for a MANUAL block (Д2) — they feed the soft `work`
+ * warning and the score penalty instead.
  */
 export type WeeklyAvailability = Partial<Record<DayKey, DayInterval[]>>;
 
@@ -348,18 +348,13 @@ function toTimeRange(range: RangeMs): TimeRange {
 }
 
 /**
- * Free windows for one day: the wake window minus every busy block clipped to
- * it. Sorted, non-overlapping, zero-length windows dropped. Sleep crossing
+ * Free windows for one day: the wake window minus working/study hours of
+ * the same day clipped to it, minus every busy block clipped to it.
+ * Sorted, non-overlapping, zero-length windows dropped. Sleep crossing
  * midnight is handled by `wakeWindowMs` (Д1).
  *
- * Working/study hours do NOT shrink the windows: Д2 allows placing tasks
- * over them (a hard ban would break PRD §15 scenario C), so they surface
- * instead as a soft `work` conflict in `findConflicts` plus a score penalty
- * in `scoreTask`. NOTE: this deliberately differs from the loose
- * "минус work/study" prose in the unit-2 task text and the Д1 formula — the
- * exact test case "work 09–18 + блок 10–11 → свободно 09–10 и 11–18" and Д2's
- * required score reduction are only satisfiable together when availability
- * stays placeable. See the final report for the full analysis.
+ * Free windows exclude working and study hours (Д1); a MANUAL block over
+ * them is allowed with a warning (Д2).
  */
 export function computeFreeWindows(input: ComputeFreeWindowsInput): TimeRange[] {
   const wake = wakeWindowMs(input.dateKey, input.timeZone, input.wakeUpTime, input.sleepTime);
@@ -369,6 +364,17 @@ export function computeFreeWindows(input: ComputeFreeWindowsInput): TimeRange[] 
   }
 
   const cuts: RangeMs[] = [];
+  const day = weekdayOf(input.dateKey, input.timeZone);
+
+  for (const availability of [input.workingHours, input.studyHours]) {
+    for (const range of availabilityRangesMs(day, input.dateKey, input.timeZone, availability)) {
+      const clipped = intersect(range, wake);
+
+      if (clipped) {
+        cuts.push(clipped);
+      }
+    }
+  }
 
   for (const block of input.blocks) {
     const range = parseBlockRange(block);
@@ -775,7 +781,8 @@ function firstWorkOverlap(range: RangeMs, input: FindConflictsInput): number | n
  * than every initial window is `too-long`; one that fit in principle but lost
  * the remaining space is `no-window`. Past portions of today are unplannable
  * (PRD §4.3: never plan in the past). Slots never overlap and never enter
- * sleep, because they are carved out of the free windows.
+ * sleep or working/study hours, because they are carved out of the free
+ * windows (Д1).
  */
 export function planDay(input: PlanDayInput): PlanDayResult {
   const initial = computeFreeWindows({

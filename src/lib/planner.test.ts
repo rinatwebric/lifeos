@@ -106,26 +106,25 @@ describe("computeFreeWindows", () => {
     ]);
   });
 
-  it("leaves work hours placeable: work 09–18 with a 10–11 block frees 09–10 and 11–18", () => {
+  it("excludes work hours: wake 07–23, work 09–18, block 10–11 frees 07–09 and 18–23", () => {
     const windows = computeFreeWindows({
       dateKey: DATE_KEY,
       timeZone: TZ,
-      wakeUpTime: "09:00",
-      sleepTime: "18:00",
+      wakeUpTime: "07:00",
+      sleepTime: "23:00",
       workingHours: { thu: [{ start: "09:00", end: "18:00" }] },
       studyHours: {},
       blocks: [makeBlock("b1", "2026-11-05T10:00:00.000Z", "2026-11-05T11:00:00.000Z")],
     });
 
-    // Д2: working hours never shrink the windows (over-work placement stays
-    // allowed); only the busy block is cut out.
+    // Д1: work hours are subtracted with the blocks; the block inside work changes nothing.
     expect(windows).toEqual([
-      { start: "2026-11-05T09:00:00.000Z", end: "2026-11-05T10:00:00.000Z" },
-      { start: "2026-11-05T11:00:00.000Z", end: "2026-11-05T18:00:00.000Z" },
+      { start: "2026-11-05T07:00:00.000Z", end: "2026-11-05T09:00:00.000Z" },
+      { start: "2026-11-05T18:00:00.000Z", end: "2026-11-05T23:00:00.000Z" },
     ]);
   });
 
-  it("does not shrink windows for working hours alone (Д2: soft warning, not a ban)", () => {
+  it("subtracts working and study hours of the same day (Д1)", () => {
     const windows = computeFreeWindows({
       dateKey: DATE_KEY,
       timeZone: TZ,
@@ -137,7 +136,27 @@ describe("computeFreeWindows", () => {
     });
 
     expect(windows).toEqual([
-      { start: "2026-11-05T07:00:00.000Z", end: "2026-11-05T23:00:00.000Z" },
+      { start: "2026-11-05T07:00:00.000Z", end: "2026-11-05T09:00:00.000Z" },
+      { start: "2026-11-05T18:00:00.000Z", end: "2026-11-05T19:00:00.000Z" },
+      { start: "2026-11-05T21:00:00.000Z", end: "2026-11-05T23:00:00.000Z" },
+    ]);
+  });
+
+  it("cuts blocks from the remaining free time outside work hours", () => {
+    const windows = computeFreeWindows({
+      dateKey: DATE_KEY,
+      timeZone: TZ,
+      wakeUpTime: "07:00",
+      sleepTime: "23:00",
+      workingHours: { thu: [{ start: "09:00", end: "18:00" }] },
+      studyHours: {},
+      blocks: [makeBlock("b1", "2026-11-05T19:00:00.000Z", "2026-11-05T20:00:00.000Z")],
+    });
+
+    expect(windows).toEqual([
+      { start: "2026-11-05T07:00:00.000Z", end: "2026-11-05T09:00:00.000Z" },
+      { start: "2026-11-05T18:00:00.000Z", end: "2026-11-05T19:00:00.000Z" },
+      { start: "2026-11-05T20:00:00.000Z", end: "2026-11-05T23:00:00.000Z" },
     ]);
   });
 
@@ -195,11 +214,10 @@ describe("computeFreeWindows", () => {
       blocks: [makeBlock("b1", "2026-03-29T08:00:00.000Z", "2026-03-29T09:00:00.000Z")],
     });
 
-    // Working hours stay placeable (Д2); only the block is cut out:
-    // 05:00–08:00 and 09:00–21:00 UTC.
+    // Д1: work hours are subtracted; the block inside work changes nothing.
     expect(busy).toEqual([
-      { start: "2026-03-29T05:00:00.000Z", end: "2026-03-29T08:00:00.000Z" },
-      { start: "2026-03-29T09:00:00.000Z", end: "2026-03-29T21:00:00.000Z" },
+      { start: "2026-03-29T05:00:00.000Z", end: "2026-03-29T07:00:00.000Z" },
+      { start: "2026-03-29T16:00:00.000Z", end: "2026-03-29T21:00:00.000Z" },
     ]);
 
     for (let i = 0; i < busy.length; i += 1) {
@@ -530,23 +548,31 @@ describe("planDay", () => {
     expect(clipped.slots[0].start).toBe("2026-11-05T12:00:00.000Z");
   });
 
-  it("places tasks over working hours with a penalty, never a refusal (Д2)", () => {
-    const task = makeTask({ id: "overtime", estimatedDurationMinutes: 60 });
+  it("never places slots inside working hours when free time exists outside them (Д1)", () => {
     const result = planDay({
-      ...dayInput,
+      dateKey: DATE_KEY,
+      timeZone: TZ,
+      now: new Date("2026-11-05T06:00:00.000Z"),
+      wakeUpTime: "07:00",
+      sleepTime: "23:00",
       workingHours: { thu: [{ start: "09:00", end: "18:00" }] },
       studyHours: {},
-      tasks: [task],
+      blocks: [],
+      tasks: [makeTask({ id: "morning", estimatedDurationMinutes: 60 })],
     });
 
     expect(result.slots).toHaveLength(1);
     expect(result.slots[0]).toMatchObject({
-      taskId: "overtime",
-      start: "2026-11-05T09:00:00.000Z",
-      end: "2026-11-05T10:00:00.000Z",
+      taskId: "morning",
+      start: "2026-11-05T07:00:00.000Z",
+      end: "2026-11-05T08:00:00.000Z",
     });
-    expect(result.slots[0].score).toBeLessThan(scoreTask(task, context()));
-    expect(result.slots[0].reason).toContain("working hours");
+    for (const slot of result.slots) {
+      const startMs = Date.parse(slot.start);
+      const endMs = Date.parse(slot.end);
+      expect(endMs).toBeLessThanOrEqual(Date.parse("2026-11-05T09:00:00.000Z"));
+      expect(startMs).toBeGreaterThanOrEqual(Date.parse("2026-11-05T07:00:00.000Z"));
+    }
     expect(result.doesNotFit).toEqual([]);
   });
 });
