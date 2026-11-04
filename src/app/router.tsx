@@ -19,6 +19,8 @@ import { PlannerPage } from "@/features/planner/PlannerPage";
 import { SettingsPage } from "@/features/settings/SettingsPage";
 import { TasksPage } from "@/features/tasks/TasksPage";
 
+import { RouteErrorPage } from "./RouteErrorPage";
+
 /**
  * Picks the reset-password mode from the session. A recovery link establishes
  * a session (via `exchangeCodeFromUrl` in the provider), so an authenticated
@@ -48,6 +50,7 @@ function ResetPasswordRoute() {
 const router = createBrowserRouter([
   {
     element: <AuthLayout />,
+    errorElement: <RouteErrorPage />,
     children: [
       {
         path: "/sign-in",
@@ -78,6 +81,7 @@ const router = createBrowserRouter([
   },
   {
     path: "/",
+    errorElement: <RouteErrorPage />,
     element: (
       <RequireAuth>
         <AppLayout />
