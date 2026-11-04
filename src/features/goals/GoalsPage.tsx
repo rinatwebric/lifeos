@@ -12,6 +12,7 @@ import { GoalsFilters } from "@/features/goals/components/GoalsFilters";
 import type { GoalFilters as GoalFilterQuery } from "@/features/goals/api";
 import { useAllMilestones, useGoals } from "@/features/goals/hooks";
 import { calculateGoalProgress } from "@/lib/progress";
+import { useMessages } from "@/lib/i18n/I18nContext";
 import type { Goal, MilestoneStatus } from "@/types/domain";
 
 function hasActiveFilters(filters: GoalFilterQuery): boolean {
@@ -35,6 +36,8 @@ function GoalCardSkeleton() {
 }
 
 export function GoalsPage() {
+  const m = useMessages();
+  const t = m.goals;
   const [filters, setFilters] = useState<GoalFilterQuery>({});
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<Goal | null>(null);
@@ -66,12 +69,12 @@ export function GoalsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Goals"
-        description="Long-term outcomes, broken into milestones you can actually execute."
+        title={t.title}
+        description={t.description}
         actions={
           <Button onClick={() => setCreating(true)}>
             <Plus className="size-4" aria-hidden="true" />
-            New goal
+            {t.newGoal}
           </Button>
         }
       />
@@ -79,41 +82,41 @@ export function GoalsPage() {
       <GoalsFilters filters={filters} onChange={setFilters} />
 
       {goalsQuery.isLoading ? (
-        <div role="status" aria-label="Loading goals" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          <span className="sr-only">Loading goals…</span>
+        <div role="status" aria-label={t.loading} className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          <span className="sr-only">{t.loading}</span>
           <GoalCardSkeleton />
           <GoalCardSkeleton />
           <GoalCardSkeleton />
         </div>
       ) : goalsQuery.isError ? (
         <div role="alert" className="rounded-card border border-line bg-surface p-4">
-          <p className="text-ui text-content">Could not load goals. Please try again.</p>
+          <p className="text-ui text-content">{t.loadError}</p>
           <div className="mt-3">
             <Button variant="secondary" size="sm" onClick={() => void goalsQuery.refetch()}>
-              Retry
+              {m.common.retry}
             </Button>
           </div>
         </div>
       ) : goals.length === 0 && !filtering ? (
         <EmptyState
           icon={Target}
-          title="No goals yet"
-          description="Create your first goal to turn a long-term outcome into actionable milestones and tasks."
+          title={t.emptyTitle}
+          description={t.emptyDescription}
           action={
             <Button onClick={() => setCreating(true)}>
               <Plus className="size-4" aria-hidden="true" />
-              Create your first goal
+              {t.createFirst}
             </Button>
           }
         />
       ) : goals.length === 0 ? (
         <EmptyState
           icon={Target}
-          title="No goals match these filters"
-          description="Try adjusting the filters, or clear them to see all goals."
+          title={t.noMatchTitle}
+          description={t.noMatchDescription}
           action={
             <Button variant="secondary" onClick={() => setFilters({})}>
-              Clear filters
+              {t.clearFilters}
             </Button>
           }
         />

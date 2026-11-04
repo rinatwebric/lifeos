@@ -91,3 +91,64 @@ export type CreateMilestoneInput = z.infer<typeof createMilestoneSchema>;
 export const updateMilestoneSchema = createMilestoneSchema.omit({ goalId: true }).partial();
 
 export type UpdateMilestoneInput = z.infer<typeof updateMilestoneSchema>;
+
+export interface GoalValidationMessages {
+  titleRequired: string;
+  titleTooLong: string;
+  descriptionTooLong: string;
+  dateFormat: string;
+  progressRange: string;
+  targetAfterStart: string;
+  goalRequired: string;
+}
+
+/** Localized factories for forms; static exports above stay English for tests. */
+export function createGoalFormSchemas(v: GoalValidationMessages) {
+  const titleField = z.string().trim().min(1, v.titleRequired).max(200, v.titleTooLong);
+  const descriptionField = z.string().trim().max(2000, v.descriptionTooLong).nullable().optional();
+  const dateKeyField = z.iso.date({ error: v.dateFormat });
+  const optionalDateKeyField = dateKeyField.nullable().optional();
+  const progressField = z.number().int().min(0).max(100, v.progressRange);
+  const base = z.object({
+    title: titleField,
+    description: descriptionField,
+    category: z.enum(GOAL_CATEGORIES),
+    priority: z.enum(PRIORITIES),
+    status: z.enum(GOAL_STATUSES),
+    startDate: dateKeyField,
+    targetDate: optionalDateKeyField,
+    progress: progressField,
+    progressMode: z.enum(PROGRESS_MODES),
+  });
+  const createGoalSchema = base.refine(
+    (values) =>
+      values.targetDate === null ||
+      values.targetDate === undefined ||
+      values.targetDate >= values.startDate,
+    { message: v.targetAfterStart, path: ["targetDate"] },
+  );
+  const updateGoalSchema = base.partial().refine(
+    (values) =>
+      values.targetDate === null ||
+      values.targetDate === undefined ||
+      values.startDate === undefined ||
+      values.targetDate >= values.startDate,
+    { message: v.targetAfterStart, path: ["targetDate"] },
+  );
+  return { createGoalSchema, updateGoalSchema };
+}
+
+export function createMilestoneFormSchema(v: {
+  titleRequired: string;
+  titleTooLong: string;
+  descriptionTooLong: string;
+  dateFormat: string;
+}) {
+  return z.object({
+    title: z.string().trim().min(1, v.titleRequired).max(200, v.titleTooLong),
+    description: z.string().trim().max(2000, v.descriptionTooLong).nullable().optional(),
+    targetDate: z.iso.date({ error: v.dateFormat }).nullable().optional(),
+  });
+}
+
+export type MilestoneFormValues = z.infer<ReturnType<typeof createMilestoneFormSchema>>;

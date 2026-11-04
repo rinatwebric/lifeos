@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useForm, type Resolver } from "react-hook-form";
 
 import { Button } from "@/components/ui/Button";
@@ -10,11 +10,12 @@ import { Select } from "@/components/ui/Select";
 import { Textarea } from "@/components/ui/Textarea";
 import { useCreateGoal, useUpdateGoal } from "@/features/goals/hooks";
 import {
-  createGoalSchema,
-  updateGoalSchema,
+  createGoalFormSchemas,
   type CreateGoalInput,
 } from "@/features/goals/schema";
-import { humanize } from "@/lib/strings";
+import { tmpl } from "@/lib/i18n/format";
+import { useMessages } from "@/lib/i18n/I18nContext";
+import { useRevalidateOnLocaleChange } from "@/lib/i18n/useRevalidate";
 import {
   GOAL_CATEGORIES,
   GOAL_STATUSES,
@@ -67,9 +68,25 @@ const nullIfEmpty = (value: unknown): string | null | unknown =>
   value === "" ? null : value;
 
 export function GoalFormDialog({ open, onClose, goal }: GoalFormDialogProps) {
+  const m = useMessages();
+  const t = m.goals;
   const createGoal = useCreateGoal();
   const updateGoal = useUpdateGoal();
   const [serverError, setServerError] = useState<string | null>(null);
+
+  const schemas = useMemo(
+    () =>
+      createGoalFormSchemas({
+        titleRequired: m.validation.titleRequired,
+        titleTooLong: m.validation.titleTooLong,
+        descriptionTooLong: m.validation.descriptionTooLong,
+        dateFormat: m.validation.dateFormat,
+        progressRange: m.validation.progressRange,
+        targetAfterStart: m.validation.targetAfterStart,
+        goalRequired: m.validation.goalRequired,
+      }),
+    [m.validation],
+  );
 
   const {
     register,
@@ -77,13 +94,16 @@ export function GoalFormDialog({ open, onClose, goal }: GoalFormDialogProps) {
     watch,
     setValue,
     reset,
+    trigger,
     formState: { errors },
   } = useForm<GoalFormValues>({
     resolver: zodResolver(
-      goal ? updateGoalSchema : createGoalSchema,
+      goal ? (schemas.updateGoalSchema as never) : (schemas.createGoalSchema as never),
     ) as Resolver<GoalFormValues>,
     defaultValues: defaultValuesFor(goal),
   });
+
+  useRevalidateOnLocaleChange(trigger, Object.keys(errors).length > 0);
 
   // RHF reads `defaultValues` only on first mount, but this dialog stays
   // mounted while `goal`/`open` change. Re-sync on every open so Edit shows
@@ -108,7 +128,7 @@ export function GoalFormDialog({ open, onClose, goal }: GoalFormDialogProps) {
       }
       onClose();
     } catch (error) {
-      setServerError(error instanceof Error ? error.message : "Could not save the goal.");
+      setServerError(error instanceof Error ? error.message : t.saveGoalError);
     }
   };
 
@@ -116,52 +136,48 @@ export function GoalFormDialog({ open, onClose, goal }: GoalFormDialogProps) {
     <Dialog
       open={open}
       onClose={onClose}
-      title={goal ? `Edit ${goal.title}` : "New goal"}
-      description={
-        goal
-          ? "Update the goal details below."
-          : "Define a long-term outcome. You can break it into milestones later."
-      }
+      title={goal ? tmpl(t.formEditTitle, { title: goal.title }) : t.formNewTitle}
+      description={goal ? t.formEditDescription : t.formNewDescription}
       wide
     >
       <form onSubmit={(event) => void handleSubmit(onSubmit)(event)} noValidate className="space-y-4">
-        <Field id="goal-title" label="Title" required error={errors.title?.message}>
-          <Input data-autofocus placeholder="Learn to play the piano" {...register("title")} />
+        <Field id="goal-title" label={t.fieldTitle} required error={errors.title?.message}>
+          <Input data-autofocus placeholder={t.titlePlaceholder} {...register("title")} />
         </Field>
 
-        <Field id="goal-description" label="Description" error={errors.description?.message}>
+        <Field id="goal-description" label={t.fieldDescription} error={errors.description?.message}>
           <Textarea
-            placeholder="Why does this goal matter?"
+            placeholder={t.descriptionPlaceholder}
             {...register("description", { setValueAs: nullIfEmpty })}
           />
         </Field>
 
         <div className="grid gap-4 sm:grid-cols-3">
-          <Field id="goal-category" label="Category" required error={errors.category?.message}>
+          <Field id="goal-category" label={t.fieldCategory} required error={errors.category?.message}>
             <Select {...register("category")}>
               {GOAL_CATEGORIES.map((category) => (
                 <option key={category} value={category}>
-                  {humanize(category)}
+                  {m.enums.category[category]}
                 </option>
               ))}
             </Select>
           </Field>
 
-          <Field id="goal-priority" label="Priority" required error={errors.priority?.message}>
+          <Field id="goal-priority" label={t.fieldPriority} required error={errors.priority?.message}>
             <Select {...register("priority")}>
               {PRIORITIES.map((priority) => (
                 <option key={priority} value={priority}>
-                  {humanize(priority)}
+                  {m.enums.priority[priority]}
                 </option>
               ))}
             </Select>
           </Field>
 
-          <Field id="goal-status" label="Status" required error={errors.status?.message}>
+          <Field id="goal-status" label={t.fieldStatus} required error={errors.status?.message}>
             <Select {...register("status")}>
               {GOAL_STATUSES.map((status) => (
                 <option key={status} value={status}>
-                  {humanize(status)}
+                  {m.enums.status[status]}
                 </option>
               ))}
             </Select>
@@ -169,14 +185,14 @@ export function GoalFormDialog({ open, onClose, goal }: GoalFormDialogProps) {
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field id="goal-startDate" label="Start date" required error={errors.startDate?.message}>
+          <Field id="goal-startDate" label={t.fieldStartDate} required error={errors.startDate?.message}>
             <Input type="date" {...register("startDate")} />
           </Field>
 
           <Field
             id="goal-targetDate"
-            label="Target date"
-            hint="Optional. Must be on or after the start date."
+            label={t.fieldTargetDate}
+            hint={t.targetHint}
             error={errors.targetDate?.message}
           >
             <Input type="date" {...register("targetDate", { setValueAs: nullIfEmpty })} />
@@ -197,20 +213,19 @@ export function GoalFormDialog({ open, onClose, goal }: GoalFormDialogProps) {
               }
             />
             <label htmlFor="goal-progressMode" className="text-ui font-medium text-content">
-              Calculate progress from milestones
+              {t.progressFromMilestones}
             </label>
           </div>
           <p className="text-micro text-muted">
-            When on, progress is derived from completed milestones. Your manual value is kept
-            and shown again when the goal has no milestones yet.
+            {t.progressFromMilestonesHint}
           </p>
         </div>
 
         {progressMode === "manual" ? (
           <Field
             id="goal-progress"
-            label="Progress (%)"
-            hint="Manual estimate, 0 to 100."
+            label={t.fieldProgress}
+            hint={t.progressHint}
             error={errors.progress?.message}
           >
             <Input
@@ -231,10 +246,10 @@ export function GoalFormDialog({ open, onClose, goal }: GoalFormDialogProps) {
 
         <div className="flex justify-end gap-2">
           <Button variant="secondary" size="lg" onClick={onClose} disabled={saving}>
-            Cancel
+            {t.cancel}
           </Button>
           <Button type="submit" size="lg" loading={saving}>
-            {goal ? "Save changes" : "Create goal"}
+            {goal ? t.saveChanges : t.createGoal}
           </Button>
         </div>
       </form>

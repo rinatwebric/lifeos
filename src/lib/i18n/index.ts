@@ -20,3 +20,4 @@ export {
 } from "./storage";
 export { resolveLocale } from "./types";
 export type { IntlLocale, Locale, ResolvedLocale } from "./types";
+export { useRevalidateOnLocaleChange } from "./useRevalidate";
