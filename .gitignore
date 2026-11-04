@@ -57,3 +57,4 @@ e2e/.auth/
 
 # Supabase CLI
 supabase/.temp/
+supabase/.branches/
