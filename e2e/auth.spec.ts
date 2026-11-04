@@ -21,6 +21,11 @@ import {
 
 skipWithoutCreds();
 
+// This file asserts the logged-out surface (redirects, sign in/out, sign-up),
+// so every test starts with a blank slate even when global-setup saved a
+// session for the rest of the suite.
+test.use({ storageState: { cookies: [], origins: [] } });
+
 test("anonymous visit to / redirects to /sign-in", async ({ page }) => {
   await page.goto("/");
 

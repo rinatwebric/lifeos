@@ -25,12 +25,67 @@ export function skipWithoutCreds(): void {
 }
 
 export async function signIn(page: Page, email: string, password: string): Promise<void> {
-  await page.goto("/sign-in");
+  // Idempotent (single sign-in per run): global-setup already saved a session
+  // to `e2e/.auth/state.json`, so a signed-in page lands on the shell (`/`)
+  // and returns without touching the form. Without that session `/` bounces
+  // to `/sign-in` (RequireAuth) and we log in — the auth.spec path, which
+  // opts out of the saved session, and runs without credentials on disk.
+  await page.goto("/");
+  await expect(page).toHaveURL(/\/$|\/sign-in$/);
+
+  if (!page.url().includes("/sign-in")) {
+    return;
+  }
+
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   // Fail fast here (not three steps later) when Auth rate-limits or rejects.
   await expect(page).toHaveURL(/\/$/);
+}
+
+/**
+ * Reads the access token of the already open browser session (same posture
+ * as the recurrence cleanup: RLS keeps everything scoped to the signed-in
+ * user, no `service_role`, and no second password-grant sign-in on the
+ * shared e2e account). Throws when there is no session — call `signIn`
+ * first.
+ */
+export async function getSessionAccessToken(page: Page): Promise<string> {
+  const stored = await page.evaluate(() => {
+    const keys: string[] = [];
+
+    for (let i = 0; i < window.localStorage.length; i += 1) {
+      const key = window.localStorage.key(i);
+
+      if (key && /^sb-.*-auth-token(\.\d+)?$/.test(key)) {
+        keys.push(key);
+      }
+    }
+
+    const chunked = keys
+      .filter((key) => /\.\d+$/.test(key))
+      .sort((a, b) => Number(a.split(".").pop()) - Number(b.split(".").pop()));
+
+    if (chunked.length > 0) {
+      return chunked.map((key) => window.localStorage.getItem(key) ?? "").join("");
+    }
+
+    const single = keys.find((key) => /^sb-.*-auth-token$/.test(key));
+    return single ? (window.localStorage.getItem(single) ?? "") : "";
+  });
+
+  try {
+    const token = (JSON.parse(stored) as { access_token: string }).access_token;
+
+    if (!token) {
+      throw new Error("no access_token in the open browser session");
+    }
+
+    return token;
+  } catch {
+    throw new Error("no access_token in the open browser session");
+  }
 }
 
 /**

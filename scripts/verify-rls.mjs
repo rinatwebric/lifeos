@@ -1,10 +1,13 @@
 /**
- * Manual RLS verification for iteration 1.2 (NOT part of `npm test`).
+ * Manual RLS verification for iteration 1.2, extended in iteration 4
+ * (NOT part of `npm test`).
  *
  * Proves row isolation is enforced by Postgres RLS, not by client code:
- *  - anonymous (anon key, no JWT) sees zero rows in both tables;
+ *  - anonymous (anon key, no JWT) sees zero rows in all tables;
  *  - user A reads/writes only their own rows;
- *  - user A selecting or updating any other id gets zero rows / zero writes.
+ *  - user A selecting or updating any other id gets zero rows / zero writes;
+ *  - time_blocks (migration 0005): foreign select returns 0 rows, a foreign
+ *    insert is refused, an own row is visible and deletable again.
  *
  * A second Supabase account (user B) adds nothing beyond the foreign-id
  * checks below: every policy is `... = auth.uid()`, so ANY authenticated
@@ -173,6 +176,76 @@ check(
   restored.length === 1 &&
     restored[0].wake_up_time === before.wake_up_time &&
     restored[0].sleep_time === before.sleep_time,
+);
+
+// 6. time_blocks (migration 0005): same `... = auth.uid()` posture.
+// A break block needs no task_id, so the probes below need no task setup.
+console.log("time_blocks RLS:");
+const anonBlocks = await rest("time_blocks?select=id");
+check(
+  "anonymous select time_blocks returns 0 rows",
+  Array.isArray(anonBlocks) && anonBlocks.length === 0,
+);
+const foreignBlocks = await rest(`time_blocks?select=id&user_id=eq.${FOREIGN_ID}`, { token });
+check("select foreign time_blocks returns 0 rows", foreignBlocks.length === 0);
+
+// A foreign insert must be refused by the WITH CHECK guard. rest() throws on
+// any non-2xx, so a raw fetch is used here: refusal is the PASS, not an error.
+const probeStart = new Date(Date.now() + 8 * 86_400_000).toISOString();
+const probeEnd = new Date(Date.now() + 8 * 86_400_000 + 3_600_000).toISOString();
+const foreignInsert = await fetch(`${SUPABASE_URL}/rest/v1/time_blocks`, {
+  method: "POST",
+  headers: {
+    apikey: ANON_KEY,
+    Authorization: `Bearer ${token}`,
+    "Content-Type": "application/json",
+    Prefer: "return=representation",
+  },
+  body: JSON.stringify({
+    user_id: FOREIGN_ID,
+    title: "RLS probe (must be refused)",
+    block_type: "break",
+    start_time: probeStart,
+    end_time: probeEnd,
+  }),
+});
+await foreignInsert.text();
+check("insert with foreign user_id is refused", !foreignInsert.ok, `HTTP ${foreignInsert.status}`);
+
+// An own row is visible to its owner, then removed again — no leftovers.
+const ownInsert = await rest("time_blocks", {
+  token,
+  method: "POST",
+  body: {
+    user_id: user.id,
+    title: "RLS probe own row (deleted below)",
+    block_type: "break",
+    start_time: probeStart,
+    end_time: probeEnd,
+  },
+});
+check(
+  "insert own time_block returns 1 row",
+  Array.isArray(ownInsert) && ownInsert.length === 1 && ownInsert[0].user_id === user.id,
+  JSON.stringify(ownInsert).slice(0, 120),
+);
+const probeId = ownInsert[0]?.id;
+const ownBlocks = await rest(`time_blocks?select=id&user_id=eq.${user.id}`, { token });
+check(
+  "select own time_blocks contains the probe row",
+  Array.isArray(ownBlocks) && ownBlocks.some((row) => row.id === probeId),
+  JSON.stringify(ownBlocks).slice(0, 120),
+);
+const deletedProbe = await rest(`time_blocks?id=eq.${probeId}`, { token, method: "DELETE" });
+check(
+  "delete own time_block removes 1 row",
+  Array.isArray(deletedProbe) && deletedProbe.length === 1,
+);
+const afterDelete = await rest(`time_blocks?select=id&user_id=eq.${user.id}`, { token });
+check(
+  "probe row is gone after cleanup",
+  Array.isArray(afterDelete) && !afterDelete.some((row) => row.id === probeId),
+  JSON.stringify(afterDelete).slice(0, 120),
 );
 
 console.log(

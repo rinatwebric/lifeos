@@ -1,46 +1,13 @@
-import { existsSync, readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 
 import { defineConfig, devices } from "@playwright/test";
 
+import { loadE2eEnv, repoRoot } from "./e2e/e2e-env";
+
 const baseURL = "http://127.0.0.1:5173";
-
-/**
- * Loads live-auth credentials for e2e without a new dependency.
- * `.env.e2e` is gitignored (see `.env.e2e.example` for the template);
- * values already in `process.env` win, so CI secrets keep working.
- * Tests skip themselves when `E2E_EMAIL` / `E2E_PASSWORD` are absent.
- */
-function loadE2eEnv(): void {
-  const rootDir = dirname(fileURLToPath(import.meta.url));
-  const file = join(rootDir, ".env.e2e");
-
-  if (!existsSync(file)) {
-    return;
-  }
-
-  for (const line of readFileSync(file, "utf8").split(/\r?\n/)) {
-    const trimmed = line.trim();
-
-    if (!trimmed || trimmed.startsWith("#")) {
-      continue;
-    }
-
-    const separator = trimmed.indexOf("=");
-
-    if (separator === -1) {
-      continue;
-    }
-
-    const key = trimmed.slice(0, separator).trim();
-    const value = trimmed.slice(separator + 1).trim();
-
-    if (key && !(key in process.env)) {
-      process.env[key] = value;
-    }
-  }
-}
+const rootDir = repoRoot();
+const storageStatePath = join(rootDir, "e2e", ".auth", "state.json");
 
 loadE2eEnv();
 
@@ -53,9 +20,15 @@ export default defineConfig({
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 2 : 0,
   reporter: process.env.CI ? "github" : "html",
+  // Single sign-in per run: global-setup logs in once and saves the session;
+  // specs reuse it from here. The file exists only after a credentialed run —
+  // without it (CI without secrets) the key is omitted entirely and every
+  // spec keeps skipping via `skipWithoutCreds`.
+  globalSetup: "./e2e/global-setup.ts",
   use: {
     baseURL,
     trace: "on-first-retry",
+    ...(existsSync(storageStatePath) ? { storageState: storageStatePath } : {}),
   },
   projects: [
     {

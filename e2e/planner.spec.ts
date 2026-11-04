@@ -1,6 +1,13 @@
 import { expect, test, type Page } from "@playwright/test";
 
-import { dismissOnboarding, E2E_EMAIL, E2E_PASSWORD, signIn, skipWithoutCreds } from "./helpers";
+import {
+  dismissOnboarding,
+  E2E_EMAIL,
+  E2E_PASSWORD,
+  getSessionAccessToken,
+  signIn,
+  skipWithoutCreds,
+} from "./helpers";
 
 /**
  * Live planner flow (iteration 4, units 9–10). Hits the real Supabase project
@@ -53,7 +60,15 @@ async function profileTimeZone(page: Page): Promise<string> {
 
 async function openDay(page: Page, dateKey: string): Promise<void> {
   await page.goto(`/planner?view=day&date=${dateKey}`);
-  await expect(page.getByText("Day summary")).toBeVisible();
+  // Stable anchor: the page chrome (view switch) is rendered in EVERY state —
+  // loading skeleton, empty day, day with blocks — so it never depends on
+  // whether the day has blocks.
+  await expect(page.getByRole("navigation", { name: "Planner view" })).toBeVisible();
+  // The day itself has settled once exactly one of its two legal states (§9.4)
+  // is on screen. Which one is asserted explicitly by each test below.
+  await expect(
+    page.getByText("Nothing planned for this day").or(page.getByText("Day summary")),
+  ).toBeVisible();
 }
 
 async function createBreakBlock(
@@ -71,6 +86,9 @@ async function createBreakBlock(
   await dialog.getByLabel(/^Ends/).fill(`${dateKey}T${end}`);
   await dialog.getByRole("button", { name: "Add block" }).click();
   await expect(page.locator("li", { hasText: title })).toBeVisible();
+  // Any created block makes the day non-empty, so the summary must render.
+  // This stays local to block creation — openDay itself accepts both states.
+  await expect(page.getByText("Day summary")).toBeVisible();
 }
 
 async function deleteBlock(page: Page, title: string): Promise<void> {
@@ -93,13 +111,16 @@ test("planner: day and week views switch through the URL", async ({ page }) => {
 
   await openDay(page, dateKey);
   expect(page.url()).toContain(`view=day&date=${dateKey}`);
+  // No test ever writes to this day: the empty state (§9.4) is the expectation.
+  await expect(page.getByText("Nothing planned for this day")).toBeVisible();
 
   await page.getByRole("link", { name: "Week" }).click();
-  await expect(page.getByText("Week summary")).toBeVisible();
+  // Same empty-day pattern as DayView: an empty week renders no "Week summary".
+  await expect(page.getByText("Nothing planned for this week")).toBeVisible();
   expect(page.url()).toContain("view=week");
 
   await page.getByRole("link", { name: "Day" }).click();
-  await expect(page.getByText("Day summary")).toBeVisible();
+  await expect(page.getByText("Nothing planned for this day")).toBeVisible();
   expect(page.url()).toContain("view=day");
 });
 
@@ -112,8 +133,10 @@ test("planner: a manual break block is created and deleted", async ({ page }) =>
   const title = `E2E plan break ${Date.now()}`;
 
   await openDay(page, dateKey);
+  await expect(page.getByText("Nothing planned for this day")).toBeVisible();
   await createBreakBlock(page, title, dateKey, "09:00", "10:00");
   await deleteBlock(page, title);
+  await expect(page.getByText("Nothing planned for this day")).toBeVisible();
 });
 
 test("planner: an overlapping block is saved only after confirmation", async ({ page }) => {
@@ -127,6 +150,7 @@ test("planner: an overlapping block is saved only after confirmation", async ({ 
   const second = `E2E plan second ${stamp}`;
 
   await openDay(page, dateKey);
+  await expect(page.getByText("Nothing planned for this day")).toBeVisible();
   await createBreakBlock(page, first, dateKey, "09:00", "10:00");
 
   await page.getByRole("button", { name: "Add block" }).click();
@@ -150,6 +174,7 @@ test("planner: an overlapping block is saved only after confirmation", async ({ 
 
   await deleteBlock(page, second);
   await deleteBlock(page, first);
+  await expect(page.getByText("Nothing planned for this day")).toBeVisible();
 });
 
 test("planner: generate then accept writes the blocks, generate then cancel writes nothing", async ({
@@ -187,6 +212,8 @@ test("planner: generate then accept writes the blocks, generate then cancel writ
   await expect(page.getByRole("heading", { name: "Plan preview" })).toHaveCount(0);
   await expect(page.locator("li", { hasText: taskA })).toBeVisible();
   await expect(page.locator("li", { hasText: taskB })).toBeVisible();
+  // Accept wrote task blocks, so the day is no longer empty (§9.4).
+  await expect(page.getByText("Day summary")).toBeVisible();
 
   // Cancel: the day stays exactly as it was — no block is written.
   await openDay(page, cancelDay);
@@ -212,7 +239,10 @@ test("planner: generate then accept writes the blocks, generate then cancel writ
   }
 });
 
-test("planner rls: a foreign user_id in time_blocks is invisible", async ({ request }) => {
+test("planner rls: a foreign user_id in time_blocks is invisible", async ({
+  page,
+  request,
+}) => {
   test.skip(
     !SUPABASE_URL || !SUPABASE_ANON_KEY,
     "SUPABASE_URL / SUPABASE_ANON_KEY are not set — add them to .env.e2e to run the RLS probe.",
@@ -230,15 +260,13 @@ test("planner rls: a foreign user_id in time_blocks is invisible", async ({ requ
     `time_blocks is not provisioned yet (HTTP ${probe.status()}) — apply 0005, then rerun.`,
   );
 
-  const authResponse = await request.post(
-    `${SUPABASE_URL}/auth/v1/token?grant_type=password`,
-    {
-      headers: { apikey: SUPABASE_ANON_KEY, "Content-Type": "application/json" },
-      data: { email: E2E_EMAIL, password: E2E_PASSWORD },
-    },
-  );
-  test.skip(!authResponse.ok(), "cannot sign in as the e2e user — skipping the RLS probe.");
-  const { access_token: token } = (await authResponse.json()) as { access_token: string };
+  // Single sign-in per run: reuse the access token of the already open
+  // browser session (global-setup signed in once) instead of a second
+  // password-grant sign-in on the shared e2e account (Supabase Auth
+  // rate-limits extra sign-ins). Same posture as the recurrence cleanup:
+  // anon key only, RLS scopes everything to the signed-in user.
+  await signIn(page, E2E_EMAIL, E2E_PASSWORD);
+  const token = await getSessionAccessToken(page);
 
   const foreign = await request.get(
     `${SUPABASE_URL}/rest/v1/time_blocks?select=id&user_id=eq.${FOREIGN_ID}`,
