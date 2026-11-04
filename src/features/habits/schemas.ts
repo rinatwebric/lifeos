@@ -29,6 +29,27 @@ const dateKeyField = z.iso.date({ error: DATE_KEY_MESSAGE });
 
 const weekdayField = z.number().int().min(0).max(6);
 
+/**
+ * Postgres `integer` (int4, the type of `target_count` / `completed_count`
+ * in 0007) tops out at 2^31 - 1; larger values would pass Zod and die in the
+ * DB. One shared ceiling for every count field, create and update alike.
+ * Overfulfilment vs `targetCount` stays allowed — this cap is about the
+ * column type, not the product rule.
+ */
+export const MAX_SQL_INTEGER = 2 ** 31 - 1;
+
+const targetCountField = z
+  .number()
+  .int()
+  .min(1, "Target count must be at least 1.")
+  .max(MAX_SQL_INTEGER, `Target count must be at most ${MAX_SQL_INTEGER}.`);
+
+const completedCountField = z
+  .number()
+  .int()
+  .min(0, "Completed count must be 0 or more.")
+  .max(MAX_SQL_INTEGER, `Completed count must be at most ${MAX_SQL_INTEGER}.`);
+
 // Wall-clock reminder stored as TIME in the DB (0007); no notification
 // infrastructure reads it yet. Strictly HH:MM on input — the DB serializes
 // TIME as HH:MM:SS on read, so the read path normalizes via `toWallTime`
@@ -52,7 +73,7 @@ export const habitBaseSchema = z.object({
   description: descriptionField,
   frequency: z.enum(RECURRENCE_FREQUENCIES),
   weekdays: z.array(weekdayField).default([]),
-  targetCount: z.number().int().min(1, "Target count must be at least 1."),
+  targetCount: targetCountField,
   reminderTime: reminderTimeField,
   startDate: dateKeyField,
   status: z.enum(HABIT_STATUSES),
@@ -81,7 +102,7 @@ export const updateHabitSchema = z
     description: descriptionField,
     frequency: z.enum(RECURRENCE_FREQUENCIES).optional(),
     weekdays: z.array(weekdayField).optional(),
-    targetCount: z.number().int().min(1, "Target count must be at least 1.").optional(),
+    targetCount: targetCountField.optional(),
     reminderTime: reminderTimeField,
     startDate: dateKeyField.optional(),
     status: z.enum(HABIT_STATUSES).optional(),
@@ -101,7 +122,7 @@ export type UpdateHabitInput = z.infer<typeof updateHabitSchema>;
 export const habitLogBaseSchema = z.object({
   habitId: z.string().uuid("Select a valid habit."),
   logDate: dateKeyField,
-  completedCount: z.number().int().min(0, "Completed count must be 0 or more."),
+  completedCount: completedCountField,
   note: noteField,
 });
 

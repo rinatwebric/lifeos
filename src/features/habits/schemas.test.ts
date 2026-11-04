@@ -101,6 +101,16 @@ describe("habit schemas", () => {
     expect(createHabitSchema.safeParse({ ...validHabit, targetCount: 3 }).success).toBe(true);
   });
 
+  it("caps target counts at the SQL integer maximum in create and update", () => {
+    const max = 2 ** 31 - 1;
+    expect(createHabitSchema.safeParse({ ...validHabit, targetCount: max }).success).toBe(true);
+    expect(createHabitSchema.safeParse({ ...validHabit, targetCount: max + 1 }).success).toBe(
+      false,
+    );
+    expect(updateHabitSchema.safeParse({ targetCount: max }).success).toBe(true);
+    expect(updateHabitSchema.safeParse({ targetCount: max + 1 }).success).toBe(false);
+  });
+
   it("rejects a nonexistent calendar start date with the date message", () => {
     const result = createHabitSchema.safeParse({ ...validHabit, startDate: "2026-02-30" });
     expect(result.success).toBe(false);
@@ -141,6 +151,7 @@ describe("habit schemas", () => {
   it("supports partial updates and still guards the weekday rule", () => {
     expect(updateHabitSchema.safeParse({ title: "Renamed" }).success).toBe(true);
     expect(updateHabitSchema.safeParse({ targetCount: 0 }).success).toBe(false);
+    expect(updateHabitSchema.safeParse({ targetCount: 1.5 }).success).toBe(false);
     const missing = updateHabitSchema.safeParse({ frequency: "weekdays" });
     expect(missing.success).toBe(false);
     if (!missing.success) {
@@ -184,6 +195,18 @@ describe("habit log schemas", () => {
     expect(createHabitLogSchema.safeParse({ ...validLog, completedCount: 5 }).success).toBe(true);
   });
 
+  it("caps completed counts at the SQL integer maximum in create and update", () => {
+    const max = 2 ** 31 - 1;
+    expect(createHabitLogSchema.safeParse({ ...validLog, completedCount: max }).success).toBe(
+      true,
+    );
+    expect(createHabitLogSchema.safeParse({ ...validLog, completedCount: max + 1 }).success).toBe(
+      false,
+    );
+    expect(updateHabitLogSchema.safeParse({ completedCount: max }).success).toBe(true);
+    expect(updateHabitLogSchema.safeParse({ completedCount: max + 1 }).success).toBe(false);
+  });
+
   it("accepts null notes, rejects notes longer than 2000 characters", () => {
     expect(createHabitLogSchema.safeParse({ ...validLog, note: "Felt easy." }).success).toBe(true);
     expect(createHabitLogSchema.safeParse({ ...validLog, note: null }).success).toBe(true);
@@ -211,5 +234,6 @@ describe("habit log schemas", () => {
       expect("habitId" in moved.data).toBe(false);
     }
     expect(updateHabitLogSchema.safeParse({ completedCount: -1 }).success).toBe(false);
+    expect(updateHabitLogSchema.safeParse({ completedCount: 1.5 }).success).toBe(false);
   });
 });
