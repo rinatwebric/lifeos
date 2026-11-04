@@ -24,24 +24,81 @@ export function skipWithoutCreds(): void {
   );
 }
 
-export async function signIn(page: Page, email: string, password: string): Promise<void> {
+export async function signIn(
+  page: Page,
+  email: string,
+  password: string,
+  options?: { force?: boolean },
+): Promise<void> {
+  const signInForm = page.getByLabel("Email");
+  // The shell-only anchor: AuthLayout renders no Primary nav, so this node
+  // exists only when the session is live. (The "Welcome back" heading can NOT
+  // serve as the anchor — SignInPage and DashboardPage render the same text.)
+  // `.first()` is the Sidebar nav; MobileNav renders a second same-named node
+  // that is hidden on the desktop-Chromium viewport this suite runs.
+  const shellAnchor = page.getByRole("navigation", { name: "Primary" }).first();
+
+  if (options?.force) {
+    // auth.spec path (blank storageState): always perform the real login,
+    // never inherit a session.
+    await page.goto("/sign-in");
+    await expect(signInForm).toBeVisible();
+    await signInForm.fill(email);
+    await page.getByLabel("Password").fill(password);
+    await page.getByRole("button", { name: "Sign in", exact: true }).click();
+    // The shell anchor, not just the URL: only it proves the session is live.
+    await expect(shellAnchor).toBeVisible();
+    return;
+  }
+
   // Idempotent (single sign-in per run): global-setup already saved a session
   // to `e2e/.auth/state.json`, so a signed-in page lands on the shell (`/`)
   // and returns without touching the form. Without that session `/` bounces
   // to `/sign-in` (RequireAuth) and we log in — the auth.spec path, which
   // opts out of the saved session, and runs without credentials on disk.
-  await page.goto("/");
-  await expect(page).toHaveURL(/\/$|\/sign-in$/);
+  //
+  // No URL reads here: right after `goto("/")` the document is still on `/`
+  // while RequireAuth resolves the session, so a URL check can not tell
+  // "signed in" from "not redirected yet" (that race was the auth.spec
+  // regression). Wait for exactly one of the two stable states instead: the
+  // sign-in form or the authenticated shell.
+  // Liveness probe, armed BEFORE navigation: the app reads the profile the
+  // moment the shell mounts, so the first profiles GET settles the question
+  // "is the stored session alive server-side". A stored session can flash
+  // the shell while already dead (a global sign-out in an earlier test
+  // revokes the saved refresh token while the access JWT still parses
+  // client-side) — visibility alone can not tell that flash from a live
+  // shell, but a 200 from the server can. Zero extra requests: this only
+  // observes the app's own read.
+  const profileStatus = page
+    .waitForResponse(
+      (response) =>
+        response.url().includes("/rest/v1/profiles") &&
+        response.request().method() === "GET",
+      { timeout: 10_000 },
+    )
+    .then(
+      (response) => response.status(),
+      () => 0,
+    );
 
-  if (!page.url().includes("/sign-in")) {
+  await page.goto("/");
+  await expect(signInForm.or(shellAnchor)).toBeVisible();
+
+  if ((await shellAnchor.isVisible()) && ((await profileStatus) === 200)) {
     return;
   }
 
-  await page.getByLabel("Email").fill(email);
+  // Anonymous, or a stale stored session that RequireAuth is already
+  // bouncing to /sign-in: perform the real login. `fill` waits for the
+  // form to arrive after the bounce, no URL reads.
+  await signInForm.fill(email);
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   // Fail fast here (not three steps later) when Auth rate-limits or rejects.
-  await expect(page).toHaveURL(/\/$/);
+  // The shell anchor, not just the URL: the URL settles on `/` before the
+  // shell renders, so only the anchor proves the session is live.
+  await expect(shellAnchor).toBeVisible();
 }
 
 /**

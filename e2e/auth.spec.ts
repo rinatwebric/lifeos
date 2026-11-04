@@ -1,3 +1,5 @@
+import { join } from "node:path";
+
 import { expect, test } from "@playwright/test";
 
 import {
@@ -8,6 +10,7 @@ import {
   signIn,
   skipWithoutCreds,
 } from "./helpers";
+import { repoRoot } from "./e2e-env";
 
 /**
  * Live-auth suite (iteration 1.2, unit 6). Hits the real Supabase project.
@@ -34,14 +37,16 @@ test("anonymous visit to / redirects to /sign-in", async ({ page }) => {
 });
 
 test("signs in with the test user and lands on the dashboard", async ({ page }) => {
-  await signIn(page, E2E_EMAIL, E2E_PASSWORD);
+  // This spec asserts the login itself, so it never inherits the saved
+  // session: every signIn here is forced through the real form.
+  await signIn(page, E2E_EMAIL, E2E_PASSWORD, { force: true });
   await dismissOnboarding(page);
 
   await expect(page.getByRole("heading", { name: "Welcome back" })).toBeVisible();
 });
 
 test("settings persist wake/sleep across reload", async ({ page }) => {
-  await signIn(page, E2E_EMAIL, E2E_PASSWORD);
+  await signIn(page, E2E_EMAIL, E2E_PASSWORD, { force: true });
   await dismissOnboarding(page);
 
   await page.goto("/settings");
@@ -69,9 +74,10 @@ test("settings persist wake/sleep across reload", async ({ page }) => {
 
   await page.reload();
 
-  // The time input normalizes to HH:MM:SS; persistence is what matters.
-  await expect(page.getByLabel("Wake-up time")).toHaveValue("06:30:00");
-  await expect(page.getByLabel("Sleep time")).toHaveValue("22:45:00");
+  // The form speaks strict "HH:MM" (`toWallTime` truncates the PostgREST
+  // "HH:MM:SS" at the DB boundary); persistence across reload is what matters.
+  await expect(page.getByLabel("Wake-up time")).toHaveValue("06:30");
+  await expect(page.getByLabel("Sleep time")).toHaveValue("22:45");
 
   // Leave the shared e2e account on the defaults for the next run.
   await page.getByLabel("Wake-up time").fill("07:00");
@@ -89,7 +95,7 @@ test("settings persist wake/sleep across reload", async ({ page }) => {
 });
 
 test("sign out returns to /sign-in and / becomes unavailable", async ({ page }) => {
-  await signIn(page, E2E_EMAIL, E2E_PASSWORD);
+  await signIn(page, E2E_EMAIL, E2E_PASSWORD, { force: true });
   await dismissOnboarding(page);
 
   await page.goto("/settings");
@@ -99,6 +105,18 @@ test("sign out returns to /sign-in and / becomes unavailable", async ({ page }) 
 
   await page.goto("/");
   await expect(page).toHaveURL(/\/sign-in$/);
+
+  // Heal the shared session for the specs that run after this file:
+  // "Sign out" is global (`auth.signOut()` defaults to `scope: "global"`,
+  // see `@supabase/auth-js` `GoTrueClient.signOut`), so the server revoked
+  // every refresh token — including the one global-setup saved to
+  // `e2e/.auth/state.json`. Without a fresh save here, every follower would
+  // start from a dead stored session (the shell flashes on the stale token,
+  // then RequireAuth bounces to /sign-in).
+  await signIn(page, E2E_EMAIL, E2E_PASSWORD, { force: true });
+  await page
+    .context()
+    .storageState({ path: join(repoRoot(), "e2e", ".auth", "state.json") });
 });
 
 test("sign-up with confirmation OFF lands directly in the app", async ({ page }) => {
