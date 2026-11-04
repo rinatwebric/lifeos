@@ -32,6 +32,9 @@ export type MilestoneStatus = (typeof MILESTONE_STATUSES)[number];
 export const RECURRENCE_FREQUENCIES = ["daily", "weekdays", "weekly"] as const;
 export type RecurrenceFrequency = (typeof RECURRENCE_FREQUENCIES)[number];
 
+export const BLOCK_TYPES = ["task", "break", "personal"] as const;
+export type BlockType = (typeof BLOCK_TYPES)[number];
+
 export const HABIT_STATUSES = ["active", "paused", "archived"] as const;
 export type HabitStatus = (typeof HABIT_STATUSES)[number];
 
@@ -99,7 +102,7 @@ export interface TimeBlock extends BaseEntity {
   title: string;
   startTime: string;
   endTime: string;
-  blockType: string;
+  blockType: BlockType;
 }
 
 export interface Habit extends BaseEntity {

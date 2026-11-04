@@ -1,4 +1,5 @@
 import type {
+  BlockType,
   Goal,
   GoalCategory,
   GoalStatus,
@@ -10,6 +11,7 @@ import type {
   RecurrenceRule,
   Task,
   TaskStatus,
+  TimeBlock,
   UserPreferences,
 } from "./domain";
 
@@ -209,6 +211,33 @@ export function mapTaskRowToTask(row: TasksRow): Task {
     estimatedDurationMinutes: row.estimated_duration_minutes,
     completedAt: row.completed_at,
     recurrenceRuleId: row.recurrence_rule_id,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+/** Mirrors migration 0005_time_blocks. */
+export interface TimeBlocksRow {
+  id: string;
+  user_id: string;
+  task_id: string | null;
+  title: string;
+  start_time: string;
+  end_time: string;
+  block_type: BlockType;
+  created_at: string;
+  updated_at: string;
+}
+
+export function mapTimeBlockRowToTimeBlock(row: TimeBlocksRow): TimeBlock {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    taskId: row.task_id,
+    title: row.title,
+    startTime: row.start_time,
+    endTime: row.end_time,
+    blockType: row.block_type,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
