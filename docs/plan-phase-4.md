@@ -181,6 +181,26 @@ AI-ассистент помогает управлять целями/зада�
 
 Проверка: `npm run typecheck && npm run lint && npm test`
 
+> Статус (2026-11-04): выполнен. `src/features/assistant/`: `schemas.ts`
+> (`sendMessageSchema`: message trim 1–4000, `conversationId` uuid|null),
+> `errors.ts` (`AssistantServiceError`, 7 кодов по ТЗ), `api.ts`
+> (`listConversations`/`listMessages`/`sendMessage`), `queryKeys.ts`
+> (фабрика `assistant.*`), `hooks.ts`
+> (`useConversations`/`useMessages`/`useSendMessage`), `api.test.ts` +
+> `hooks.test.tsx` (моки клиента как в `planner/api.test.ts`).
+> `sendMessage` шлёт только `{ message, conversationId }` через
+> `functions.invoke("ai-assistant")` (identity — сессия supabase-js, никакого
+> `user_id` в аргументах/теле; Authorization вручную не подменяется),
+> предложение перепроверяется `assistantProposalSchema` (мусор из 2xx-ответа
+> уходит в `invalid_response`, не в рендер). Инвалидация — только `assistant.*`
+> (`conversations` + `messages(conversationId)`); `["goals","list"]` и
+> `["tasks",...]` не трогаются (предложение ещё не применено — это шаг 7).
+> Отклонение от текста выше: `createConversation`/`deleteConversation` в этом
+> шаге нет — диалог создаёт сервер на первом `sendMessage` (edge
+> `handleChat`), удаление истории — в шаге 8 вместе с UI; чтения идут через
+> существующие таблицы, как требует задача шага. Живьём не проверено:
+> миграция 0006 не применена, функция не задеплоена.
+
 ### Шаг 7. Apply/Reject предложений с серверной перепроверкой
 
 Цель: контракты `POST /ai/proposals/:id/approve|reject` (§13) — перепроверка в момент apply, идемпотентность, обратимость где возможна.

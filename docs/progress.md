@@ -1231,3 +1231,62 @@ PostgREST отдаёт `timestamptz` с `"+00:00"` и `time` как `"HH:MM:SS"`
 - Дальше — шаг 6 из `docs/plan-phase-4.md` (frontend-сервис чата
   `src/features/assistant/*`); `src/features/**` и
   `supabase/migrations/**` в этих коммитах не тронуты.
+
+## 2026-11-04 — Итерация 5, шаг 6: frontend-сервис ассистента (без UI)
+
+**Сделано (один коммит, этот)**
+
+- Новые файлы `src/features/assistant/` (UI нет, только сервис — шаг 8 отдельно):
+  `schemas.ts` (`sendMessageSchema`: message trim 1–4000, `conversationId`
+  uuid|null), `errors.ts` (`AssistantServiceError` + `ASSISTANT_ERROR_MESSAGES`),
+  `api.ts` (`listConversations`, `listMessages`, `sendMessage`),
+  `queryKeys.ts` (фабрика `assistant.*` в стиле `planner/queryKeys.ts`),
+  `hooks.ts` (`useConversations`, `useMessages`, `useSendMessage`),
+  `api.test.ts` + `hooks.test.tsx` (моки supabase-клиента как в
+  `planner/api.test.ts`).
+- `sendMessage` вызывает `supabase.functions.invoke("ai-assistant", { body })`
+  с телом только `{ message, conversationId }` — никакого `user_id` в
+  аргументах и теле (identity из `auth.getSession()`, Authorization
+  подставляется самим supabase-js). Ответ типизирован
+  `{ conversationId, userMessageId, assistantMessageId, proposalId, proposal }`;
+  предложение перепроверено `assistantProposalSchema` перед возвратом
+  (сервер уже валидировал, клиент мусор не рендерит).
+- `useSendMessage` инвалидирует только `assistant.conversations` +
+  `assistant.messages(conversationId)`; `["goals","list"]` и `["tasks",...]`
+  не трогает (предложение ещё не применено — применение в шаге 7).
+- Отклонение от текста шага 6 в `docs/plan-phase-4.md`: `createConversation` /
+  `deleteConversation` не добавлялись — диалог создаёт сервер на первом
+  `sendMessage`, удаление истории уходит в шаг 8 вместе с UI.
+- `supabase/**`, `src/lib/**`, edge-функция не тронуты; новых зависимостей
+  нет; секретов во frontend нет (`AI_API_KEY` появляется только в окружении
+  функции).
+
+**Проверено (числа)**
+
+- `npm run typecheck` — ok
+- `npm run lint` — 0 errors, 16 warnings (те же известные классы:
+  `react-refresh/only-export-components`, `react-hooks/incompatible-library`)
+- `npm test` — **657/657 в 68 файлах** (было 643 в 66 после шага 5: +14 новых —
+  10 `api.test.ts`, 4 `hooks.test.tsx`)
+- `npm run build` — ok
+- `grep -rn "user_id" src/features/assistant/` — только колонка в `.eq()`,
+  комментарии и тестовые ассёрты отсутствия в теле invoke; аргументов
+  `user_id` нет; `grep Authorization|VITE_|service_role|AI_API_KEY` — только
+  комментарий «не подменять Authorization» и тест-строки (секретов нет)
+
+**Не проверено живьём (облако не настроено, живых прогонов не было)**
+
+- Миграция 0006 НЕ применена в облаке, функция НЕ задеплоена (состояние на
+  HEAD шага 5: REST 404 PGRST205, POST `/functions/v1/ai-assistant` 404) —
+  живые вызовы невозможны; все покрытия шага — моки клиента под Vitest.
+- Живого ключа у исполнителя нет и не использовался; тесты только с моками.
+
+**Осталось**
+
+- Дальше — шаг 7 из `docs/plan-phase-4.md` (apply/reject предложений с
+  серверной перепроверкой: ветки approve/reject в edge-функции,
+  `useApproveProposal`/`useRejectProposal`, идемпотентность). После него —
+  шаг 8 (UI: `AssistantPage`, `ChatPanel`, `ProposalModal`).
+- Владельцу: применить миграцию 0006 и задеплоить функцию отдельной командой
+  после ревью (как 0005); живой прогон chat → proposal возможен только после
+  этого и только с ключом провайдера (иначе stub с честным баннером).
