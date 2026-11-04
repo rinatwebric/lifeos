@@ -11,6 +11,7 @@ import {
 } from "./api";
 import { useAuth } from "@/features/auth/useAuth";
 import { isSupabaseConfigured } from "@/lib/env";
+import { Button } from "@/components/ui/Button";
 
 export const ONBOARDING_COPY = {
   title: "Set up your day",
@@ -98,21 +99,21 @@ export function OnboardingDialog() {
       role="dialog"
       aria-modal="true"
       aria-labelledby="onboarding-title"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-scrim/80 px-4"
     >
-      <div className="w-full max-w-md rounded-2xl border border-line bg-surface p-6 shadow-xl">
-        <h2 id="onboarding-title" className="text-lg font-semibold tracking-tight text-content">
+      <div className="w-full max-w-md rounded-card border border-line bg-surface p-6 shadow-overlay">
+        <h2 id="onboarding-title" className="text-heading font-semibold tracking-tight text-content">
           {ONBOARDING_COPY.title}
         </h2>
-        <p className="mt-1 text-sm text-muted">{ONBOARDING_COPY.description}</p>
+        <p className="mt-1 text-ui text-muted">{ONBOARDING_COPY.description}</p>
 
         <div className="mt-4">
           {loading ? (
-            <p role="status" className="text-sm text-muted">
+            <p role="status" className="text-ui text-muted">
               {ONBOARDING_COPY.loading}
             </p>
           ) : loadFailed ? (
-            <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+            <p role="alert" className="text-ui text-danger">
               {ONBOARDING_COPY.loadError}
             </p>
           ) : (
@@ -136,18 +137,20 @@ export function OnboardingDialog() {
 
         <div className="mt-3 flex flex-col gap-2">
           {skipError ? (
-            <p role="alert" className="text-xs text-red-600 dark:text-red-400">
+            <p role="alert" className="text-micro text-danger">
               {skipError}
             </p>
           ) : null}
-          <button
+          <Button
             type="button"
+            variant="secondary"
+            className="w-full"
             onClick={() => void handleSkip()}
             disabled={skipping}
-            className="w-full rounded-lg border border-line bg-surface px-4 py-2 text-sm font-medium text-muted transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-60"
+            loading={skipping}
           >
             {skipping ? ONBOARDING_COPY.skipping : ONBOARDING_COPY.skip}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

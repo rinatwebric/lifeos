@@ -29,8 +29,8 @@ function BlockSkeleton({ label }: { label: string }) {
 
 function BlockError({ message, onRetry }: { message: string; onRetry: () => void }) {
   return (
-    <div role="alert" className="rounded-lg border border-line bg-surface p-4">
-      <p className="text-sm text-content">{message}</p>
+    <div role="alert" className="rounded-control border border-line bg-surface p-4">
+      <p className="text-ui text-content">{message}</p>
       <div className="mt-3">
         <Button variant="secondary" size="sm" onClick={onRetry}>
           Retry
@@ -76,19 +76,25 @@ function DashboardTaskRow({
 
   return (
     <li className={cn("flex items-start gap-3 px-4 py-3", completed && "opacity-70")}>
-      <input
-        type="checkbox"
-        checked={completed}
-        onChange={handleToggle}
-        aria-label={completed ? `Mark ${task.title} as not completed` : `Mark ${task.title} as completed`}
-        className="mt-0.5 size-4 shrink-0 accent-current"
-      />
+      <label
+        htmlFor={`dashboard-task-${task.id}`}
+        className="-m-3.5 inline-flex shrink-0 cursor-pointer p-3.5"
+      >
+        <input
+          id={`dashboard-task-${task.id}`}
+          type="checkbox"
+          checked={completed}
+          onChange={handleToggle}
+          aria-label={completed ? `Mark ${task.title} as not completed` : `Mark ${task.title} as completed`}
+          className="mt-0.5 size-4 shrink-0 accent-current"
+        />
+      </label>
       <div className="min-w-0 flex-1 space-y-1.5">
         <p
           className={
             completed
-              ? "truncate text-sm text-muted line-through"
-              : "truncate text-sm font-medium text-content"
+              ? "truncate text-ui text-muted line-through"
+              : "truncate text-ui font-medium text-content"
           }
         >
           {task.title}
@@ -98,20 +104,20 @@ function DashboardTaskRow({
             <Badge tone="outline">{humanize(task.priority)} priority</Badge>
           ) : null}
           {formatTaskTime(task, timeZone) ? (
-            <span className="text-xs text-muted">{formatTaskTime(task, timeZone)}</span>
+            <span className="text-micro text-muted tabular-nums">{formatTaskTime(task, timeZone)}</span>
           ) : null}
-          <span className="text-xs text-muted">{humanize(task.status)}</span>
+          <span className="text-micro text-muted">{humanize(task.status)}</span>
           {task.goalId && goalTitle ? (
             <Link
               to={`/goals/${task.goalId}`}
-              className="text-xs font-medium text-accent hover:underline"
+              className="text-micro font-medium text-accent hover:underline"
             >
               {goalTitle}
             </Link>
           ) : null}
         </div>
         {setStatus.isError ? (
-          <p role="alert" className="text-xs text-red-600 dark:text-red-400">
+          <p role="alert" className="text-micro text-danger">
             Could not update the status. Please try again.
           </p>
         ) : null}
@@ -163,7 +169,7 @@ export function DashboardPage() {
 
       <div className="grid gap-4 md:grid-cols-3">
         <Card className="space-y-3">
-          <h2 className="text-sm font-medium text-content">Today&apos;s progress</h2>
+          <h2 className="text-ui font-medium text-content">Today&apos;s progress</h2>
           {todayQuery.isLoading ? (
             <BlockSkeleton label="Loading today's progress" />
           ) : todayQuery.isError ? (
@@ -173,12 +179,12 @@ export function DashboardPage() {
             />
           ) : dailyProgress === null ? (
             <div className="space-y-3">
-              <p className="text-sm text-muted">
+              <p className="text-ui text-muted">
                 Nothing planned for today — add a task to get started
               </p>
               <Link
                 to="/tasks"
-                className="inline-flex items-center gap-1.5 text-sm font-medium text-content underline-offset-4 hover:underline"
+                className="inline-flex items-center gap-1.5 text-ui font-medium text-content underline-offset-4 hover:underline"
               >
                 Open tasks
               </Link>
@@ -186,33 +192,33 @@ export function DashboardPage() {
           ) : (
             <div className="space-y-2">
               <ProgressBar value={dailyProgress} label="Today's progress" />
-              <p className="text-sm text-muted">
+              <p className="text-ui text-muted tabular-nums">
                 Completed {completedToday} of {totalToday} tasks today
               </p>
-              <p className="text-xs text-muted">{dailyProgress}% complete</p>
+              <p className="text-micro text-muted tabular-nums">{dailyProgress}% complete</p>
             </div>
           )}
         </Card>
 
         <Card className="space-y-3">
           <div className="flex items-center justify-between gap-2">
-            <h2 className="text-sm font-medium text-content">Schedule</h2>
-            <CalendarDays className="size-4 text-muted" aria-hidden="true" />
+            <h2 className="text-ui font-medium text-content">Schedule</h2>
+            <CalendarDays className="size-4.5 text-muted" aria-hidden="true" />
           </div>
-          <p className="text-sm text-muted">
+          <p className="text-ui text-muted">
             Nothing scheduled yet. Time blocking arrives in Phase 3.
           </p>
         </Card>
 
         {insightsLoading ? (
           <Card className="space-y-3">
-            <h2 className="text-sm font-medium text-content">Insights</h2>
+            <h2 className="text-ui font-medium text-content">Insights</h2>
             <BlockSkeleton label="Loading insights" />
           </Card>
         ) : insights.length > 0 ? (
           <Card className="space-y-3">
-            <h2 className="text-sm font-medium text-content">Insights</h2>
-            <ul className="list-disc space-y-1 pl-5 text-sm text-muted">
+            <h2 className="text-ui font-medium text-content">Insights</h2>
+            <ul className="list-disc space-y-1.5 pl-5 text-ui text-muted">
               {insights.map((line) => (
                 <li key={line}>{line}</li>
               ))}
@@ -224,8 +230,8 @@ export function DashboardPage() {
       <div className="grid gap-4 lg:grid-cols-2">
         <Card className="space-y-4">
           <div className="flex items-center justify-between gap-2">
-            <h2 className="text-sm font-medium text-content">Active goals</h2>
-            <Target className="size-4 text-muted" aria-hidden="true" />
+            <h2 className="text-ui font-medium text-content">Active goals</h2>
+            <Target className="size-4.5 text-muted" aria-hidden="true" />
           </div>
           {goalsLoading ? (
             <BlockSkeleton label="Loading goals" />
@@ -242,7 +248,7 @@ export function DashboardPage() {
               action={
                 <Link
                   to="/goals"
-                  className="inline-flex items-center gap-1.5 text-sm font-medium text-content underline-offset-4 hover:underline"
+                  className="inline-flex items-center gap-1.5 text-ui font-medium text-content underline-offset-4 hover:underline"
                 >
                   Go to goals
                 </Link>
@@ -255,14 +261,14 @@ export function DashboardPage() {
                   <div className="flex items-start justify-between gap-2">
                     <Link
                       to={`/goals/${item.goal.id}`}
-                      className="text-sm font-medium text-content hover:underline"
+                      className="text-ui font-medium text-content hover:underline"
                     >
                       {item.goal.title}
                     </Link>
                     <Badge>{humanize(item.goal.category)}</Badge>
                   </div>
                   <ProgressBar value={item.progress} label={`Progress for ${item.goal.title}`} />
-                  <p className="text-xs text-muted">
+                  <p className="text-micro text-muted tabular-nums">
                     {item.progress}% complete ·{" "}
                     {item.goal.targetDate ? `Due ${item.goal.targetDate}` : "No deadline"} ·{" "}
                     {item.totalMilestones === 0
@@ -277,8 +283,8 @@ export function DashboardPage() {
 
         <Card className="space-y-4">
           <div className="flex items-center justify-between gap-2">
-            <h2 className="text-sm font-medium text-content">Today&apos;s tasks</h2>
-            <ListChecks className="size-4 text-muted" aria-hidden="true" />
+            <h2 className="text-ui font-medium text-content">Today&apos;s tasks</h2>
+            <ListChecks className="size-4.5 text-muted" aria-hidden="true" />
           </div>
           {todayQuery.isLoading ? (
             <BlockSkeleton label="Loading today's tasks" />
@@ -295,7 +301,7 @@ export function DashboardPage() {
               action={
                 <Link
                   to="/tasks"
-                  className="inline-flex items-center gap-1.5 text-sm font-medium text-content underline-offset-4 hover:underline"
+                  className="inline-flex items-center gap-1.5 text-ui font-medium text-content underline-offset-4 hover:underline"
                 >
                   Open tasks
                 </Link>

@@ -43,7 +43,7 @@ export function Sidebar() {
         ))}
       </nav>
 
-      <p className="mt-3 px-3 text-micro text-muted">Phase 1 · Foundation</p>
+      <p className="mt-3 px-3 text-micro text-muted">Phase 3 · Planner in progress</p>
     </aside>
   );
 }

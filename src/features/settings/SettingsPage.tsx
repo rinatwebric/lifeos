@@ -16,9 +16,12 @@ import { useAuth } from "@/features/auth/useAuth";
 import { signOut } from "@/features/auth/api";
 import { zodResolver } from "@/features/auth/resolver";
 import { Card } from "@/components/ui/Card";
+import { Field } from "@/components/ui/Field";
+import { Input } from "@/components/ui/Input";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { Select } from "@/components/ui/Select";
+import { Button } from "@/components/ui/Button";
 import { isSupabaseConfigured } from "@/lib/env";
-import { cn } from "@/lib/cn";
 
 export const SETTINGS_COPY = {
   title: "Settings",
@@ -78,7 +81,7 @@ export function SettingsPage() {
     return (
       <div className="space-y-6">
         <PageHeader title={SETTINGS_COPY.title} description={SETTINGS_COPY.description} />
-        <p role="status" className="text-sm text-muted">
+        <p role="status" className="text-ui text-muted">
           {SETTINGS_COPY.notConfigured}
         </p>
       </div>
@@ -89,7 +92,7 @@ export function SettingsPage() {
     return (
       <div className="space-y-6">
         <PageHeader title={SETTINGS_COPY.title} description={SETTINGS_COPY.description} />
-        <p role="status" className="text-sm text-muted">
+        <p role="status" className="text-ui text-muted">
           {SETTINGS_COPY.loading}
         </p>
       </div>
@@ -105,19 +108,20 @@ export function SettingsPage() {
     return (
       <div className="space-y-6">
         <PageHeader title={SETTINGS_COPY.title} description={SETTINGS_COPY.description} />
-        <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+        <p role="alert" className="text-ui text-danger">
           {SETTINGS_COPY.loadError}
         </p>
-        <button
+        <Button
+          variant="secondary"
+          className="w-full"
           type="button"
           onClick={() => {
             void profileQuery.refetch();
             void preferencesQuery.refetch();
           }}
-          className="rounded-lg border border-line bg-surface px-4 py-2 text-sm font-medium text-content"
         >
           {SETTINGS_COPY.retry}
-        </button>
+        </Button>
       </div>
     );
   }
@@ -129,9 +133,9 @@ export function SettingsPage() {
     <div className="space-y-6">
       <PageHeader title={SETTINGS_COPY.title} description={SETTINGS_COPY.description} />
 
-      <Card className="space-y-4 p-5">
+      <Card className="space-y-4">
         <div className="space-y-1.5">
-          <label htmlFor="settings-email" className="block text-sm font-medium text-content">
+          <label htmlFor="settings-email" className="block text-ui font-medium text-content">
             {SETTINGS_COPY.emailLabel}
           </label>
           <input
@@ -140,9 +144,9 @@ export function SettingsPage() {
             readOnly
             disabled
             value={user?.email ?? ""}
-            className="w-full rounded-lg border border-line bg-surface-muted px-3 py-2 text-sm text-muted"
+            className="h-10 w-full rounded-control border border-line bg-surface-muted px-3 py-2 text-base text-muted sm:text-ui"
           />
-          <p className="text-xs text-muted">{SETTINGS_COPY.emailHint}</p>
+          <p className="text-micro text-muted">{SETTINGS_COPY.emailHint}</p>
         </div>
 
         <ProfileForm
@@ -157,7 +161,7 @@ export function SettingsPage() {
         />
       </Card>
 
-      <Card className="space-y-4 p-5">
+      <Card className="space-y-4">
         <PreferencesForm
           key={`prefs-${profile.timezone}-${preferences.wakeUpTime}-${preferences.sleepTime}`}
           defaultValues={{
@@ -201,26 +205,28 @@ function SignOutCard() {
   };
 
   return (
-    <Card className="space-y-3 p-5">
+    <Card className="space-y-3">
       <div className="space-y-1">
-        <h2 className="text-sm font-medium text-content">{SETTINGS_COPY.signOutTitle}</h2>
-        <p className="text-xs text-muted">{SETTINGS_COPY.signOutHint}</p>
+        <h2 className="text-ui font-medium text-content">{SETTINGS_COPY.signOutTitle}</h2>
+        <p className="text-micro text-muted">{SETTINGS_COPY.signOutHint}</p>
       </div>
 
       {signOutError ? (
-        <p role="alert" className="text-xs text-red-600 dark:text-red-400">
+        <p role="alert" className="text-micro text-danger">
           {signOutError}
         </p>
       ) : null}
 
-      <button
+      <Button
         type="button"
+        variant="danger"
+        className="w-full"
         onClick={() => void onSignOut()}
         disabled={signingOut}
-        className="w-full rounded-lg border border-line bg-surface px-4 py-2 text-sm font-medium text-content transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-60"
+        loading={signingOut}
       >
         {signingOut ? SETTINGS_COPY.signingOut : SETTINGS_COPY.signOut}
-      </button>
+      </Button>
     </Card>
   );
 }
@@ -267,96 +273,56 @@ function ProfileForm({
 
   return (
     <form noValidate onSubmit={(event) => void handleSubmit(onSubmit)(event)} className="space-y-4">
-      <div className="space-y-1.5">
-        <label htmlFor="settings-name" className="block text-sm font-medium text-content">
-          {SETTINGS_COPY.nameLabel}
-        </label>
-        <input
-          id="settings-name"
+      <Field id="settings-name" label={SETTINGS_COPY.nameLabel} error={errors.fullName?.message}>
+        <Input
           type="text"
           autoComplete="name"
           placeholder={SETTINGS_COPY.namePlaceholder}
-          aria-invalid={errors.fullName ? true : undefined}
-          aria-describedby={errors.fullName ? "settings-name-error" : undefined}
           disabled={isSubmitting}
-          className={cn(
-            "w-full rounded-lg border bg-surface px-3 py-2 text-sm text-content",
-            "placeholder:text-muted focus:border-focus disabled:cursor-not-allowed disabled:opacity-60",
-            errors.fullName ? "border-red-400" : "border-line",
-          )}
           {...register("fullName")}
         />
-        {errors.fullName ? (
-          <p
-            id="settings-name-error"
-            role="alert"
-            className="text-xs text-red-600 dark:text-red-400"
-          >
-            {errors.fullName.message}
-          </p>
-        ) : null}
-      </div>
+      </Field>
 
       <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1.5">
-          <label htmlFor="settings-language" className="block text-sm font-medium text-content">
-            {SETTINGS_COPY.languageLabel}
-          </label>
-          <select
-            id="settings-language"
-            disabled={isSubmitting}
-            aria-describedby="settings-language-hint"
-            className="w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-content disabled:cursor-not-allowed disabled:opacity-60"
-            {...register("language")}
-          >
+        <Field
+          id="settings-language"
+          label={SETTINGS_COPY.languageLabel}
+          hint={SETTINGS_COPY.languageHint}
+        >
+          <Select disabled={isSubmitting} {...register("language")}>
             {LANGUAGE_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
               </option>
             ))}
-          </select>
-          <p id="settings-language-hint" className="text-xs text-muted">
-            {SETTINGS_COPY.languageHint}
-          </p>
-        </div>
+          </Select>
+        </Field>
 
-        <div className="space-y-1.5">
-          <label htmlFor="settings-theme" className="block text-sm font-medium text-content">
-            {SETTINGS_COPY.themeLabel}
-          </label>
-          <select
-            id="settings-theme"
-            disabled={isSubmitting}
-            className="w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-content disabled:cursor-not-allowed disabled:opacity-60"
-            {...register("theme")}
-          >
+        <Field id="settings-theme" label={SETTINGS_COPY.themeLabel}>
+          <Select disabled={isSubmitting} {...register("theme")}>
             {THEME_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
               </option>
             ))}
-          </select>
-        </div>
+          </Select>
+        </Field>
       </div>
 
       {serverError ? (
-        <p role="alert" className="text-xs text-red-600 dark:text-red-400">
+        <p role="alert" className="text-micro text-danger">
           {serverError}
         </p>
       ) : null}
       {saved ? (
-        <p role="status" className="text-xs text-green-700 dark:text-green-300">
+        <p role="status" className="text-micro text-success">
           {SETTINGS_COPY.profileSaved}
         </p>
       ) : null}
 
-      <button
-        type="submit"
-        disabled={isSubmitting}
-        className="w-full rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-content transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
-      >
+      <Button type="submit" className="w-full" disabled={isSubmitting} loading={isSubmitting}>
         {isSubmitting ? SETTINGS_COPY.profileSaving : SETTINGS_COPY.profileSubmit}
-      </button>
+      </Button>
     </form>
   );
 }

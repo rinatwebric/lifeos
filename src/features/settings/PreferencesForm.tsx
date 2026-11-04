@@ -5,7 +5,9 @@ import { useQueryClient } from "@tanstack/react-query";
 import { preferencesQueryKey, profileQueryKey, updatePreferences, updateProfile } from "./api";
 import { preferencesFormSchema, type PreferencesFormValues } from "./schemas";
 import { zodResolver } from "@/features/auth/resolver";
-import { cn } from "@/lib/cn";
+import { Button } from "@/components/ui/Button";
+import { Field } from "@/components/ui/Field";
+import { Input } from "@/components/ui/Input";
 
 export const PREFERENCES_FORM_COPY = {
   timezoneLabel: "Time zone",
@@ -102,121 +104,54 @@ export function PreferencesForm({
 
   return (
     <form noValidate onSubmit={(event) => void handleSubmit(onSubmit)(event)} className="space-y-4">
-      <div className="space-y-1.5">
-        <label htmlFor={timezoneId} className="block text-sm font-medium text-content">
-          {PREFERENCES_FORM_COPY.timezoneLabel}
-        </label>
-        <input
-          id={timezoneId}
+      <Field
+        id={timezoneId}
+        label={PREFERENCES_FORM_COPY.timezoneLabel}
+        hint={PREFERENCES_FORM_COPY.timezoneHint}
+        error={errors.timezone?.message}
+      >
+        <Input
           type="text"
           autoComplete="off"
           placeholder={PREFERENCES_FORM_COPY.timezonePlaceholder}
-          aria-invalid={errors.timezone ? true : undefined}
-          aria-describedby={errors.timezone ? `${timezoneId}-error` : `${timezoneId}-hint`}
           disabled={isPending}
-          className={cn(
-            "w-full rounded-lg border bg-surface px-3 py-2 text-sm text-content",
-            "placeholder:text-muted focus:border-focus disabled:cursor-not-allowed disabled:opacity-60",
-            errors.timezone ? "border-red-400" : "border-line",
-          )}
           {...register("timezone")}
         />
-        {errors.timezone ? (
-          <p
-            id={`${timezoneId}-error`}
-            role="alert"
-            className="text-xs text-red-600 dark:text-red-400"
-          >
-            {errors.timezone.message}
-          </p>
-        ) : (
-          <p id={`${timezoneId}-hint`} className="text-xs text-muted">
-            {PREFERENCES_FORM_COPY.timezoneHint}
-          </p>
-        )}
-      </div>
+      </Field>
 
       <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1.5">
-          <label htmlFor={wakeId} className="block text-sm font-medium text-content">
-            {PREFERENCES_FORM_COPY.wakeLabel}
-          </label>
-          <input
-            id={wakeId}
-            type="time"
-            aria-invalid={errors.wakeUpTime ? true : undefined}
-            aria-describedby={errors.wakeUpTime ? `${wakeId}-error` : undefined}
-            disabled={isPending}
-            className={cn(
-              "w-full rounded-lg border bg-surface px-3 py-2 text-sm text-content",
-              "focus:border-focus disabled:cursor-not-allowed disabled:opacity-60",
-              errors.wakeUpTime ? "border-red-400" : "border-line",
-            )}
-            {...register("wakeUpTime")}
-          />
-          {errors.wakeUpTime ? (
-            <p
-              id={`${wakeId}-error`}
-              role="alert"
-              className="text-xs text-red-600 dark:text-red-400"
-            >
-              {errors.wakeUpTime.message}
-            </p>
-          ) : null}
-        </div>
+        <Field id={wakeId} label={PREFERENCES_FORM_COPY.wakeLabel} error={errors.wakeUpTime?.message}>
+          <Input type="time" disabled={isPending} {...register("wakeUpTime")} />
+        </Field>
 
-        <div className="space-y-1.5">
-          <label htmlFor={sleepId} className="block text-sm font-medium text-content">
-            {PREFERENCES_FORM_COPY.sleepLabel}
-          </label>
-          <input
-            id={sleepId}
-            type="time"
-            aria-invalid={errors.sleepTime ? true : undefined}
-            aria-describedby={errors.sleepTime ? `${sleepId}-error` : undefined}
-            disabled={isPending}
-            className={cn(
-              "w-full rounded-lg border bg-surface px-3 py-2 text-sm text-content",
-              "focus:border-focus disabled:cursor-not-allowed disabled:opacity-60",
-              errors.sleepTime ? "border-red-400" : "border-line",
-            )}
-            {...register("sleepTime")}
-          />
-          {errors.sleepTime ? (
-            <p
-              id={`${sleepId}-error`}
-              role="alert"
-              className="text-xs text-red-600 dark:text-red-400"
-            >
-              {errors.sleepTime.message}
-            </p>
-          ) : null}
-        </div>
+        <Field
+          id={sleepId}
+          label={PREFERENCES_FORM_COPY.sleepLabel}
+          error={errors.sleepTime?.message}
+        >
+          <Input type="time" disabled={isPending} {...register("sleepTime")} />
+        </Field>
       </div>
 
       {profileError ? (
-        <p role="alert" className="text-xs text-red-600 dark:text-red-400">
+        <p role="alert" className="text-micro text-danger">
           {profileError}
         </p>
       ) : null}
       {preferencesError ? (
-        <p role="alert" className="text-xs text-red-600 dark:text-red-400">
+        <p role="alert" className="text-micro text-danger">
           {preferencesError}
         </p>
       ) : null}
       {saved ? (
-        <p role="status" className="text-xs text-green-700 dark:text-green-300">
+        <p role="status" className="text-micro text-success">
           {PREFERENCES_FORM_COPY.saved}
         </p>
       ) : null}
 
-      <button
-        type="submit"
-        disabled={isPending}
-        className="w-full rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-content transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
-      >
+      <Button type="submit" className="w-full" disabled={isPending} loading={isPending}>
         {isPending ? PREFERENCES_FORM_COPY.saving : submitLabel}
-      </button>
+      </Button>
     </form>
   );
 }
