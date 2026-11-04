@@ -1,8 +1,9 @@
 import { NavLink } from "react-router-dom";
 
-import { PRIMARY_NAV, SECONDARY_NAV, type NavEntry } from "@/app/navigation";
+import { usePrimaryNav, useSecondaryNav, type NavEntry } from "@/app/navigation";
 import { Brand } from "@/components/layout/Brand";
 import { cn } from "@/lib/cn";
+import { useMessages } from "@/lib/i18n/I18nContext";
 
 function SidebarLink({ entry }: { entry: NavEntry }) {
   const Icon = entry.icon;
@@ -27,23 +28,27 @@ function SidebarLink({ entry }: { entry: NavEntry }) {
 }
 
 export function Sidebar() {
+  const m = useMessages();
+  const primary = usePrimaryNav();
+  const secondary = useSecondaryNav();
+
   return (
     <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-line bg-surface px-3 py-4 lg:flex">
       <Brand showTagline />
 
-      <nav aria-label="Primary" className="mt-6 flex flex-1 flex-col gap-0.5">
-        {PRIMARY_NAV.map((entry) => (
+      <nav aria-label={m.nav.primary} className="mt-6 flex flex-1 flex-col gap-0.5">
+        {primary.map((entry) => (
           <SidebarLink key={entry.to} entry={entry} />
         ))}
       </nav>
 
-      <nav aria-label="Secondary" className="border-t border-line pt-3">
-        {SECONDARY_NAV.map((entry) => (
+      <nav aria-label={m.nav.secondary} className="border-t border-line pt-3">
+        {secondary.map((entry) => (
           <SidebarLink key={entry.to} entry={entry} />
         ))}
       </nav>
 
-      <p className="mt-3 px-3 text-micro text-muted">Phase 4 · AI Assistant</p>
+      <p className="mt-3 px-3 text-micro text-muted">{m.nav.phaseNote}</p>
     </aside>
   );
 }

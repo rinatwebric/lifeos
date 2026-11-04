@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getSupabaseClient } from "@/lib/supabase/client";
 
 import { CHECK_EMAIL_COPY, CheckEmailPage } from "./CheckEmailPage";
+import { AUTH_ERROR_MESSAGES } from "./errors";
 
 vi.mock("@/lib/supabase/client", () => ({ getSupabaseClient: vi.fn() }));
 
@@ -92,7 +93,7 @@ describe("CheckEmailPage", () => {
 
     await user.click(screen.getByRole("button", { name: CHECK_EMAIL_COPY.resend }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(CHECK_EMAIL_COPY.rateLimited);
+    expect(await screen.findByRole("alert")).toHaveTextContent(AUTH_ERROR_MESSAGES.rate_limited);
   });
 
   it("maps unknown failures to the generic copy instead of leaking", async () => {

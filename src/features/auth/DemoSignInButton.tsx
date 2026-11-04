@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/Button";
 
 import { signIn } from "./api";
 import { getDemoCredentials, isDemoSignInAvailable } from "./demoAccount";
-import { AUTH_ERROR_MESSAGES, AuthServiceError, toAuthError } from "./errors";
+import { AuthServiceError, toAuthError, type AuthErrorCode } from "./errors";
+import { useMessages } from "@/lib/i18n/I18nContext";
 
 export const DEMO_SIGN_IN_COPY = {
   button: "Explore the demo account",
@@ -14,8 +15,8 @@ export const DEMO_SIGN_IN_COPY = {
 } as const;
 
 interface DemoSignInButtonProps {
-  /** Same channel as the sign-in form error (`AuthAlert`). */
-  onError: (message: string) => void;
+  /** Same channel as the sign-in form error (`AuthAlert`); code so it re-translates. */
+  onError: (code: AuthErrorCode) => void;
 }
 
 /**
@@ -24,6 +25,7 @@ interface DemoSignInButtonProps {
  * no `AuthProvider`/RLS changes. Renders nothing when the demo env is absent.
  */
 export function DemoSignInButton({ onError }: DemoSignInButtonProps) {
+  const m = useMessages();
   const navigate = useNavigate();
   const [pending, setPending] = useState(false);
   const available = isDemoSignInAvailable();
@@ -46,7 +48,7 @@ export function DemoSignInButton({ onError }: DemoSignInButtonProps) {
       await navigate("/", { replace: true });
     } catch (error) {
       const authError = error instanceof AuthServiceError ? error : toAuthError(error);
-      onError(AUTH_ERROR_MESSAGES[authError.code]);
+      onError(authError.code);
     } finally {
       setPending(false);
     }
@@ -61,9 +63,9 @@ export function DemoSignInButton({ onError }: DemoSignInButtonProps) {
         loading={pending}
         onClick={() => void handleClick()}
       >
-        {pending ? DEMO_SIGN_IN_COPY.pending : DEMO_SIGN_IN_COPY.button}
+        {pending ? m.auth.demo.signingIn : m.auth.demo.title}
       </Button>
-      <p className="text-micro text-muted">{DEMO_SIGN_IN_COPY.caption}</p>
+      <p className="text-micro text-muted">{m.auth.demo.hint}</p>
     </div>
   );
 }
