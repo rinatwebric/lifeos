@@ -3,6 +3,9 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createBlock, deleteBlock, listBlocks, updateBlock } from "./api";
+import { I18nContext } from "@/lib/i18n/I18nContext";
+import { en as enMessages } from "@/lib/i18n/dictionaries/en";
+import { ru as ruMessages } from "@/lib/i18n/dictionaries/ru";
 import { PlanPreview } from "./PlanPreview";
 import type {
   PlanPreview as PlanPreviewModel,
@@ -373,5 +376,85 @@ describe("PlanPreview", () => {
     expect(onAccept).not.toHaveBeenCalled();
     expect(onRegenerate).not.toHaveBeenCalled();
     expect(onCancel).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders slot reasons and issue explanations in Russian (open content reacts)", () => {
+    const preview = makePreview({
+      slots: [
+        makeSlot({
+          taskId: "t1",
+          taskTitle: "Write the report",
+          priority: "high",
+          reasonParts: {
+            title: "Write the report",
+            date: "2026-11-04",
+            timeRange: "07:00–07:30",
+            minutes: 30,
+            priority: "high",
+            dueState: "overdue",
+            dueDate: "2026-11-03",
+            linked: true,
+            preferred: false,
+            workOverlap: false,
+          },
+        }),
+      ],
+      doesNotFit: [makeIssue({ taskId: "x", taskTitle: "Big task", reason: "too-long" })],
+      needsEstimate: [
+        makeIssue({
+          taskId: "y",
+          taskTitle: "Vague task",
+          reason: "needs-estimate",
+          estimatedDurationMinutes: null,
+        }),
+      ],
+      alreadyPlanned: [makeAlreadyPlanned({ taskId: "z", taskTitle: "Done task" })],
+    });
+
+    const enValue = {
+      locale: "en" as const,
+      intlLocale: "en-US" as const,
+      messages: enMessages,
+      isKyFallback: false,
+      setLocale: () => {},
+      syncStatus: "idle" as const,
+      syncError: null,
+      retrySync: () => {},
+    };
+    const ruValue = {
+      ...enValue,
+      locale: "ru" as const,
+      intlLocale: "ru-RU" as const,
+      messages: ruMessages,
+    };
+
+    const props = {
+      preview,
+      onAccept: vi.fn(),
+      onRegenerate: vi.fn(),
+      onCancel: vi.fn(),
+    };
+
+    const { rerender } = render(
+      <I18nContext.Provider value={enValue}>
+        <PlanPreview {...props} />
+      </I18nContext.Provider>,
+    );
+
+    expect(screen.getByText(/planned 2026-11-04/)).toBeInTheDocument();
+
+    rerender(
+      <I18nContext.Provider value={ruValue}>
+        <PlanPreview {...props} />
+      </I18nContext.Provider>,
+    );
+
+    // Slot reason, issue explanations and already-planned note all switch.
+    expect(screen.getByText(/запланировано/)).toBeInTheDocument();
+    expect(screen.getByText(/просрочено/)).toBeInTheDocument();
+    expect(screen.getByText(/свободного окна/)).toBeInTheDocument();
+    expect(screen.getByText(/оценки/)).toBeInTheDocument();
+    expect(screen.getByText(/оставит этот блок нетронутым/)).toBeInTheDocument();
+    expect(screen.queryByText(/planned 2026-11-04/)).not.toBeInTheDocument();
   });
 });

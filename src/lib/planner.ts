@@ -556,6 +556,56 @@ function localParts(iso: string, timeZone: string): { date: string; time: string
 }
 
 /**
+ * Stable structured slot reason for i18n rendering (no English comparison).
+ * `explainSlot` stays the English fallback; UI prefers these parts with
+ * dictionary templates so RU/EN switch re-renders without reload.
+ */
+export interface SlotReasonParts {
+  title: string;
+  date: string;
+  timeRange: string;
+  minutes: number;
+  priority: Priority;
+  dueState: "overdue" | "due" | "none";
+  dueDate: string | null;
+  linked: boolean;
+  preferred: boolean;
+  workOverlap: boolean;
+}
+
+export function explainSlotParts(task: Task, slot: TimeRange, context: ScoreContext): SlotReasonParts {
+  const startMs = Date.parse(slot.start);
+  const endMs = Date.parse(slot.end);
+  const minutes = Math.round((endMs - startMs) / MS_PER_MINUTE);
+  const startLocal = localParts(slot.start, context.timeZone);
+  const endLocal = localParts(slot.end, context.timeZone);
+  const timeRange =
+    startLocal.date === endLocal.date
+      ? `${startLocal.time}–${endLocal.time}`
+      : `${startLocal.time}–${endLocal.date} ${endLocal.time}`;
+
+  const dueState: SlotReasonParts["dueState"] =
+    task.dueDate === null
+      ? "none"
+      : isTaskOverdue(task, context.now, context.timeZone)
+        ? "overdue"
+        : "due";
+
+  return {
+    title: task.title,
+    date: startLocal.date,
+    timeRange,
+    minutes,
+    priority: task.priority,
+    dueState,
+    dueDate: task.dueDate,
+    linked: task.goalId !== null || task.milestoneId !== null,
+    preferred: matchesPreferredPeriod(slot, context),
+    workOverlap: overlapsWorkOrStudy(slot, context),
+  };
+}
+
+/**
  * Human-readable slot explanation covering the five PRD §4.3 result fields:
  * which task, which day, what time, how long, and why this time.
  */

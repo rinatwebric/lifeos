@@ -11,6 +11,7 @@ import { useIntlLocale, useMessages } from "@/lib/i18n/I18nContext";
 import type { Priority } from "@/types/domain";
 
 import { formatDurationMinutes } from "./usePlannerDay";
+import { formatIssueExplanation, formatSlotReason } from "./slotReason";
 import type {
   PlanPreview,
   PlanPreviewAlreadyPlanned,
@@ -94,7 +95,11 @@ function SlotRow({ slot }: { slot: PlanPreviewSlot }) {
           {slot.overdue ? <Badge tone="danger">{m.enums.overdue}</Badge> : null}
           {slot.crossesMidnight ? <Badge tone="outline">{t.endsAfterMidnight}</Badge> : null}
         </div>
-        <p className="text-ui text-muted text-pretty">{slot.reason}</p>
+        <p className="text-ui text-muted text-pretty">
+          {slot.reasonParts
+            ? formatSlotReason(slot.reasonParts, t, m.enums.priority[slot.priority])
+            : slot.reason}
+        </p>
       </div>
     </li>
   );
@@ -119,7 +124,9 @@ function AlreadyPlannedRow({ entry }: { entry: PlanPreviewAlreadyPlanned }) {
           </span>
         )}
       </div>
-      <p className="text-ui text-muted text-pretty">{entry.explanation}</p>
+      <p className="text-ui text-muted text-pretty">
+        {tmpl(m.planner.alreadyPlannedExplanation, { start: entry.startLabel, end: entry.endLabel })}
+      </p>
     </li>
   );
 }
@@ -288,7 +295,12 @@ export function PlanPreview({
             title={t.notPlaced}
             intro={t.notPlacedHint}
             empty={t.allFit}
-            issues={preview.doesNotFit}
+            issues={preview.doesNotFit.map((issue) => ({
+              ...issue,
+              explanation: summary.hasFreeWindows
+                ? formatIssueExplanation(issue.reason, t)
+                : formatIssueExplanation("no-free-time", t),
+            }))}
           />
 
           {preview.alreadyPlanned.length > 0 ? (
@@ -309,7 +321,10 @@ export function PlanPreview({
             title={t.needsEstimate}
             intro={t.needsEstimateHint}
             empty={t.allEstimated}
-            issues={preview.needsEstimate}
+            issues={preview.needsEstimate.map((issue) => ({
+              ...issue,
+              explanation: formatIssueExplanation("needs-estimate", t),
+            }))}
           />
         </>
       )}

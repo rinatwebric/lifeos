@@ -88,6 +88,7 @@ beforeEach(() => {
   document.documentElement.lang = "en";
   mocks.authState.status = "authenticated";
   mocks.authState.user = { id: "u1" };
+  mocks.profile.id = "u1";
   mocks.profile.language = "en";
   mocks.updateCalls.length = 0;
   mocks.updateImpl = null;
@@ -151,5 +152,98 @@ describe("language sync", () => {
 
     await waitFor(() => expect(screen.getByTestId("status")).toHaveTextContent("saved"));
     expect(mocks.updateCalls.at(-1)).toStrictEqual({ language: "ru" });
+  });
+
+  it("reload: same-user device copy wins over stale server and syncs it up", async () => {
+    window.localStorage.setItem(
+      LANGUAGE_STORAGE_KEY,
+      JSON.stringify({ value: "ru", userId: "u1", updatedAt: "2026-11-04T00:00:00.000Z" }),
+    );
+    mocks.profile.language = "en";
+
+    renderStatus();
+
+    // Device choice shows immediately, not the stale server value.
+    expect(await screen.findByTestId("locale")).toHaveTextContent("ru");
+
+    // Background sync pushes the device value (single field) to the account.
+    await waitFor(() =>
+      expect(mocks.updateCalls.some((c) => c.language === "ru")).toBe(true),
+    );
+    expect(mocks.updateCalls.every((c) => Object.keys(c).length === 1)).toBe(true);
+  });
+
+  it("reload: another account's device copy never overwrites this profile", async () => {
+    window.localStorage.setItem(
+      LANGUAGE_STORAGE_KEY,
+      JSON.stringify({ value: "ru", userId: "other-user", updatedAt: "2026-11-04T00:00:00.000Z" }),
+    );
+    mocks.profile.language = "en";
+
+    renderStatus();
+
+    // Server wins for this user; no PATCH of the foreign choice happens.
+    expect(await screen.findByTestId("locale")).toHaveTextContent("en");
+    await new Promise((r) => setTimeout(r, 50));
+    expect(mocks.updateCalls.length).toBe(0);
+  });
+
+  it("refetch never overwrites an explicit newer choice", async () => {
+    const user = userEvent.setup();
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <LocaleProvider>
+          <Status />
+        </LocaleProvider>
+      </QueryClientProvider>,
+    );
+    await screen.findByText("en");
+
+    await user.click(screen.getByRole("button", { name: "to-ru" }));
+    await waitFor(() => expect(screen.getByTestId("locale")).toHaveTextContent("ru"));
+
+    // Server still says "en" (slow write); a refetch must not clobber "ru".
+    mocks.profile.language = "en";
+    await client.refetchQueries({ queryKey: ["profile"] });
+    await new Promise((r) => setTimeout(r, 50));
+
+    expect(screen.getByTestId("locale")).toHaveTextContent("ru");
+  });
+
+  it("account switch clears the override and never leaks the PATCH across accounts", async () => {
+    const user = userEvent.setup();
+    const { unmount } = renderStatus();
+    await screen.findByText("en");
+
+    await user.click(screen.getByRole("button", { name: "to-ru" }));
+    await waitFor(() =>
+      expect(mocks.updateCalls.some((c) => c.language === "ru")).toBe(true),
+    );
+    const callsAfterU1 = mocks.updateCalls.length;
+
+    // Switch account: fresh cache (AuthProvider.clear in prod) + u2 profile.
+    unmount();
+    window.localStorage.clear();
+    window.localStorage.setItem(
+      LANGUAGE_STORAGE_KEY,
+      JSON.stringify({ value: "ru", userId: "u1", updatedAt: "2026-11-04T00:00:00.000Z" }),
+    );
+    mocks.authState.user = { id: "u2" };
+    mocks.profile = { ...mocks.profile, id: "u2", language: "en" };
+
+    const client2 = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client2}>
+        <LocaleProvider>
+          <Status />
+        </LocaleProvider>
+      </QueryClientProvider>,
+    );
+
+    // u2 sees their own server value, not u1's device choice; nothing pushed.
+    expect(await screen.findByTestId("locale")).toHaveTextContent("en");
+    await new Promise((r) => setTimeout(r, 50));
+    expect(mocks.updateCalls.length).toBe(callsAfterU1);
   });
 });
