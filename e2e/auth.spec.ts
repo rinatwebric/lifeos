@@ -105,11 +105,19 @@ test("sign-up with confirmation OFF lands directly in the app", async ({ page })
     "E2E_SIGNUP_EMAIL is not set — copy .env.e2e.example. Skipping live sign-up.",
   );
 
+  test.skip(
+    !!E2E_SIGNUP_EMAIL && !E2E_SIGNUP_EMAIL.includes("@"),
+    "E2E_SIGNUP_EMAIL has no '@' — expected a real mailbox; skipping live sign-up.",
+  );
+
   // A `+`-alias of the real mailbox: unique user per run, same inbox.
   // The user stays (no admin API to remove it); cleanup is a dashboard job.
   const stamp = Date.now();
   const [local, domain] = E2E_SIGNUP_EMAIL.split("@");
-  const email = `${local}+e2e${stamp}@${domain}`;
+  // The example value already carries a `+`-tag: strip it first so the
+  // per-run address never becomes a double `+signup+e2e…` tag.
+  const base = local.split("+")[0];
+  const email = `${base}+e2e${stamp}@${domain}`;
 
   await page.goto("/sign-up");
   await page.getByLabel("Full name (optional)").fill("E2E Signup");

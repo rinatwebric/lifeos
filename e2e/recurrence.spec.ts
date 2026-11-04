@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 import { dismissOnboarding, E2E_EMAIL, E2E_PASSWORD, signIn, skipWithoutCreds } from "./helpers";
 
@@ -55,30 +55,63 @@ function loadEnvFile(name: string): Record<string, string> {
 
 /**
  * Deletes the series created by this test via anon-key REST (same posture
- * as `scripts/seed-demo.mjs`): sign in, find the rule ids behind `title`,
- * delete the rules first, then the tasks. RLS keeps every step scoped to
- * the signed-in user — no `service_role` anywhere.
+ * as `scripts/seed-demo.mjs`): reuse the access token of the already open
+ * browser session, find the rule ids behind `title`, delete the rules
+ * first, then the tasks. RLS keeps every step scoped to the signed-in
+ * user — no `service_role` anywhere, and no second password-grant sign-in
+ * (Supabase Auth rate-limits extra sign-ins on the shared e2e account).
  */
-async function cleanupRecurrenceSeries(title: string): Promise<void> {
+async function cleanupRecurrenceSeries(page: Page, title: string): Promise<void> {
   const local = loadEnvFile(".env.local");
   const supabaseUrl = process.env.VITE_SUPABASE_URL ?? local.VITE_SUPABASE_URL ?? "";
   const anonKey = process.env.VITE_SUPABASE_ANON_KEY ?? local.VITE_SUPABASE_ANON_KEY ?? "";
 
   if (!supabaseUrl || !anonKey) {
-    throw new Error("VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY required for recurrence cleanup");
+    test.skip(
+      true,
+      "VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY are not set — skipping recurrence cleanup.",
+    );
+    return;
   }
 
-  const authResponse = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=password`, {
-    method: "POST",
-    headers: { apikey: anonKey, "Content-Type": "application/json" },
-    body: JSON.stringify({ email: E2E_EMAIL, password: E2E_PASSWORD }),
+  // Reuse the session the test already opened: supabase-js persists it in
+  // localStorage as `sb-<ref>-auth-token`, chunked into `...token.0`,
+  // `...token.1`, … when large — glue the chunks back together.
+  const stored = await page.evaluate(() => {
+    const keys: string[] = [];
+
+    for (let i = 0; i < window.localStorage.length; i += 1) {
+      const key = window.localStorage.key(i);
+
+      if (key && /^sb-.*-auth-token(\.\d+)?$/.test(key)) {
+        keys.push(key);
+      }
+    }
+
+    const chunked = keys
+      .filter((key) => /\.\d+$/.test(key))
+      .sort((a, b) => Number(a.split(".").pop()) - Number(b.split(".").pop()));
+
+    if (chunked.length > 0) {
+      return chunked.map((key) => window.localStorage.getItem(key) ?? "").join("");
+    }
+
+    const single = keys.find((key) => /^sb-.*-auth-token$/.test(key));
+    return single ? (window.localStorage.getItem(single) ?? "") : "";
   });
 
-  if (!authResponse.ok) {
-    throw new Error(`recurrence cleanup sign-in failed: ${authResponse.status}`);
+  let token: string;
+
+  try {
+    token = (JSON.parse(stored) as { access_token: string }).access_token;
+  } catch {
+    token = "";
   }
 
-  const { access_token: token } = (await authResponse.json()) as { access_token: string };
+  if (!token) {
+    throw new Error("recurrence cleanup: no access_token in the open browser session");
+  }
+
   const headers = {
     apikey: anonKey,
     Authorization: `Bearer ${token}`,
@@ -171,7 +204,7 @@ test("recurrence: create daily series, badge, reload without duplicates, cleanup
   await expect(page.locator("li", { hasText: title })).toHaveCount(3);
 
   // Cleanup: rule first (top-up becomes a no-op), then the instances.
-  await cleanupRecurrenceSeries(title);
+  await cleanupRecurrenceSeries(page, title);
   await page.reload();
   await expect(page.getByRole("heading", { name: "Tasks", exact: true })).toBeVisible();
   await expect(page.locator("li", { hasText: title })).toHaveCount(0);
