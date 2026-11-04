@@ -77,6 +77,12 @@ AI-ассистент помогает управлять целями/зада�
 
 Проверка: `npm run typecheck && npm run lint && npm test`
 
+Правки ревью (2026-11-04, миграция всё ещё не применена):
+- a) `idx_ai_proposals_conversation_id` — FK `ON DELETE SET NULL` без индекса сканировал бы таблицу при удалении диалога;
+- b) `ai_proposals_insert_own`: `status = 'pending' AND applied_at IS NULL` — клиент не создаёт «одобренное» предложение, approve — только серверный UPDATE;
+- c) CHECK симметричен: `(status = 'approved') = (applied_at IS NOT NULL)` — ни approved без метки, ни метки без approved;
+- d) убрана `ai_messages_update_own`: immutability теперь enforced отсутствием UPDATE-политики (RLS default-deny); у messages 3 политики вместо 4, слово immutable в комментарии оставлено как констатация гарантии.
+
 ### Шаг 2. Чистый lib: схемы и валидатор предложений (без JSX, без Supabase)
 
 Цель: единый источник правды structured output — Zod-схемы + JSON Schema-эквивалент + парсер с кодами ошибок (§6.5, §16).

@@ -10,7 +10,9 @@
 --     (NULL passes the CHECK per SQL semantics, PRD §11.12 keeps it nullable).
 --   * Deleting a conversation deletes its messages (CASCADE) but keeps proposals
 --     (conversation_id SET NULL) so the audit trail survives (Р6).
---   * Messages are immutable: no updated_at, same as PRD §11.11.
+--   * Messages are immutable: no updated_at (PRD §11.11) and no UPDATE policy —
+--     RLS default-deny rejects updates, so history is append-only by
+--     construction. Mutable state lives in ai_proposals (status/applied_at).
 --   * proposal_type covers all 5 types in one CHECK; rollout order is enforced
 --     in code, not by narrowing the CHECK (Р2).
 --   * No vector/embeddings columns, no token/cost columns (no billing in this
@@ -57,8 +59,9 @@ create table public.ai_proposals (
   updated_at timestamptz not null default now(),
   -- Proposals always expire after creation; NULL expiry (never expires) passes.
   check (expires_at > created_at),
-  -- Only an approved proposal may carry an apply timestamp.
-  check (status <> 'approved' or applied_at is not null)
+  -- approved ⟺ applied_at: an approved proposal always carries an apply
+  -- timestamp, a pending/rejected one never does. No half-states either way.
+  check ((status = 'approved') = (applied_at is not null))
 );
 
 create index idx_ai_conversations_user_id on public.ai_conversations (user_id);
@@ -66,6 +69,9 @@ create index idx_ai_messages_conversation_created on public.ai_messages (convers
 create index idx_ai_proposals_user_status on public.ai_proposals (user_id, status);
 create index idx_ai_proposals_expires_at on public.ai_proposals (expires_at);
 create index idx_ai_proposals_user_type on public.ai_proposals (user_id, proposal_type);
+-- The SET NULL delete path (conversation delete → proposals unlink) must not
+-- scan the table: the FK column needs its own index.
+create index idx_ai_proposals_conversation_id on public.ai_proposals (conversation_id);
 
 create trigger trg_ai_conversations_updated_at
   before update on public.ai_conversations
@@ -112,19 +118,6 @@ create policy "ai_messages_insert_own"
       select 1 from public.ai_conversations c where c.id = conversation_id and c.user_id = auth.uid())
   );
 
-create policy "ai_messages_update_own"
-  on public.ai_messages for update to authenticated
-  using (
-    user_id = auth.uid()
-    and exists (
-      select 1 from public.ai_conversations c where c.id = conversation_id and c.user_id = auth.uid())
-  )
-  with check (
-    user_id = auth.uid()
-    and exists (
-      select 1 from public.ai_conversations c where c.id = conversation_id and c.user_id = auth.uid())
-  );
-
 create policy "ai_messages_delete_own"
   on public.ai_messages for delete to authenticated using (
     user_id = auth.uid()
@@ -146,6 +139,10 @@ create policy "ai_proposals_select_own"
 create policy "ai_proposals_insert_own"
   on public.ai_proposals for insert to authenticated with check (
     user_id = auth.uid()
+    -- New proposals are born pending and unapplied; approve/reject is a
+    -- server-side UPDATE after re-validation, never a client-side INSERT.
+    and status = 'pending'
+    and applied_at is null
     and (conversation_id is null or exists (
       select 1 from public.ai_conversations c where c.id = conversation_id and c.user_id = auth.uid()))
   );
