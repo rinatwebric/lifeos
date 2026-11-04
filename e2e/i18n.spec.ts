@@ -46,7 +46,23 @@ test.describe("i18n EN/RU + theme", () => {
     await page.reload();
     await expect(page.locator("html.dark")).toHaveCount(0);
 
-    // Restore the account's original language.
-    await page.getByLabel(original === "ru" ? "Язык" : "Language").selectOption(original);
+    // Restore the account's original language and wait until the
+    // background PATCH lands — the context closes right after this test,
+    // and an un-awaited sync would leave the shared account dirty.
+    // Body-matched: a stale in-flight PATCH for another field must not
+    // satisfy the waiter.
+    const restoreLabel = original === "ru" ? "Язык" : "Language";
+    const restoreSelect = page.getByLabel(restoreLabel);
+    const currentLang = await restoreSelect.inputValue();
+    if (currentLang !== original) {
+      const saved = page.waitForResponse(
+        (r) =>
+          r.request().method() === "PATCH" &&
+          r.url().includes("/rest/v1/profiles") &&
+          (r.request().postData() ?? "").includes(`"language":"${original}"`),
+      );
+      await restoreSelect.selectOption(original);
+      await saved;
+    }
   });
 });

@@ -132,6 +132,34 @@ describe("language sync", () => {
     await waitFor(() => expect(mocks.updateCalls.at(-1)).toStrictEqual({ language: "ru" }));
   });
 
+  it("sends a choice that arrives while the previous PATCH is in flight", async () => {
+    // Regression: ru→en with the ru PATCH held used to strand en forever
+    // (resolve left `pending` unchanged, so the effect never reran).
+    let releaseRu!: (v: unknown) => void;
+    mocks.updateImpl = (input) =>
+      input.language === "ru"
+        ? new Promise((resolve) => (releaseRu = resolve as (v: unknown) => void))
+        : Promise.resolve({ ...mocks.profile, ...input });
+
+    const user = userEvent.setup();
+    renderStatus();
+    await screen.findByText("en");
+
+    await user.click(screen.getByRole("button", { name: "to-ru" }));
+    await waitFor(() => expect(mocks.updateCalls.length).toBe(1));
+
+    await user.click(screen.getByRole("button", { name: "to-en" }));
+    await new Promise((r) => setTimeout(r, 20));
+    // Still only the held request: nothing lost, nothing duplicated.
+    expect(mocks.updateCalls.length).toBe(1);
+
+    releaseRu({ ...mocks.profile, language: "ru" });
+
+    await waitFor(() => expect(mocks.updateCalls.length).toBe(2));
+    expect(mocks.updateCalls.at(-1)).toStrictEqual({ language: "en" });
+    await waitFor(() => expect(screen.getByTestId("status")).toHaveTextContent("saved"));
+  });
+
   it("keeps the device choice on failure and retries", async () => {
     mocks.updateImpl = async () => {
       throw new Error("profiles down");

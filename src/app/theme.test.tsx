@@ -110,6 +110,33 @@ describe("theme sync", () => {
     );
   });
 
+  it("sends a choice that arrives while the previous PATCH is in flight", async () => {
+    // Same queue contract as language sync: dark→light with dark held must
+    // still deliver light and settle on saved, never strand on saving.
+    let releaseDark!: (v: unknown) => void;
+    mocks.updateImpl = (input) =>
+      input.theme === "dark"
+        ? new Promise((resolve) => (releaseDark = resolve as (v: unknown) => void))
+        : Promise.resolve({ ...mocks.profile, ...input });
+
+    const user = userEvent.setup();
+    renderStatus();
+    await screen.findByText("light");
+
+    await user.click(screen.getByRole("button", { name: "to-dark" }));
+    await waitFor(() => expect(mocks.updateCalls.length).toBe(1));
+
+    await user.click(screen.getByRole("button", { name: "to-light" }));
+    await new Promise((r) => setTimeout(r, 20));
+    expect(mocks.updateCalls.length).toBe(1);
+
+    releaseDark({ ...mocks.profile, theme: "dark" });
+
+    await waitFor(() => expect(mocks.updateCalls.length).toBe(2));
+    expect(mocks.updateCalls.at(-1)).toStrictEqual({ theme: "light" });
+    await waitFor(() => expect(screen.getByTestId("status")).toHaveTextContent("saved"));
+  });
+
   it("account switch never leaks the previous device choice", async () => {
     const { unmount } = renderStatus();
     await screen.findByText("light");

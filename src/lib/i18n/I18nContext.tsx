@@ -79,6 +79,12 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
     userIdRef.current = userId;
   }, [userId]);
 
+  // Latest queued choice, mirrored for the send loop: the effect below can
+  // only rerun on state changes, so a choice that arrives mid-flight would
+  // otherwise leave `pending` unchanged on resolve and never be sent.
+  // Mirrored inside the effect (refs must not be touched during render).
+  const pendingRef = useRef<Locale | null>(null);
+
   // Account switch: session state belongs to the previous user. Cache is
   // cleared by AuthProvider; the device copy is re-read for the new user.
   // Intentional external-state sync on account change, not a render cascade.
@@ -133,32 +139,51 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
   }, [canSync, profileQuery.data, userId, override, pending]);
 
   // Effect-driven queue: one PATCH at a time; a newer choice queued mid-flight
-  // triggers a follow-up send, so the last choice always wins. `retryKey`
+  // is chained from the in-flight response (the effect alone could not rerun —
+  // `pending` would be unchanged), so the last choice always wins. `retryKey`
   // re-runs the send after a failure without changing the queued value.
   useEffect(() => {
+    pendingRef.current = pending;
     if (!pending || sendingRef.current) return;
     if (!canSync || !userId) return;
 
-    const sent = pending;
     const sendUserId = userId;
     sendingRef.current = true;
 
-    void updateProfile({ language: sent })
-      .then((updated) => {
+    const sendNext = (): void => {
+      const next = pendingRef.current;
+      if (next === null || userIdRef.current !== sendUserId) {
         sendingRef.current = false;
-        if (userIdRef.current !== sendUserId) return;
-        setPending((current) => (current === sent ? null : current));
-        if (readDeviceEntry()?.value === sent) {
-          setSaved(true);
-          queryClient.setQueryData(profileQueryKey, updated);
-        }
-      })
-      .catch((error: unknown) => {
-        sendingRef.current = false;
-        if (userIdRef.current !== sendUserId) return;
-        // Keep `pending` so Retry re-sends the same choice.
-        setSyncError(error instanceof Error && error.message ? error.message : "Please try again.");
-      });
+        return;
+      }
+      void updateProfile({ language: next })
+        .then((updated) => {
+          if (userIdRef.current !== sendUserId) {
+            sendingRef.current = false;
+            return;
+          }
+          if (pendingRef.current !== next) {
+            // A newer choice arrived while this PATCH was in flight: send it
+            // now instead of stranding it with a perpetual "saving" status.
+            sendNext();
+            return;
+          }
+          sendingRef.current = false;
+          setPending(null);
+          if (readDeviceEntry()?.value === next) {
+            setSaved(true);
+            queryClient.setQueryData(profileQueryKey, updated);
+          }
+        })
+        .catch((error: unknown) => {
+          sendingRef.current = false;
+          if (userIdRef.current !== sendUserId) return;
+          // Keep `pending` so Retry re-sends the same choice.
+          setSyncError(error instanceof Error && error.message ? error.message : "Please try again.");
+        });
+    };
+
+    sendNext();
   }, [pending, canSync, userId, queryClient, retryKey]);
 
   const setLocale = useCallback(
