@@ -29,3 +29,30 @@ export type SendMessageInput = z.infer<typeof sendMessageSchema>;
 export const proposalIdSchema = z
   .string()
   .uuid("The selected proposal is invalid. Please reload and try again.");
+
+/**
+ * Per-item approve (step 8): `selectedIndexes` is the subset to apply.
+ * Whole, duplicate-free, sorted ascending, non-empty. Range
+ * (`0..actions.length-1`) is checked by the server, which knows the
+ * proposal; the client checks shape here so a bad subset never reaches
+ * the network (`invalid_input`).
+ */
+export const selectedIndexesSchema = z
+  .array(z.number().int().nonnegative())
+  .min(1, "Select at least one action.")
+  .refine((indexes) => new Set(indexes).size === indexes.length, {
+    message: "Select each action only once.",
+  })
+  .refine(
+    (indexes) => {
+      for (let i = 1; i < indexes.length; i += 1) {
+        if (indexes[i] <= indexes[i - 1]) {
+          return false;
+        }
+      }
+      return true;
+    },
+    { message: "Select actions in order." },
+  );
+
+export type SelectedIndexes = z.infer<typeof selectedIndexesSchema>;

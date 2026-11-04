@@ -102,6 +102,7 @@ export type DecideAction = "approve" | "reject";
 export interface DecideRequest {
   action: DecideAction;
   proposalId: string;
+  selectedIndexes?: number[];
 }
 
 export type DecideRequestErrorCode = "too_large" | "invalid_json" | "invalid_schema";
@@ -124,6 +125,12 @@ function decideFail(code: DecideRequestErrorCode, message: string): DecideReques
  * id). Same size/JSON envelope as chat; `action` is the discriminator and
  * `proposalId` must be a UUID. Chat bodies (no `action`) never reach here —
  * the router in `index.ts` branches on the presence of `action`.
+ *
+ * `selectedIndexes` (approve only, optional): per-item accept. When present
+ * it must be a non-empty array of integers, duplicate-free and sorted
+ * ascending (range `0..actions.length-1` is checked in `handleApprove`,
+ * which knows the proposal). Absent means "all actions" (backward
+ * compatible).
  */
 export function parseDecideRequestBody(bodyText: string): DecideRequestParseResult {
   if (utf8ByteLength(bodyText) > MAX_BODY_BYTES) {
@@ -153,5 +160,36 @@ export function parseDecideRequestBody(bodyText: string): DecideRequestParseResu
     return decideFail("invalid_schema", "proposalId must be a UUID string.");
   }
 
-  return { ok: true, request: { action, proposalId } };
+  const rawSelected = record.selectedIndexes;
+  if (rawSelected === undefined) {
+    return { ok: true, request: { action, proposalId } };
+  }
+
+  if (action !== "approve") {
+    return decideFail("invalid_schema", "selectedIndexes is only allowed with action approve.");
+  }
+
+  if (!Array.isArray(rawSelected) || rawSelected.length === 0) {
+    return decideFail("invalid_schema", "selectedIndexes must be a non-empty array.");
+  }
+
+  for (const entry of rawSelected) {
+    if (typeof entry !== "number" || !Number.isInteger(entry) || entry < 0) {
+      return decideFail("invalid_schema", "selectedIndexes must contain only non-negative integers.");
+    }
+  }
+
+  const indexes = rawSelected as number[];
+  const unique = new Set(indexes);
+  if (unique.size !== indexes.length) {
+    return decideFail("invalid_schema", "selectedIndexes must not contain duplicates.");
+  }
+
+  for (let i = 1; i < indexes.length; i += 1) {
+    if (indexes[i] <= indexes[i - 1]) {
+      return decideFail("invalid_schema", "selectedIndexes must be sorted ascending.");
+    }
+  }
+
+  return { ok: true, request: { action, proposalId, selectedIndexes: [...indexes] } };
 }

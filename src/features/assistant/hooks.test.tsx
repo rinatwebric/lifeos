@@ -194,4 +194,24 @@ describe("assistant hooks", () => {
       expect(key[0]).toBe("assistant");
     }
   });
+
+  it("passes a per-item subset through to the service", async () => {
+    const client = createClient();
+    const proposalId = "22222222-2222-4222-8222-222222222222";
+    vi.mocked(approveProposal).mockResolvedValue({
+      proposalId,
+      status: "approved",
+      conversationId: CONVERSATION_ID,
+      applied: 1,
+      total: 1,
+    });
+
+    const { result } = renderHook(() => useApproveProposal(), { wrapper: wrapper(client) });
+
+    result.current.mutate({ proposalId, selectedIndexes: [0, 2] });
+
+    await waitFor(() => {
+      expect(approveProposal).toHaveBeenCalledWith(proposalId, [0, 2]);
+    });
+  });
 });

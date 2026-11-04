@@ -40,7 +40,7 @@ import {
 } from "../../../src/lib/aiProposals.ts";
 
 import { ProviderError, type AiChatProvider, type ChatMessage } from "./provider.ts";
-import { claimProposal, releaseClaim } from "./approve.ts";
+import { claimProposal, releaseClaim, selectActionsByIndexes } from "./approve.ts";
 import {
   callOpenAiCompatible,
   DEFAULT_TIMEOUT_MS,
@@ -631,7 +631,12 @@ async function applyAction(
   }
 }
 
-async function handleApprove(client: DbClient, userId: string, proposalId: string): Promise<Response> {
+async function handleApprove(
+  client: DbClient,
+  userId: string,
+  proposalId: string,
+  selectedIndexes?: number[],
+): Promise<Response> {
   const { data: proposalData, error: proposalError } = await client
     .from("ai_proposals")
     .select("*")
@@ -662,17 +667,30 @@ async function handleApprove(client: DbClient, userId: string, proposalId: strin
       message: "Could not apply the proposal. Please try again.",
     });
   }
-  const actions = parsed.proposal.actions;
-  const total = actions.length;
+  const allActions = parsed.proposal.actions;
+  const filtered = selectActionsByIndexes(allActions, selectedIndexes);
+  if (!filtered.ok) {
+    const message =
+      filtered.reason === "out_of_range"
+        ? "selectedIndexes is out of range."
+        : filtered.reason === "duplicates"
+          ? "selectedIndexes must not contain duplicates."
+          : "selectedIndexes must be sorted ascending.";
+    return json(400, { code: "invalid_schema", message });
+  }
+  const selectedActions = filtered.selected;
+  const total = selectedActions.length;
   const now = new Date();
   const nowIso = now.toISOString();
   const validateContext = await buildApproveValidateContext(client, userId, now);
-  const validation = await validateActions(actions, validateContext);
+  const validation = await validateActions(selectedActions, validateContext);
   if (!validation.ok) {
+    const originalIndex =
+      selectedIndexes !== undefined ? selectedIndexes[validation.index] : validation.index;
     return json(422, {
       code: "validation_failed",
       message: validation.message,
-      index: validation.index,
+      index: originalIndex,
       actionCode: validation.code,
     });
   }
@@ -696,7 +714,7 @@ async function handleApprove(client: DbClient, userId: string, proposalId: strin
   }
   let applied = 0;
   try {
-    for (const action of actions) {
+    for (const action of selectedActions) {
       await applyAction(client, userId, action, now, validateContext.timeZone, nowIso);
       applied += 1;
     }
@@ -853,7 +871,12 @@ async function handleDecision(req: Request): Promise<Response> {
   }
 
   if (parsedBody.request.action === "approve") {
-    return await handleApprove(supabase, userId, parsedBody.request.proposalId);
+    return await handleApprove(
+      supabase,
+      userId,
+      parsedBody.request.proposalId,
+      parsedBody.request.selectedIndexes,
+    );
   }
   return await handleReject(supabase, userId, parsedBody.request.proposalId);
 }

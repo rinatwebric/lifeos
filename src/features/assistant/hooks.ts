@@ -55,19 +55,31 @@ export function useSendMessage() {
 }
 
 /**
- * Approve a proposal after human confirmation (step 7). The server re-reads
- * the stored row as the caller, re-validates every action BEFORE the first
- * write, applies in order, then marks `approved + applied_at`. Real rows
- * changed — so every affected cache is refreshed: the assistant proposal
- * list + the answered dialog, all tasks lists/details (created/rescheduled/
- * mirrored tasks), all goals keys (lists, details, milestones), and the
- * planner blocks (new `task` blocks + Д8 mirrors the Dashboard reads).
+ * Approve a proposal after human confirmation (step 7–8). The server re-reads
+ * the stored row as the caller, re-validates every selected action BEFORE
+ * the first write, claims `pending → approved + applied_at` atomically
+ * (parallel approves apply once), applies the subset in order, and rolls
+ * back to `pending` on a mid-apply failure. `selectedIndexes` is the
+ * per-item subset; absent means "all actions" (backward compatible).
+ * Real rows changed — so every affected cache is refreshed: the assistant
+ * proposal list + the answered dialog, all tasks lists/details
+ * (created/rescheduled/ mirrored tasks), all goals keys (lists, details,
+ * milestones), and the planner blocks (new `task` blocks + Д8 mirrors the
+ * Dashboard reads).
  */
+export interface ApproveProposalVariables {
+  proposalId: string;
+  selectedIndexes?: number[];
+}
+
 export function useApproveProposal() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (proposalId: string) => approveProposal(proposalId),
+    mutationFn: (variables: string | ApproveProposalVariables) =>
+      typeof variables === "string"
+        ? approveProposal(variables)
+        : approveProposal(variables.proposalId, variables.selectedIndexes),
     onSuccess: (result) => {
       void queryClient.invalidateQueries({ queryKey: assistant.proposals() });
       if (result.conversationId) {

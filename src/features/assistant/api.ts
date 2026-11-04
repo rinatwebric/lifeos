@@ -9,7 +9,12 @@ import {
 import type { AiConversation, AiMessage } from "@/types/domain";
 
 import { AssistantServiceError, ASSISTANT_ERROR_MESSAGES, toAssistantError } from "./errors";
-import { proposalIdSchema, sendMessageSchema, type SendMessageInput } from "./schemas";
+import {
+  proposalIdSchema,
+  selectedIndexesSchema,
+  sendMessageSchema,
+  type SendMessageInput,
+} from "./schemas";
 
 /**
  * Identity comes from the local session (`auth.getSession()`), never from
@@ -199,8 +204,11 @@ export async function sendMessage(input: SendMessageInput): Promise<SendMessageR
  * Validate one proposal id client-side (invalid UUID never reaches the
  * network — same `invalid_input` contract as `sendMessage`), then call the
  * Edge Function decide branch. Identity travels in the session JWT; the body
- * carries only `{ action, proposalId }`, never a `user_id`. HTTP failures map
- * through `toAssistantError` exactly like `sendMessage`.
+ * carries only `{ action, proposalId[, selectedIndexes] }`, never a
+ * `user_id`. HTTP failures map through `toAssistantError` exactly like
+ * `sendMessage`. A 500 from the decide branch means the apply failed
+ * (rolled back to `pending`), so an `ai_unavailable` with status 500 is
+ * re-mapped to `apply_failed` — the modal owns the retry decision.
  */
 function parseProposalIdOrThrow(proposalId: string): string {
   const parsed = proposalIdSchema.safeParse(proposalId);
@@ -218,6 +226,36 @@ function parseProposalIdOrThrow(proposalId: string): string {
   }
 
   return parsed.data;
+}
+
+function parseSelectedIndexesOrThrow(selectedIndexes: number[] | undefined): number[] | undefined {
+  if (selectedIndexes === undefined) {
+    return undefined;
+  }
+  const parsed = selectedIndexesSchema.safeParse(selectedIndexes);
+  if (!parsed.success) {
+    const firstIssue = parsed.error.issues[0];
+    throw new AssistantServiceError(
+      "invalid_input",
+      firstIssue?.message ?? ASSISTANT_ERROR_MESSAGES.invalid_input,
+      undefined,
+      "selectedIndexes",
+    );
+  }
+  return [...parsed.data];
+}
+
+function mapDecideError(error: unknown): never {
+  const mapped = toAssistantError(error);
+  if (mapped.code === "ai_unavailable" && mapped.status === 500) {
+    throw new AssistantServiceError(
+      "apply_failed",
+      ASSISTANT_ERROR_MESSAGES.apply_failed,
+      mapped.status,
+      mapped.details,
+    );
+  }
+  throw mapped;
 }
 
 function readDecideResult(
@@ -248,14 +286,21 @@ function readDecideResult(
   };
 }
 
-export async function approveProposal(proposalId: string): Promise<ApproveProposalResult> {
+export async function approveProposal(
+  proposalId: string,
+  selectedIndexes?: number[],
+): Promise<ApproveProposalResult> {
   try {
     const validId = parseProposalIdOrThrow(proposalId);
+    const validSelected = parseSelectedIndexesOrThrow(selectedIndexes);
     await requireUserId();
     const client = getSupabaseClient();
 
     const { data, error } = await client.functions.invoke("ai-assistant", {
-      body: { action: "approve", proposalId: validId },
+      body:
+        validSelected === undefined
+          ? { action: "approve", proposalId: validId }
+          : { action: "approve", proposalId: validId, selectedIndexes: validSelected },
     });
 
     if (error) {
@@ -264,7 +309,18 @@ export async function approveProposal(proposalId: string): Promise<ApprovePropos
 
     return readDecideResult(data, "approved") as ApproveProposalResult;
   } catch (error) {
-    throw toAssistantError(error);
+    if (error instanceof AssistantServiceError) {
+      if (error.code === "ai_unavailable" && error.status === 500) {
+        throw new AssistantServiceError(
+          "apply_failed",
+          ASSISTANT_ERROR_MESSAGES.apply_failed,
+          error.status,
+          error.details,
+        );
+      }
+      throw error;
+    }
+    throw mapDecideError(error);
   }
 }
 
@@ -284,6 +340,9 @@ export async function rejectProposal(proposalId: string): Promise<RejectProposal
 
     return readDecideResult(data, "rejected") as RejectProposalResult;
   } catch (error) {
+    if (error instanceof AssistantServiceError) {
+      throw error;
+    }
     throw toAssistantError(error);
   }
 }

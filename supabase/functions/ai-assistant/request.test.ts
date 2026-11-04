@@ -114,6 +114,35 @@ describe("parseDecideRequestBody (step 7)", () => {
       parseDecideRequestBody(JSON.stringify({ action: "reject", proposalId: PROPOSAL_ID })),
     ).toStrictEqual({ ok: true, request: { action: "reject", proposalId: PROPOSAL_ID } });
   });
+
+  it("accepts approve with a sorted unique index subset", () => {
+    const result = parseDecideRequestBody(
+      JSON.stringify({ action: "approve", proposalId: PROPOSAL_ID, selectedIndexes: [0, 2] }),
+    );
+    expect(result).toStrictEqual({
+      ok: true,
+      request: { action: "approve", proposalId: PROPOSAL_ID, selectedIndexes: [0, 2] },
+    });
+  });
+
+  it("rejects bad selectedIndexes shapes", () => {
+    const badBodies = [
+      JSON.stringify({ action: "approve", proposalId: PROPOSAL_ID, selectedIndexes: [] }),
+      JSON.stringify({ action: "approve", proposalId: PROPOSAL_ID, selectedIndexes: [1, 1] }),
+      JSON.stringify({ action: "approve", proposalId: PROPOSAL_ID, selectedIndexes: [2, 0] }),
+      JSON.stringify({ action: "approve", proposalId: PROPOSAL_ID, selectedIndexes: [0, -1] }),
+      JSON.stringify({ action: "approve", proposalId: PROPOSAL_ID, selectedIndexes: [0, 1.5] }),
+      JSON.stringify({ action: "approve", proposalId: PROPOSAL_ID, selectedIndexes: "0,1" }),
+      JSON.stringify({ action: "reject", proposalId: PROPOSAL_ID, selectedIndexes: [0] }),
+    ];
+    for (const body of badBodies) {
+      const result = parseDecideRequestBody(body);
+      expect(result.ok, body).toBe(false);
+      if (!result.ok) {
+        expect(result.error.code).toBe("invalid_schema");
+      }
+    }
+  });
 });
 
 describe("isContentLengthExceeded (header pre-check, fix b)", () => {

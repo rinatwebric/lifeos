@@ -87,3 +87,38 @@ export async function releaseClaim(
     return { ok: false };
   }
 }
+
+/**
+ * Per-item subset (step 8): `selectedIndexes` picks from the stored actions.
+ * Pure and total-safe: `total` counts only the selected actions, `applied`
+ * counts only those. Shape (integers, no dubs, sorted) is checked in
+ * `request.ts`; range (`0..actions.length-1`) is checked here where the
+ * proposal is known. Returns the filtered actions or a short reason for a
+ * 400 `invalid_schema`.
+ */
+export type SelectActionsResult<T> =
+  | { ok: true; selected: T[] }
+  | { ok: false; reason: "out_of_range" | "duplicates" | "unsorted" };
+
+export function selectActionsByIndexes<T>(
+  actions: readonly T[],
+  selectedIndexes: readonly number[] | undefined,
+): SelectActionsResult<T> {
+  if (selectedIndexes === undefined) {
+    return { ok: true, selected: [...actions] };
+  }
+  for (const index of selectedIndexes) {
+    if (!Number.isInteger(index) || index < 0 || index >= actions.length) {
+      return { ok: false, reason: "out_of_range" };
+    }
+  }
+  if (new Set(selectedIndexes).size !== selectedIndexes.length) {
+    return { ok: false, reason: "duplicates" };
+  }
+  for (let i = 1; i < selectedIndexes.length; i += 1) {
+    if (selectedIndexes[i] <= selectedIndexes[i - 1]) {
+      return { ok: false, reason: "unsorted" };
+    }
+  }
+  return { ok: true, selected: selectedIndexes.map((index) => actions[index]) };
+}

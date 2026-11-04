@@ -3,18 +3,37 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { AssistantServiceError, ASSISTANT_ERROR_MESSAGES } from "./errors";
-import { useConversations, useMessages, useSendMessage } from "./hooks";
+import { useApproveProposal, useConversations, useMessages, useRejectProposal, useSendMessage } from "./hooks";
 import { ChatPanel } from "./ChatPanel";
 
 vi.mock("./hooks", () => ({
   useConversations: vi.fn(),
   useMessages: vi.fn(),
   useSendMessage: vi.fn(),
+  useApproveProposal: vi.fn(),
+  useRejectProposal: vi.fn(),
 }));
 
 const mockedConversations = vi.mocked(useConversations);
 const mockedMessages = vi.mocked(useMessages);
 const mockedSend = vi.mocked(useSendMessage);
+const mockedApprove = vi.mocked(useApproveProposal);
+const mockedReject = vi.mocked(useRejectProposal);
+
+function stubDecideMocks(): void {
+  mockedApprove.mockReturnValue({
+    mutateAsync: vi.fn(),
+    isPending: false,
+    error: null,
+    reset: vi.fn(),
+  } as unknown as ReturnType<typeof useApproveProposal>);
+  mockedReject.mockReturnValue({
+    mutateAsync: vi.fn(),
+    isPending: false,
+    error: null,
+    reset: vi.fn(),
+  } as unknown as ReturnType<typeof useRejectProposal>);
+}
 
 function stubQueries(options?: {
   conversations?: Array<{ id: string; title: string }>;
@@ -36,6 +55,7 @@ function stubQueries(options?: {
     error: null,
     refetch: vi.fn(),
   } as unknown as ReturnType<typeof useMessages>);
+  stubDecideMocks();
 }
 
 describe("ChatPanel", () => {
@@ -60,7 +80,18 @@ describe("ChatPanel", () => {
   it("sends a message and clears the composer", async () => {
     const user = userEvent.setup();
     stubQueries();
-    const mutateAsync = vi.fn().mockResolvedValue({ conversationId: "conv-1" });
+    const mutateAsync = vi.fn().mockResolvedValue({
+      conversationId: "conv-1",
+      userMessageId: "u-1",
+      assistantMessageId: "a-1",
+      proposalId: "p-1",
+      proposal: {
+        proposalType: "task_creation",
+        summary: "Two starter tasks.",
+        reasoning: "Small steps first.",
+        actions: [],
+      },
+    });
     mockedSend.mockReturnValue({
       mutateAsync,
       isPending: false,

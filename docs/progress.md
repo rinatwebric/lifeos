@@ -1445,3 +1445,49 @@ PostgREST отдаёт `timestamptz` с `"+00:00"` и `time` как `"HH:MM:SS"`
 
 - Миграция 0006 НЕ применена, функция НЕ задеплоена — UI проверен на моках;
   живого ключа нет и не использовался.
+
+## 2026-11-04 — Итерация 5, шаг 8 часть 2: proposal review modal
+
+**Сделано (один коммит)**
+
+- Контракт per-item: `parseDecideRequestBody` принимает
+  `selectedIndexes?: number[]` (approve only, non-empty, целые ≥0, без дублей,
+  sorted); `handleApprove` валидирует диапазон `0..len-1` (400 при нарушении),
+  фильтрует через `selectActionsByIndexes` (тестируемо в `approve.ts`),
+  валидирует только выбранные (индекс маппится в оригинальный для 422),
+  `applied/total` считает по выбранным; без поля — все действия (обратная
+  совместимость). `selectActionsByIndexes` покрыт edge-тестами.
+- Frontend: `schemas.ts` — `selectedIndexesSchema`; `api.ts` —
+  `approveProposal(id, selectedIndexes?)` (shape до сети → `invalid_input`,
+  500 decide → `apply_failed`); `hooks.ts` — `useApproveProposal` принимает
+  `string | {proposalId, selectedIndexes?}` (старые вызовы работают);
+  `errors.ts` — коды `already_decided/expired/validation_failed/apply_failed`
+  + маппинг 400/409/410/422 (+ `apply_failed` по серверному коду или 500 decide).
+- UI: `describeAction.ts` (человеческий язык, время в поясе пользователя) +
+  `ProposalActionRow.tsx` (чекбокс + описание) + `ProposalModal.tsx`
+  (`role="dialog"` нативный, `data-autofocus` на Reject, Escape закрывает,
+  фокус возвращается; Accept all → все индексы, Accept selected → подмножество,
+  Reject; 409/410/422/500 в модалке, 410 терминален без Retry).
+  `ChatPanel` показывает «Review proposal» у последнего pending и монтирует
+  модалку. Ручная правка (Р5) НЕ входит — решение 8.1 в `plan-phase-4.md`.
+- Тесты: `ProposalModal.test.tsx` (5: accept all, per-item, reject, expired
+  терминален, 409/422 тексты); `api.test.ts` +4 (subset body, invalid до сети,
+  409/410/422 маппинг, 500→apply_failed); `request.test.ts` +2 (subset ok,
+  7 плохих форм); `approve.test.ts` +3 (фильтрация/совместимость/range);
+  `hooks.test.tsx` +1 (subset passthrough); `ChatPanel.test.tsx` починен
+  (полный `SendMessageResult` + моки decide-хуков).
+
+**Проверено (числа)**
+
+- `npm run typecheck` — ok
+- `npm run lint` — 0 errors, 16 warnings (те же известные классы)
+- `npm test` — **691/691 в 71 файле** (было 676/70: +5 модалка, +4 api,
+  +2 request, +3 approve-фильтр, +1 hooks; ChatPanel остаётся 5)
+- `npm run build` — ok
+- `grep rounded-lg|text-xs|text-sm|min-h-screen|red-|green-|transition-all src/features/assistant/` — CLEAN
+
+**Не проверено живьём**
+
+- Миграция 0006 НЕ применена, функция НЕ задеплоена — UI и claim проверены
+  моками/фейками; живого ключа нет и не использовался.
+- Дальше — шаг 9 (weekly review, e2e на stub, документы).

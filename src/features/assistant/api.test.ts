@@ -381,4 +381,78 @@ describe("assistant api", () => {
     ).rejects.toMatchObject({ code: "forbidden" });
     expect(invokeEntry).not.toHaveBeenCalled();
   });
+
+  it("approves a subset with selectedIndexes and nothing else", async () => {
+    const response = {
+      proposalId: "22222222-2222-4222-8222-222222222222",
+      status: "approved",
+      conversationId: CONVERSATION_ID,
+      applied: 1,
+      total: 1,
+    };
+    const invokeEntry = vi.fn().mockResolvedValue({ data: response, error: null });
+    stubClient("u1", vi.fn(), invokeEntry);
+
+    const result = await approveProposal("22222222-2222-4222-8222-222222222222", [0, 2]);
+
+    expect(result).toStrictEqual(response);
+    expect(invokeEntry).toHaveBeenCalledWith(
+      "ai-assistant",
+      expect.objectContaining({
+        body: {
+          action: "approve",
+          proposalId: "22222222-2222-4222-8222-222222222222",
+          selectedIndexes: [0, 2],
+        },
+      }),
+    );
+  });
+
+  it("rejects bad selectedIndexes before any request", async () => {
+    const invokeEntry = vi.fn();
+    stubClient("u1", vi.fn(), invokeEntry);
+
+    for (const bad of [[0, 0], [2, 0], [0, -1] as unknown as number[]]) {
+      const error = (await approveProposal("22222222-2222-4222-8222-222222222222", bad).catch(
+        (failure: unknown) => failure,
+      )) as AssistantServiceError;
+      expect(error).toMatchObject({ code: "invalid_input" });
+      expect(error.details).toBe("selectedIndexes");
+    }
+    expect(invokeEntry).not.toHaveBeenCalled();
+  });
+
+  it("maps decide HTTP statuses to already_decided, expired and validation_failed", async () => {
+    const cases: Array<{ status: number; code: string }> = [
+      { status: 409, code: "already_decided" },
+      { status: 410, code: "expired" },
+      { status: 422, code: "validation_failed" },
+    ];
+    for (const { status, code } of cases) {
+      const invokeEntry = vi.fn().mockResolvedValue({
+        data: null,
+        error: { name: "FunctionsHttpError", context: { status }, message: `http ${status}` },
+      });
+      stubClient("u1", vi.fn(), invokeEntry);
+      const error = (await approveProposal("22222222-2222-4222-8222-222222222222").catch(
+        (failure: unknown) => failure,
+      )) as AssistantServiceError;
+      expect(error).toMatchObject({ code });
+      expect(error.message).toBe(
+        ASSISTANT_ERROR_MESSAGES[code as keyof typeof ASSISTANT_ERROR_MESSAGES],
+      );
+    }
+  });
+
+  it("maps a 500 from approve to apply_failed", async () => {
+    const invokeEntry = vi.fn().mockResolvedValue({
+      data: null,
+      error: { name: "FunctionsHttpError", context: { status: 500 }, message: "http 500" },
+    });
+    stubClient("u1", vi.fn(), invokeEntry);
+    const error = (await approveProposal("22222222-2222-4222-8222-222222222222").catch(
+      (failure: unknown) => failure,
+    )) as AssistantServiceError;
+    expect(error).toMatchObject({ code: "apply_failed", status: 500 });
+  });
 });

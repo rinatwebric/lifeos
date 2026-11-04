@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { claimProposal, releaseClaim, type ApproveClaimClient } from "./approve.ts";
+import { claimProposal, releaseClaim, selectActionsByIndexes, type ApproveClaimClient } from "./approve.ts";
 
 interface ProposalRow {
   id: string;
@@ -162,5 +162,38 @@ describe("proposal claim serialization", () => {
     expect(await releaseClaim(client, PROPOSAL_ID, "user-1")).toStrictEqual({ ok: true });
     expect(await claimProposal(client, PROPOSAL_ID, "user-1", nowIso)).toStrictEqual({ ok: true });
     expect(db.proposals.get(PROPOSAL_ID)).toMatchObject({ status: "approved" });
+  });
+});
+
+describe("selectActionsByIndexes", () => {
+  const actions = ["a", "b", "c", "d"];
+
+  it("returns all actions without selectedIndexes (backward compatible)", () => {
+    expect(selectActionsByIndexes(actions, undefined)).toStrictEqual({
+      ok: true,
+      selected: ["a", "b", "c", "d"],
+    });
+  });
+
+  it("filters to the requested subset and keeps order", () => {
+    expect(selectActionsByIndexes(actions, [0, 2])).toStrictEqual({
+      ok: true,
+      selected: ["a", "c"],
+    });
+  });
+
+  it("rejects out-of-range, duplicates and unsorted subsets", () => {
+    expect(selectActionsByIndexes(actions, [0, 4])).toStrictEqual({
+      ok: false,
+      reason: "out_of_range",
+    });
+    expect(selectActionsByIndexes(actions, [1, 1])).toStrictEqual({
+      ok: false,
+      reason: "duplicates",
+    });
+    expect(selectActionsByIndexes(actions, [2, 0])).toStrictEqual({
+      ok: false,
+      reason: "unsorted",
+    });
   });
 });

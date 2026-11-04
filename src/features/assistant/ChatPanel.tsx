@@ -6,9 +6,11 @@ import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Textarea } from "@/components/ui/Textarea";
 import { cn } from "@/lib/cn";
+import type { AssistantProposal } from "@/lib/aiProposals";
 
 import { ASSISTANT_ERROR_MESSAGES, AssistantServiceError } from "./errors";
 import { useConversations, useMessages, useSendMessage } from "./hooks";
+import { ProposalModal } from "./ProposalModal";
 
 const MAX_MESSAGE_CHARS = 4000;
 
@@ -63,6 +65,16 @@ export function ChatPanel() {
   const effectiveId = selectedId === undefined ? (conversations[0]?.id ?? null) : selectedId;
   const messagesQuery = useMessages(effectiveId ?? undefined);
   const sendMutation = useSendMessage();
+  const [lastProposal, setLastProposal] = useState<{
+    proposalId: string;
+    proposal: AssistantProposal;
+    conversationId: string;
+  } | null>(null);
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const userTimeZone =
+    typeof Intl !== "undefined"
+      ? (Intl.DateTimeFormat().resolvedOptions().timeZone ?? "UTC")
+      : "UTC";
 
   const trimmed = draft.trim();
   const tooLong = draft.length > MAX_MESSAGE_CHARS;
@@ -79,14 +91,22 @@ export function ChatPanel() {
       });
       setDraft("");
       setSelectedId(result.conversationId);
+      setLastProposal({
+        proposalId: result.proposalId,
+        proposal: result.proposal,
+        conversationId: result.conversationId,
+      });
     } catch {
       // Error surfaces through sendMutation.error with a coded message.
     }
   };
 
+  const showReview = lastProposal !== null && lastProposal.conversationId === effectiveId;
+
   const sendError = sendMutation.error ? errorMessage(sendMutation.error) : null;
 
   return (
+    <>
     <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
       <Card className="space-y-3 lg:w-72 lg:shrink-0">
         <div className="flex items-center justify-between gap-2">
@@ -207,6 +227,22 @@ export function ChatPanel() {
           </ol>
         )}
 
+        {showReview && lastProposal ? (
+          <div className="space-y-2 rounded-control border border-line bg-surface-muted p-3">
+            <p className="text-ui font-medium text-content text-pretty">
+              {lastProposal.proposal.summary}
+            </p>
+            <p className="text-ui text-muted text-pretty">
+              {lastProposal.proposal.actions.length === 1
+                ? "1 proposed action. Review it before anything changes."
+                : `${lastProposal.proposal.actions.length} proposed actions. Review them before anything changes.`}
+            </p>
+            <Button size="lg" onClick={() => setReviewOpen(true)}>
+              Review proposal
+            </Button>
+          </div>
+        ) : null}
+
         <form
           className="space-y-2"
           onSubmit={(event) => {
@@ -267,5 +303,19 @@ export function ChatPanel() {
         </form>
       </Card>
     </div>
+    {showReview && lastProposal ? (
+      <ProposalModal
+        open={reviewOpen}
+        proposalId={lastProposal.proposalId}
+        proposal={lastProposal.proposal}
+        timeZone={userTimeZone}
+        onClose={() => setReviewOpen(false)}
+        onDecided={() => {
+          setLastProposal(null);
+          setReviewOpen(false);
+        }}
+      />
+    ) : null}
+    </>
   );
 }
