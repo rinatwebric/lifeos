@@ -4,6 +4,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 
 import { AuthAlert, AuthField, AuthSubmit } from "./AuthControls";
 import { resendConfirmation, signIn } from "./api";
+import { DemoSignInButton } from "./DemoSignInButton";
 import { AUTH_ERROR_MESSAGES, AuthServiceError, toAuthError } from "./errors";
 import { zodResolver } from "./resolver";
 import { signInSchema, type SignInValues } from "./schemas";
@@ -149,6 +150,8 @@ export function SignInPage() {
           {SIGN_IN_COPY.submit}
         </AuthSubmit>
       </form>
+
+      <DemoSignInButton onError={setFormError} />
 
       <div className="space-y-2 text-center text-sm text-muted">
         <p>
