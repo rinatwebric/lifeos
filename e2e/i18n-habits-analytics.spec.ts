@@ -1,6 +1,6 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 
-import { dismissOnboarding, signIn, skipWithoutCreds } from "./helpers";
+import { dismissOnboarding, restoreProfileBaseline, signIn, skipWithoutCreds } from "./helpers";
 
 /**
  * Integration: RU Habits/Analytics on desktop + 375px, both themes.
@@ -12,44 +12,18 @@ import { dismissOnboarding, signIn, skipWithoutCreds } from "./helpers";
 test.describe("i18n RU habits/analytics", () => {
   test.skip(!process.env.E2E_EMAIL || !process.env.E2E_PASSWORD, "no e2e credentials");
 
-  /** Waits for the exact single-field PATCH the app sends (body-matched, so a
-   *  stale in-flight PATCH for another field can never satisfy the waiter). */
-  function awaitProfilePatch(page: Page, bodySnippet: string) {
-    return page.waitForResponse(
-      (r) =>
-        r.request().method() === "PATCH" &&
-        r.url().includes("/rest/v1/profiles") &&
-        (r.request().postData() ?? "").includes(bodySnippet),
-    );
+  // Hygiene restore through the same single-field REST PATCHs the app sends.
+  // UI selects apply instantly on-device, but a background PATCH issued right
+  // before navigation/context-close may never land, so the restore asserts
+  // the persisted value instead of trusting the UI round-trip.
+  async function restoreAccount(page: Page, request: APIRequestContext, originalLang: string, originalTheme: string): Promise<void> {
+    await restoreProfileBaseline(page, request, {
+      language: originalLang || "en",
+      theme: originalTheme || "light",
+    });
   }
 
-  async function restoreAccount(page: Page, originalLang: string, originalTheme: string): Promise<void> {
-    await page.goto("/settings").catch(() => {});
-    const themeSelect = page.getByLabel("Тема").or(page.getByLabel("Theme"));
-    if ((await themeSelect.count()) > 0) {
-      const first = themeSelect.first();
-      const currentTheme = await first.inputValue().catch(() => "");
-      if (currentTheme !== originalTheme) {
-        // Arm before the select: the PATCH is a background sync, and the
-        // context may close before it lands if nobody awaits the response.
-        const saved = awaitProfilePatch(page, `"theme":"${originalTheme || "light"}"`);
-        await first.selectOption(originalTheme || "light");
-        await saved;
-      }
-    }
-    const langSelect = page.getByLabel("Язык").or(page.getByLabel("Language"));
-    if ((await langSelect.count()) > 0) {
-      const first = langSelect.first();
-      const currentLang = await first.inputValue().catch(() => "");
-      if (currentLang !== (originalLang || "en")) {
-        const saved = awaitProfilePatch(page, `"language":"${originalLang || "en"}"`);
-        await first.selectOption(originalLang || "en");
-        await saved;
-      }
-    }
-  }
-
-  test("RU habits + analytics on desktop, both themes, reload keeps RU", async ({ page }) => {
+  test("RU habits + analytics on desktop, both themes, reload keeps RU", async ({ page, request }) => {
     skipWithoutCreds();
     await signIn(page, process.env.E2E_EMAIL ?? "", process.env.E2E_PASSWORD ?? "");
     await dismissOnboarding(page);
@@ -96,11 +70,11 @@ test.describe("i18n RU habits/analytics", () => {
       await expect(page.getByRole("heading", { name: "Аналитика", exact: true })).toBeVisible();
       await expect(page.locator("html")).toHaveAttribute("lang", "ru");
     } finally {
-      await restoreAccount(page, originalLang, originalTheme);
+      await restoreAccount(page, request, originalLang, originalTheme);
     }
   });
 
-  test("RU habits + analytics at 375px without overflow", async ({ page }) => {
+  test("RU habits + analytics at 375px without overflow", async ({ page, request }) => {
     skipWithoutCreds();
     await page.setViewportSize({ width: 375, height: 812 });
     await signIn(page, process.env.E2E_EMAIL ?? "", process.env.E2E_PASSWORD ?? "");
@@ -110,6 +84,8 @@ test.describe("i18n RU habits/analytics", () => {
     const langSelect = page.getByLabel("Язык").or(page.getByLabel("Language"));
     const current = (await langSelect.first().inputValue().catch(() => "en")) || "en";
     const wasRu = current === "ru";
+    const themeSelect = page.getByLabel("Тема").or(page.getByLabel("Theme"));
+    const originalTheme = (await themeSelect.first().inputValue().catch(() => "light")) || "light";
     if (!wasRu) {
       await page.getByLabel("Language").selectOption("ru");
       await expect(page.getByRole("heading", { name: "Настройки" })).toBeVisible();
@@ -145,17 +121,7 @@ test.describe("i18n RU habits/analytics", () => {
       await expectNoOverflow();
     } finally {
       if (!wasRu) {
-        await page.goto("/settings").catch(() => {});
-        const back = page.getByLabel("Язык").or(page.getByLabel("Language"));
-        if ((await back.count()) > 0) {
-          const first = back.first();
-          const currentLang = await first.inputValue().catch(() => "");
-          if (currentLang !== "en") {
-            const saved = awaitProfilePatch(page, '"language":"en"');
-            await first.selectOption("en");
-            await saved;
-          }
-        }
+        await restoreProfileBaseline(page, request, { language: "en", theme: originalTheme });
       }
     }
   });

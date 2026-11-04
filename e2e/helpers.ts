@@ -1,10 +1,14 @@
-import { expect, type Page, test } from "@playwright/test";
+import { expect, type APIRequestContext, type Page, test } from "@playwright/test";
 
 /**
  * Shared live-auth helpers (iteration 1.2, unit 6). Credentials come only
  * from `process.env.E2E_EMAIL` / `E2E_PASSWORD` (local `.env.e2e`,
  * gitignored — see `.env.e2e.example`). No `service_role` anywhere.
  */
+
+const E2E_SUPABASE_URL = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? "";
+const E2E_SUPABASE_ANON_KEY =
+  process.env.SUPABASE_ANON_KEY ?? process.env.VITE_SUPABASE_ANON_KEY ?? "";
 
 export const E2E_EMAIL = process.env.E2E_EMAIL ?? "";
 export const E2E_PASSWORD = process.env.E2E_PASSWORD ?? "";
@@ -143,6 +147,54 @@ export async function getSessionAccessToken(page: Page): Promise<string> {
   } catch {
     throw new Error("no access_token in the open browser session");
   }
+}
+
+/**
+ * Restores `profiles.language/theme` on the shared e2e account through the
+ * same single-field REST PATCHs the app sends (anon key + the user's own
+ * JWT from the open session — never `service_role`). Used in `finally`
+ * blocks: UI selects apply instantly on-device, but a background PATCH
+ * issued right before navigation/context-close may never land, so hygiene
+ * restores go through REST and assert the persisted value.
+ */
+export async function restoreProfileBaseline(
+  page: Page,
+  request: APIRequestContext,
+  baseline: { language: string; theme: string },
+): Promise<void> {
+  if (!E2E_SUPABASE_URL || !E2E_SUPABASE_ANON_KEY) return;
+  let token: string;
+  try {
+    token = await getSessionAccessToken(page);
+  } catch {
+    return;
+  }
+  let userId: string;
+  try {
+    userId = (JSON.parse(Buffer.from(token.split(".")[1], "base64").toString("utf8")) as { sub: string }).sub;
+  } catch {
+    return;
+  }
+  const headers = {
+    apikey: E2E_SUPABASE_ANON_KEY,
+    Authorization: `Bearer ${token}`,
+    "Content-Type": "application/json",
+    Prefer: "return=representation",
+  };
+  for (const patch of [{ language: baseline.language }, { theme: baseline.theme }]) {
+    const res = await request.patch(
+      `${E2E_SUPABASE_URL}/rest/v1/profiles?id=eq.${userId}`,
+      { headers, data: patch },
+    );
+    expect(res.ok()).toBe(true);
+  }
+  const check = await request.get(
+    `${E2E_SUPABASE_URL}/rest/v1/profiles?select=language,theme&id=eq.${userId}`,
+    { headers },
+  );
+  expect(await check.json()).toStrictEqual([
+    { language: baseline.language, theme: baseline.theme },
+  ]);
 }
 
 /**

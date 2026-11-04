@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { dismissOnboarding, E2E_EMAIL, E2E_PASSWORD, signIn, skipWithoutCreds } from "./helpers";
+import { dismissOnboarding, E2E_EMAIL, E2E_PASSWORD, restoreProfileBaseline, signIn, skipWithoutCreds } from "./helpers";
 
 /**
  * EN↔RU + theme persistence (branch `feat/i18n-preferences`).
@@ -13,7 +13,7 @@ import { dismissOnboarding, E2E_EMAIL, E2E_PASSWORD, signIn, skipWithoutCreds } 
 test.describe("i18n EN/RU + theme", () => {
   test.skip(!E2E_EMAIL || !E2E_PASSWORD, "no e2e credentials");
 
-  test("EN to RU translates the shell instantly and persists after reload", async ({ page }) => {
+  test("EN to RU translates the shell instantly and persists after reload", async ({ page, request }) => {
     skipWithoutCreds();
     await signIn(page, E2E_EMAIL, E2E_PASSWORD);
     await dismissOnboarding(page);
@@ -22,6 +22,7 @@ test.describe("i18n EN/RU + theme", () => {
 
     const language = page.getByLabel("Language");
     const original = await language.inputValue();
+    const originalTheme = await page.getByLabel("Theme").inputValue();
 
     // EN → RU: instant, no Save button, no reload.
     await language.selectOption("ru");
@@ -46,22 +47,9 @@ test.describe("i18n EN/RU + theme", () => {
     await page.reload();
     await expect(page.locator("html.dark")).toHaveCount(0);
 
-    // Restore the account's original language and wait until the
-    // background PATCH lands — the context closes right after this test,
-    // and an un-awaited sync would leave the shared account dirty.
-    // Body-matched: a stale in-flight PATCH for another field must not
-    // satisfy the waiter. The label depends on the CURRENT page language.
-    const restoreSelect = page.getByLabel("Язык").or(page.getByLabel("Language"));
-    const currentLang = await restoreSelect.first().inputValue();
-    if (currentLang !== original) {
-      const saved = page.waitForResponse(
-        (r) =>
-          r.request().method() === "PATCH" &&
-          r.url().includes("/rest/v1/profiles") &&
-          (r.request().postData() ?? "").includes(`"language":"${original}"`),
-      );
-      await restoreSelect.first().selectOption(original);
-      await saved;
-    }
+    // Restore the account's original language AND theme through REST (same
+    // single-field PATCHs the app sends, asserted on the persisted row): a UI
+    // background PATCH issued right before context-close may never land.
+    await restoreProfileBaseline(page, request, { language: original, theme: originalTheme });
   });
 });
