@@ -924,7 +924,7 @@ relink-зеркало); `typecheck`, `lint` (0 errors), `build` — зелёны
 RPC (атомарные вставка + зеркало); до неё рассинхронизация видна глазами (блок в дне,
 но не в задаче) и чинится повторным Accept — он идемпотентен и допишет зеркало.
 
-**Осталось / блокирует живая проверка**
+**Осталось / блокирует живая проверка (история до применения 0005)**
 
 - Миграция `0005_time_blocks` НЕ применена (таблицы в живой базе нет): живьём не
   проверено ничего из этой единицы; все покрытия — моки. `e2e/planner.spec.ts` не
@@ -934,3 +934,120 @@ RPC (атомарные вставка + зеркало); до неё расси
   3) вручную на двух аккаунтах: generate → accept виден в дне, reject ничего не пишет,
   чужой `user_id` недоступен. 4) Живой повторный Accept того же плана — второй прогон
   не создаёт дублей (проверяется числом строк).
+
+## 2026-11-04 — Итерация 4: живая проверка (миграция применена, e2e заблокирован — НЕ ЗАКРЫТА)
+
+**Статус: итерация НЕ закрыта.** Продуктовый код не менялся (`src/**` нетронут).
+Миграция `0005_time_blocks` применена как трекаемая (`apply_migration`,
+name `0005_time_blocks`, SQL файла дословно, SHA256 `008be8e…4ee55`).
+Живой e2e вскрыл баг пустого дня — закрытие заблокировано до правки кода
+(правка запрещена этой задачей, только описание).
+
+**Phase 1 — файл и применение**
+
+- Файл `supabase/migrations/0005_time_blocks.sql` прочитан целиком (65 строк):
+  совпадает с ожидаемым — `create table time_blocks`, FK `user_id → auth.users(id)
+  on delete cascade`, FK `task_id → tasks(id) on delete cascade`, 3 индекса,
+  триггер `trg_time_blocks_updated_at → set_updated_at()`, `enable RLS`,
+  4 политики `*_own` с `EXISTS`-гардом владения `task_id` (образец 0004).
+  Уточнение счёта: CHECK-ограничений фактически 4 (тип, интервал, 2 на связку
+  тип↔задача), а не 3 — в задаче связка посчитана как один пункт.
+- Применение: `tools.supabase.apply_migration({name: "0005_time_blocks", query})`
+  → `{success: true}`. Предсостояние было чистым: `to_regclass → null`,
+  `pg_policies → 0`, история только 0001–0004.
+
+**Phase 1 — доказательства схемы (7 пунктов)**
+
+- `to_regclass('public.time_blocks')` → `time_blocks` (не null).
+- `pg_policies` по `time_blocks` → ровно 4: `select/insert/update/delete own`
+  (`time_blocks_select_own`, `time_blocks_insert_own`, `time_blocks_update_own`,
+  `time_blocks_delete_own`).
+- `pg_constraint` → 4 CHECK (`block_type in (…)`, `end_time > start_time`,
+  `block_type <> 'task' OR task_id IS NOT NULL`, `task_id IS NULL OR block_type='task'`)
+  + `PRIMARY KEY (id)` + 2 FK (`task_id → tasks(id) CASCADE`,
+  `user_id → auth.users(id) CASCADE`).
+- `pg_indexes` → 3 кастомных (`idx_time_blocks_user_id`,
+  `idx_time_blocks_user_start`, `idx_time_blocks_task_id`) + `time_blocks_pkey`.
+- `relrowsecurity` → `true` (`relforcerowsecurity=false`).
+- Триггер `trg_time_blocks_updated_at` существует (не internal).
+- История `schema_migrations` содержит `0005`:
+  `20261104122353 | 0005_time_blocks` после 0001–0004.
+
+**Phase 2.4 — `node scripts/verify-rls.mjs` (целиком)**
+
+- Скрипт проверяет только `profiles`/`user_preferences` (покрытия `time_blocks`
+  в нём нет) — 11/11 PASS:
+  `select profiles 0 rows`, `select user_preferences 0 rows`,
+  `sign-in as user A (de42c19d-…​)`, `select own profiles 1 row`,
+  `select own preferences 1 row`, `foreign profile 0`, `foreign prefs 0`,
+  `update foreign profile 0`, `update foreign prefs 0`,
+  `update own 1 row`, `restore 1 row` → `RLS verification: ALL CHECKS PASSED`.
+- RLS `time_blocks` этим скриптом не покрыта; доказана ниже REST-пробами
+  (foreign select 0, foreign insert 403).
+
+**Phase 2.5 — живой e2e (ОДИН прогон, больше не запускать до +1 часа)**
+
+- Команда: `npx playwright test e2e/planner.spec.ts --reporter=list`.
+- Итог: **4 failed, 1 skipped, 0 passed** (1 worker, chromium).
+  Длительности: ~17.2с / 14.6с / 14.6с / 16.1с (+ перезапуск dev-сервера).
+- Пропуск: `planner rls: foreign user_id is invisible` — skip, т.к. в `.env.e2e`
+  нет `SUPABASE_URL`/`SUPABASE_ANON_KEY` (только `E2E_*`), по дизайну спеки.
+- Все 4 падения — одна причина, дословно:
+  `Error: expect(locator).toBeVisible() failed / Locator: getByText('Day summary')
+  / Expected: visible / Timeout: 5000ms / Error: element(s) not found`
+  в `openDay` (`e2e/planner.spec.ts:56:47`), вызвано из `87:1`, `106:1`, `119:1`,
+  `155:1` (day/week, manual break, overlap-confirm, generate→accept/cancel).
+- Артефакты: скриншотов/trace нет (конфиг: `trace: on-first-retry`, `retries: 0`);
+  только `test-results/<spec>-chromium/error-context.md` (4 шт.).
+  Консольных `pageerror` спека не собирает (слушателя нет).
+- Корень (код не правлен): `DayView.tsx:174-185` — пустой день рендерит
+  `EmptyState «Nothing planned for this day»` без `Day summary`;
+  `Day summary` есть только при `!isEmpty`. А `openDay` ждёт `Day summary` всегда,
+  поэтому падает на чистых датах (`+3…+7` дней). Error-context подтверждает:
+  страница показывает `Nothing planned…`, а не `Day summary`.
+  Это баг спеки/контракта пустого дня (тест ждёт сводку, которой нет по дизайну),
+  а не схемы: таблица и RLS живые (см. ниже).
+
+**Phase 2.6 — двойной Accept (UI заблокирован e2e-багом; доказано REST-симуляцией логики `applyPlan`)**
+
+- Живьём через REST от имени e2e-пользователя (`de42c19d-…`): созданы задачи A/B,
+  вставлены 2 `task`-блока на `2026-11-10` (`09:00–09:30`, `10:00–10:30`) + зеркала
+  `scheduled_start/end` (первый Accept).
+- `count(*)` блоков за день до второго Accept: **2**; существующих пар в спане —
+  2/2, `missing = 0` → второй вызов эквивалентен `{blocks: [], mirroredTaskIds: []}`.
+  `count(*)` после: **2** (не изменился).
+- Отсутствие пар-дублей SQL: `select task_id, start_time, count(*) … group by 1,2
+  having count(*) > 1` → **0 строк**; клиентский пересчёт дублей → 0;
+  `select count(*) from time_blocks` после чистки → 0, `tasks where title like
+  'LIVE check%'` → 0 (мусор удалён).
+
+**Phase 2.7 — ручные проверки по PRD §18 (таблица «пункт → результат»)**
+
+- Конфликт только после явного подтверждения — **НЕ проверено живьём**
+  (e2e-тест `overlap … only after confirmation` упал в `openDay` до шагов конфликта).
+  Код существует (`TimeBlockDialog` чекбокс `Keep this block…`), покрытие — только моки.
+- Блок в прошлом / в часах сна — предупреждение, а не молчаливый отказ —
+  **НЕ проверено живьём** (те же причины; `collectBlockWarnings`/`PlanSlotEditor`
+  только на моках).
+- Удаление блока обнуляет `scheduled_start/end` у задачи — **проверено живьём
+  через REST** (симуляция `deleteBlock`): после `DELETE time_blocks` + зеркало-`PATCH`
+  задача A → `{scheduled_start: null, scheduled_end: null}`. UI-кнопка Delete
+  живьём не нажата (e2e заблокирован).
+- Удаление задачи с блоком удаляет только блок (Д5), сосед не затронут —
+  **проверено живьём**: `DELETE tasks B` → `time_blocks where task_id=B` = `[]`,
+  сосед A жив (`tasks id=A` на месте). Каскад `ON DELETE CASCADE` работает.
+- Чужой `user_id` недоступен — **проверено живьём**: `select … user_id=FOREIGN`
+  от имени A → `200, []` (0 строк); `insert {user_id: FOREIGN}` → `403`
+  `42501 new row violates row-level security policy for table "time_blocks"`.
+
+**Что осталось проверенным только на моках (не закрыто)**
+
+- Весь UI Planner: day/week переключение, ручной блок, конфликт с подтверждением,
+  generate → accept/cancel через кнопки, предупреждения прошлое/сон, `PlanPreview`.
+  Живой UI-путь заблокирован багом `openDay`/`DayView`-empty (см. выше).
+- `scripts/verify-rls.mjs` не покрывает `time_blocks`; RLS новой таблицы доказана
+  только точечными REST-пробами этой записи, а не скриптом.
+- Ограничения из плана (не баги этой проверки): батч зеркала — два параллельных
+  запроса, не транзакция (частичный сбой оставляет блоки без зеркала, лечится
+  повторным идемпотентным Accept); микросекундная точность `timestamptz` опирается
+  на усечение через `Date.parse` (ключ `taskId|startMs|endMs`).
