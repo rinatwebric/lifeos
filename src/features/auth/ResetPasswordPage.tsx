@@ -13,27 +13,35 @@ import {
   type SetNewPasswordValues,
 } from "./schemas";
 import { useMessages } from "@/lib/i18n/I18nContext";
+import { en } from "@/lib/i18n/dictionaries/en";
 
 export type ResetPasswordMode = "request" | "update";
 
+const _rp = en.auth.resetPassword;
+
+/**
+ * Back-compat copy for tests: the EN source of the reset strings. The page
+ * itself renders `m.auth.resetPassword` so open forms re-translate on
+ * language switch.
+ */
 export const RESET_PASSWORD_COPY = {
-  requestTitle: "Reset your password",
-  requestSubtitle: "Enter your account email and we will send you a reset link.",
-  emailLabel: "Email",
-  emailPlaceholder: "you@example.com",
-  requestSubmit: "Send reset link",
-  requesting: "Sending…",
-  requestSent:
-    "If an account exists for this email, a reset link is on its way. Check your inbox (and the spam folder).",
-  updateTitle: "Choose a new password",
-  updateSubtitle: "This link only works once. After saving you will sign in again.",
-  passwordLabel: "New password",
-  confirmLabel: "Confirm new password",
-  updateSubmit: "Save new password",
-  updating: "Saving…",
-  expiredLink: "This reset link is invalid or has expired. Request a new one below and try again.",
-  requestNewLink: "Request a new link",
-  backToSignIn: "Back to sign in",
+  requestTitle: _rp.requestTitle,
+  requestSubtitle: _rp.requestDescription,
+  mailOffNotice: _rp.mailOffNotice,
+  emailLabel: _rp.emailLabel,
+  emailPlaceholder: _rp.emailPlaceholder,
+  requestSubmit: _rp.sendLink,
+  requesting: _rp.sending,
+  requestSentMailOff: _rp.requestSentMailOff,
+  updateTitle: _rp.chooseTitle,
+  updateSubtitle: _rp.chooseHint,
+  passwordLabel: _rp.newPasswordLabel,
+  confirmLabel: _rp.confirmLabel,
+  updateSubmit: _rp.saveNew,
+  updating: _rp.saving,
+  expiredLink: _rp.invalidLink,
+  requestNewLink: _rp.requestNew,
+  backToSignIn: _rp.backToSignIn,
 } as const;
 
 interface ResetPasswordPageProps {
@@ -149,10 +157,13 @@ export function ResetPasswordPage({ initialMode = "request" }: ResetPasswordPage
       </div>
 
       {expiredLink ? <AuthAlert tone="error">{t.invalidLink}</AuthAlert> : null}
+      <p className="rounded-control border border-line bg-surface-muted px-3 py-2 text-ui text-muted">
+        {t.mailOffNotice}
+      </p>
       {formErrorCode ? (
         <AuthAlert tone="error">{translateAuthError(formErrorCode, m)}</AuthAlert>
       ) : null}
-      {requestSent ? <AuthAlert tone="success">{t.sentHint}</AuthAlert> : null}
+      {requestSent ? <AuthAlert tone="success">{t.requestSentMailOff}</AuthAlert> : null}
 
       <form
         noValidate

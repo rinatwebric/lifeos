@@ -3,24 +3,36 @@ import { Link } from "react-router-dom";
 
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { ProgressBar } from "@/components/ui/ProgressBar";
 import { useDashboardData } from "@/features/dashboard/useDashboardData";
-import { ScheduleCard } from "@/features/dashboard/ScheduleCard";
+import { ScheduleBody } from "@/features/dashboard/ScheduleCard";
 import { useSetTaskStatus } from "@/features/tasks/hooks";
 import { formatLongDate } from "@/lib/dates";
 import { pluralCategory, tmpl } from "@/lib/i18n/format";
 import { useIntlLocale, useLocale, useMessages } from "@/lib/i18n/I18nContext";
+import { en } from "@/lib/i18n/dictionaries/en";
 import { cn } from "@/lib/cn";
 import type { Task } from "@/types/domain";
+
+const PRIMARY_ACTION_CLASS =
+  "inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-control bg-accent px-5 text-ui font-medium text-accent-content transition-opacity duration-fast ease-standard hover:opacity-90";
+
+const SECTION_LINK_CLASS =
+  "inline-flex min-h-11 items-center text-ui font-medium text-content underline-offset-4 hover:underline";
+
+const PANEL_LIST_CLASS = "divide-y divide-line overflow-hidden rounded-card border border-line bg-surface";
+
+export const DASHBOARD_COPY = {
+  emptyInsights: en.dashboard.emptyInsights,
+} as const;
 
 function BlockSkeleton({ label }: { label: string }) {
   return (
     <div role="status" aria-label={label}>
       <span className="sr-only">{label}…</span>
-      <div className="animate-pulse space-y-3" aria-hidden="true">
+      <div className="space-y-3 motion-safe:animate-pulse" aria-hidden="true">
         <div className="h-5 w-2/3 rounded bg-surface-muted" />
         <div className="h-2 w-full rounded-full bg-surface-muted" />
         <div className="h-4 w-1/3 rounded bg-surface-muted" />
@@ -185,15 +197,25 @@ export function DashboardPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <PageHeader
+        eyebrow={formatLongDate(now, timeZone, intl)}
         title={welcome}
-        description={`${formatLongDate(now, timeZone, intl)} · ${tmpl(t.timesShownIn, { timeZone })}`}
+        titleClassName="font-display text-3xl font-medium sm:text-4xl"
+        description={tmpl(t.timesShownIn, { timeZone })}
+        actions={
+          <Link to="/planner" className={PRIMARY_ACTION_CLASS}>
+            {t.planToday}
+          </Link>
+        }
       />
 
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card className="space-y-3">
-          <h2 className="text-ui font-medium text-content">{t.todayProgress}</h2>
+      <section
+        aria-label={t.todayGlance}
+        className="grid gap-6 rounded-card border border-line bg-surface p-5 sm:p-6 md:grid-cols-3 md:divide-x md:divide-line md:[&>*:not(:first-child)]:pl-6"
+      >
+        <div className="space-y-3">
+          <h2 className="text-ui font-medium text-content">{t.overviewProgress}</h2>
           {todayQuery.isLoading ? (
             <BlockSkeleton label={t.loadingTodayProgress} />
           ) : todayQuery.isError ? (
@@ -201,50 +223,57 @@ export function DashboardPage() {
           ) : dailyProgress === null ? (
             <div className="space-y-3">
               <p className="text-ui text-muted">{t.emptyToday}</p>
-              <Link
-                to="/tasks"
-                className="inline-flex items-center gap-1.5 text-ui font-medium text-content underline-offset-4 hover:underline"
-              >
+              <Link to="/tasks" className={SECTION_LINK_CLASS}>
                 {t.openTasks}
               </Link>
             </div>
           ) : (
             <div className="space-y-2">
+              <p className="font-display text-4xl text-content tabular-nums">
+                {dailyProgress}
+                <span className="text-xl text-muted">%</span>
+              </p>
               <ProgressBar value={dailyProgress} label={t.todayProgress} />
               <p className="text-ui text-muted tabular-nums">
                 {tmpl(t.completedOf, { completed: completedToday, total: totalToday })}
               </p>
-              <p className="text-micro text-muted tabular-nums">
-                {tmpl(t.percentComplete, { percent: dailyProgress })}
-              </p>
             </div>
           )}
-        </Card>
+        </div>
 
-        <ScheduleCard now={now} />
+        <div className="space-y-3 border-t border-line pt-6 md:border-t-0 md:pt-0">
+          <h2 className="text-ui font-medium text-content">{t.schedule}</h2>
+          <ScheduleBody now={now} />
+        </div>
 
-        {insightsLoading ? (
-          <Card className="space-y-3">
-            <h2 className="text-ui font-medium text-content">{t.insights}</h2>
+        <div className="space-y-3 border-t border-line pt-6 md:border-t-0 md:pt-0">
+          <h2 className="text-ui font-medium text-content">{t.insights}</h2>
+          {insightsLoading ? (
             <BlockSkeleton label={t.loadingInsights} />
-          </Card>
-        ) : insights.length > 0 ? (
-          <Card className="space-y-3">
-            <h2 className="text-ui font-medium text-content">{t.insights}</h2>
+          ) : insights.length > 0 ? (
             <ul className="list-disc space-y-1.5 pl-5 text-ui text-muted">
               {insights.map((line) => (
                 <li key={line}>{line}</li>
               ))}
             </ul>
-          </Card>
-        ) : null}
-      </div>
+          ) : (
+            <p className="text-ui text-muted">{t.emptyInsights}</p>
+          )}
+        </div>
+      </section>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card className="space-y-4">
-          <div className="flex items-center justify-between gap-2">
-            <h2 className="text-ui font-medium text-content">{t.activeGoals}</h2>
-            <Target className="size-4.5 text-muted" aria-hidden="true" />
+      <div className="grid items-start gap-8 lg:grid-cols-2">
+        <section aria-labelledby="dashboard-goals-heading" className="min-w-0 space-y-3">
+          <div className="flex min-h-11 items-center justify-between gap-2">
+            <h2 id="dashboard-goals-heading" className="text-ui font-medium text-content">
+              {t.activeGoals}
+            </h2>
+            <Link
+              to="/goals"
+              className="inline-flex min-h-11 items-center text-ui font-medium text-content underline-offset-4 hover:underline"
+            >
+              {t.viewAll}
+            </Link>
           </div>
           {goalsLoading ? (
             <BlockSkeleton label={t.loadingGoals} />
@@ -256,22 +285,19 @@ export function DashboardPage() {
               title={t.noActiveGoals}
               description={t.noActiveGoalsHint}
               action={
-                <Link
-                  to="/goals"
-                  className="inline-flex items-center gap-1.5 text-ui font-medium text-content underline-offset-4 hover:underline"
-                >
+                <Link to="/goals" className={SECTION_LINK_CLASS}>
                   {t.goToGoals}
                 </Link>
               }
             />
           ) : (
-            <ul className="space-y-4">
+            <ul className={PANEL_LIST_CLASS}>
               {activeGoals.map((item) => (
-                <li key={item.goal.id} className="space-y-1.5">
+                <li key={item.goal.id} className="space-y-2 px-4 py-3.5">
                   <div className="flex items-start justify-between gap-2">
                     <Link
                       to={`/goals/${item.goal.id}`}
-                      className="text-ui font-medium text-content hover:underline"
+                      className="min-w-0 truncate text-ui font-medium text-content hover:underline"
                     >
                       {item.goal.title}
                     </Link>
@@ -292,12 +318,19 @@ export function DashboardPage() {
               ))}
             </ul>
           )}
-        </Card>
+        </section>
 
-        <Card className="space-y-4">
-          <div className="flex items-center justify-between gap-2">
-            <h2 className="text-ui font-medium text-content">{t.todayTasks}</h2>
-            <ListChecks className="size-4.5 text-muted" aria-hidden="true" />
+        <section aria-labelledby="dashboard-tasks-heading" className="min-w-0 space-y-3">
+          <div className="flex min-h-11 items-center justify-between gap-2">
+            <h2 id="dashboard-tasks-heading" className="text-ui font-medium text-content">
+              {t.todayTasks}
+            </h2>
+            <Link
+              to="/tasks"
+              className="inline-flex min-h-11 items-center text-ui font-medium text-content underline-offset-4 hover:underline"
+            >
+              {t.viewAll}
+            </Link>
           </div>
           {todayQuery.isLoading ? (
             <BlockSkeleton label={t.loadingTodayTasks} />
@@ -309,29 +342,24 @@ export function DashboardPage() {
               title={t.noTasksToday}
               description={t.noTasksTodayHint}
               action={
-                <Link
-                  to="/tasks"
-                  className="inline-flex items-center gap-1.5 text-ui font-medium text-content underline-offset-4 hover:underline"
-                >
+                <Link to="/tasks" className={SECTION_LINK_CLASS}>
                   {t.openTasks}
                 </Link>
               }
             />
           ) : (
-            <Card className="p-0">
-              <ul className="divide-y divide-line">
-                {todayTasks.map((task) => (
-                  <DashboardTaskRow
-                    key={task.id}
-                    task={task}
-                    timeZone={timeZone}
-                    goalTitle={task.goalId ? (goalTitleById.get(task.goalId) ?? null) : null}
-                  />
-                ))}
-              </ul>
-            </Card>
+            <ul className={PANEL_LIST_CLASS}>
+              {todayTasks.map((task) => (
+                <DashboardTaskRow
+                  key={task.id}
+                  task={task}
+                  timeZone={timeZone}
+                  goalTitle={task.goalId ? (goalTitleById.get(task.goalId) ?? null) : null}
+                />
+              ))}
+            </ul>
           )}
-        </Card>
+        </section>
       </div>
     </div>
   );

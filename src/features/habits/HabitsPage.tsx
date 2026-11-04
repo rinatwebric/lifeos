@@ -27,7 +27,7 @@ const HISTORY_SINCE = "2020-01-01";
 function HabitRowSkeleton() {
   return (
     <li className="px-4 py-3" aria-hidden="true">
-      <div className="animate-pulse space-y-2">
+      <div className="motion-safe:animate-pulse space-y-2">
         <div className="h-4 w-2/3 rounded bg-surface-muted" />
         <div className="flex gap-2">
           <div className="h-5 w-24 rounded-full bg-surface-muted" />

@@ -55,6 +55,13 @@ export const en = {
   },
   auth: {
     layoutHint: "Sign in to continue to your personal operating system.",
+    layout: {
+      headline: "Turn intentions into a realistic day.",
+      stepGoals: "Set long-term goals and break them into milestones.",
+      stepTasks: "Turn milestones into tasks with priorities and deadlines.",
+      stepDay: "Plan a realistic day — and adjust when life happens.",
+      assistantNote: "The assistant proposes. You confirm. Nothing changes on its own.",
+    },
     requireAuthLoading: "Loading…",
     signIn: {
       title: "Welcome back",
@@ -104,11 +111,15 @@ export const en = {
     resetPassword: {
       title: "Reset your password",
       requestTitle: "Reset your password",
-      requestDescription: "Enter your account email and we will send you a reset link.",
+      requestDescription: "Enter your account email below.",
       emailLabel: "Email",
       emailPlaceholder: "you@example.com",
       sendLink: "Send reset link",
       sending: "Sending…",
+      mailOffNotice:
+        "Email delivery is switched off for this installation, so no reset letter can arrive. Ask the workspace owner to reset your password.",
+      requestSentMailOff:
+        "Request received. Email delivery is switched off for this installation, so no letter will arrive — ask the workspace owner to reset your password.",
       sentHint:
         "If an account exists for this email, a reset link is on its way. Check your inbox (and the spam folder).",
       chooseTitle: "Choose a new password",
@@ -323,7 +334,12 @@ export const en = {
   dashboard: {
     welcomeBack: "Welcome back",
     welcomeWithName: "Welcome back, {name}",
-    timesShownIn: "times shown in {timeZone}",
+    timesShownIn: "Times shown in {timeZone}.",
+    planToday: "Plan today",
+    todayGlance: "Today at a glance",
+    overviewProgress: "Progress",
+    viewAll: "View all",
+    emptyInsights: "No suggestions right now.",
     todayProgress: "Today's progress",
     loadingTodayProgress: "Loading today's progress",
     loadTodayError: "Could not load today's tasks. Please try again.",

@@ -1,4 +1,3 @@
-import { CalendarDays } from "lucide-react";
 import { Link } from "react-router-dom";
 
 import { Badge } from "@/components/ui/Badge";
@@ -16,10 +15,11 @@ import { useLocale, useMessages } from "@/lib/i18n/I18nContext";
 import type { Locale } from "@/lib/i18n/types";
 
 /**
- * Compact "Schedule" card: the next blocks of today, how loaded the day is,
+ * Compact schedule summary: the next blocks of today, how loaded the day is,
  * and one way into the planner (PRD §9.4 — an empty area explains the next
  * step). One blocks query for the card, never one per block; the data comes
- * from `useDashboardSchedule`.
+ * from `useDashboardSchedule`. `bare` drops the Card frame so the dashboard
+ * overview can compose progress, schedule and insights in one panel.
  */
 
 const TYPE_ORDER: readonly BlockType[] = ["task", "break", "personal"];
@@ -117,65 +117,73 @@ function ScheduleBlockRow({ block }: { block: DashboardScheduleBlock }) {
   );
 }
 
-export interface ScheduleCardProps {
-  /** Keeps "today" in step with the rest of the Dashboard. */
-  now?: Date;
-}
-
-export function ScheduleCard({ now }: ScheduleCardProps) {
+export function ScheduleBody({ now }: { now?: Date }) {
   const m = useMessages();
   const t = m.dashboard;
   const locale = useLocale();
   const { schedule, isLoading, isError, retry } = useDashboardSchedule({ now });
   const breakdown = typeBreakdown(schedule.totals, m.enums.blockType, locale);
 
+  if (isLoading) {
+    return <ScheduleSkeleton />;
+  }
+
+  if (isError) {
+    return <ScheduleError onRetry={retry} />;
+  }
+
+  if (schedule.isEmpty) {
+    return <ScheduleEmptyState allPast={false} />;
+  }
+
+  if (schedule.isAllPast) {
+    return <ScheduleEmptyState allPast />;
+  }
+
+  return (
+    <>
+      <ol className="space-y-3">
+        {schedule.blocks.map((block) => (
+          <ScheduleBlockRow key={block.id} block={block} />
+        ))}
+      </ol>
+
+      <div className="space-y-2 border-t border-line pt-3">
+        <dl className="grid grid-cols-2 gap-3">
+          <div className="space-y-0.5">
+            <dt className="text-micro text-muted">{t.scheduledToday}</dt>
+            <dd className="text-ui font-medium text-content tabular-nums">
+              {formatDurationMinutes(schedule.totals.scheduled, locale)}
+            </dd>
+          </div>
+          <div className="space-y-0.5">
+            <dt className="text-micro text-muted">{t.blocksToday}</dt>
+            <dd className="text-ui font-medium text-content tabular-nums">{schedule.dayBlockCount}</dd>
+          </div>
+        </dl>
+        {breakdown ? (
+          <p className="text-micro text-muted text-pretty tabular-nums">{breakdown}</p>
+        ) : null}
+        <Link to="/planner" className={OPEN_PLANNER_CLASS}>
+          {t.openPlanner}
+        </Link>
+      </div>
+    </>
+  );
+}
+
+export interface ScheduleCardProps {
+  /** Keeps "today" in step with the rest of the Dashboard. */
+  now?: Date;
+}
+
+export function ScheduleCard({ now }: ScheduleCardProps) {
+  const t = useMessages().dashboard;
+
   return (
     <Card className="space-y-3">
-      <div className="flex items-center justify-between gap-2">
-        <h2 className="text-ui font-medium text-content">{t.schedule}</h2>
-        <CalendarDays className="size-4.5 text-muted" aria-hidden="true" />
-      </div>
-
-      {isLoading ? (
-        <ScheduleSkeleton />
-      ) : isError ? (
-        <ScheduleError onRetry={retry} />
-      ) : schedule.isEmpty ? (
-        <ScheduleEmptyState allPast={false} />
-      ) : schedule.isAllPast ? (
-        <ScheduleEmptyState allPast />
-      ) : (
-        <>
-          <ol className="space-y-3">
-            {schedule.blocks.map((block) => (
-              <ScheduleBlockRow key={block.id} block={block} />
-            ))}
-          </ol>
-
-          <div className="space-y-2 border-t border-line pt-3">
-            <dl className="grid grid-cols-2 gap-3">
-              <div className="space-y-0.5">
-                <dt className="text-micro text-muted">{t.scheduledToday}</dt>
-                <dd className="text-ui font-medium text-content tabular-nums">
-                  {formatDurationMinutes(schedule.totals.scheduled, locale)}
-                </dd>
-              </div>
-              <div className="space-y-0.5">
-                <dt className="text-micro text-muted">{t.blocksToday}</dt>
-                <dd className="text-ui font-medium text-content tabular-nums">
-                  {schedule.dayBlockCount}
-                </dd>
-              </div>
-            </dl>
-            {breakdown ? (
-              <p className="text-micro text-muted text-pretty tabular-nums">{breakdown}</p>
-            ) : null}
-            <Link to="/planner" className={OPEN_PLANNER_CLASS}>
-              {t.openPlanner}
-            </Link>
-          </div>
-        </>
-      )}
+      <h2 className="text-ui font-medium text-content">{t.schedule}</h2>
+      <ScheduleBody now={now} />
     </Card>
   );
 }

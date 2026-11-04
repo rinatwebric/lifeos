@@ -30,23 +30,23 @@ afterEach(() => {
 });
 
 describe("DemoSignInButton", () => {
-  it("renders nothing without demo env", () => {
+  it("shows an honest unavailable note without demo env", () => {
     vi.stubEnv("VITE_DEMO_EMAIL", "");
     vi.stubEnv("VITE_DEMO_PASSWORD", "");
 
-    const { container } = renderDemo();
+    renderDemo();
 
-    expect(container).toBeEmptyDOMElement();
+    expect(screen.getByText(DEMO_SIGN_IN_COPY.unavailable)).toBeInTheDocument();
     expect(mockedSignIn).not.toHaveBeenCalled();
   });
 
-  it("renders nothing when only one credential is set", () => {
+  it("shows an honest unavailable note when only one credential is set", () => {
     vi.stubEnv("VITE_DEMO_EMAIL", "demo@example.com");
     vi.stubEnv("VITE_DEMO_PASSWORD", "");
 
-    const { container } = renderDemo();
+    renderDemo();
 
-    expect(container).toBeEmptyDOMElement();
+    expect(screen.getByText(DEMO_SIGN_IN_COPY.unavailable)).toBeInTheDocument();
   });
 
   it("signs in with the demo credentials and navigates home", async () => {

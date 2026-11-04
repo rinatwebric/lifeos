@@ -5,7 +5,7 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { AUTH_LAYOUT_COPY, AuthLayout } from "./AuthLayout";
 
 describe("AuthLayout", () => {
-  it("centers auth content with the brand and no app navigation", () => {
+  it("pairs the form with the brand panel and no app navigation", () => {
     render(
       <MemoryRouter initialEntries={["/sign-in"]}>
         <Routes>
@@ -16,8 +16,10 @@ describe("AuthLayout", () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByRole("link", { name: "LifeOS home" })).toBeInTheDocument();
-    expect(screen.getByText(AUTH_LAYOUT_COPY.tagline)).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: "LifeOS home" })).toHaveLength(2);
+    expect(screen.getAllByText(AUTH_LAYOUT_COPY.headline).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText(AUTH_LAYOUT_COPY.stepGoals)).toBeInTheDocument();
+    expect(screen.getAllByText(AUTH_LAYOUT_COPY.assistantNote).length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("Sign-in form")).toBeInTheDocument();
     // App shell navigation must not leak into auth screens.
     expect(screen.queryByRole("link", { name: "Goals" })).not.toBeInTheDocument();

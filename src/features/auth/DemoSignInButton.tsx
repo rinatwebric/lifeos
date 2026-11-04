@@ -12,6 +12,7 @@ export const DEMO_SIGN_IN_COPY = {
   button: "Explore the demo account",
   pending: "Signing in…",
   caption: "Signs in to a shared demo account with sample goals and tasks.",
+  unavailable: "Demo account is unavailable in this environment.",
 } as const;
 
 interface DemoSignInButtonProps {
@@ -22,7 +23,8 @@ interface DemoSignInButtonProps {
 /**
  * One-click entry into the shared demo account (iteration 3, unit 2).
  * Uses the existing `signIn()` service — no `service_role`, no e2e account,
- * no `AuthProvider`/RLS changes. Renders nothing when the demo env is absent.
+ * no `AuthProvider`/RLS changes. Without demo env renders an honest
+ * unavailable note instead of a dead button.
  */
 export function DemoSignInButton({ onError }: DemoSignInButtonProps) {
   const m = useMessages();
@@ -31,7 +33,7 @@ export function DemoSignInButton({ onError }: DemoSignInButtonProps) {
   const available = isDemoSignInAvailable();
 
   if (!available) {
-    return null;
+    return <p className="text-center text-micro text-muted">{DEMO_SIGN_IN_COPY.unavailable}</p>;
   }
 
   const handleClick = async (): Promise<void> => {

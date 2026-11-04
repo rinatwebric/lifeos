@@ -24,13 +24,23 @@ export function MobileNav() {
                 end={entry.end}
                 className={({ isActive }) =>
                   cn(
-                    "flex min-h-11 min-w-14 flex-col items-center gap-1 rounded-control px-2 py-1.5 text-micro transition-[color,background-color] duration-fast ease-standard",
-                    isActive ? "bg-canvas font-medium text-content" : "text-muted",
+                    "relative flex min-h-11 min-w-14 flex-col items-center gap-1 rounded-control px-2 py-1.5 text-micro transition-[color,background-color] duration-fast ease-standard",
+                    isActive ? "bg-canvas font-semibold text-content" : "text-muted",
                   )
                 }
               >
-                <Icon className="size-4.5 shrink-0" aria-hidden="true" />
-                <span className="truncate">{entry.label}</span>
+                {({ isActive }) => (
+                  <>
+                    {isActive ? (
+                      <span
+                        aria-hidden="true"
+                        className="absolute top-0.5 h-1 w-6 rounded-full bg-accent"
+                      />
+                    ) : null}
+                    <Icon className="size-4.5 shrink-0" aria-hidden="true" />
+                    <span className="truncate">{entry.label}</span>
+                  </>
+                )}
               </NavLink>
             </li>
           );

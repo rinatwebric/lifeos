@@ -57,6 +57,13 @@ export const ru: EnMessages = {
   },
   auth: {
     layoutHint: "Войдите, чтобы продолжить в персональную операционную систему.",
+    layout: {
+      headline: "Превратите намерения в реалистичный день.",
+      stepGoals: "Ставьте долгосрочные цели и делите их на этапы.",
+      stepTasks: "Превращайте этапы в задачи с приоритетами и сроками.",
+      stepDay: "Планируйте реалистичный день — и корректируйте его, когда жизнь вмешивается.",
+      assistantNote: "Ассистент предлагает. Вы подтверждаете. Ничего не меняется само.",
+    },
     requireAuthLoading: "Загрузка…",
     signIn: {
       title: "С возвращением",
@@ -106,11 +113,15 @@ export const ru: EnMessages = {
     resetPassword: {
       title: "Сброс пароля",
       requestTitle: "Сброс пароля",
-      requestDescription: "Введите email аккаунта, и мы пришлём ссылку для сброса.",
+      requestDescription: "Введите адрес вашей учётной записи ниже.",
       emailLabel: "Email",
       emailPlaceholder: "you@example.com",
       sendLink: "Отправить ссылку",
       sending: "Отправка…",
+      mailOffNotice:
+        "Отправка писем в этой установке отключена, поэтому письмо со ссылкой не придёт. Попросите владельца рабочей области сбросить пароль.",
+      requestSentMailOff:
+        "Запрос получен. Отправка писем в этой установке отключена, поэтому письмо не придёт — попросите владельца рабочей области сбросить пароль.",
       sentHint: "Если аккаунт с таким email есть, ссылка уже в пути. Проверьте inbox (и спам).",
       chooseTitle: "Выберите новый пароль",
       chooseHint: "Ссылка работает только один раз. После сохранения войдите снова.",
@@ -324,7 +335,12 @@ export const ru: EnMessages = {
   dashboard: {
     welcomeBack: "С возвращением",
     welcomeWithName: "С возвращением, {name}",
-    timesShownIn: "время указано в {timeZone}",
+    timesShownIn: "Время указано в {timeZone}.",
+    planToday: "Запланировать день",
+    todayGlance: "Сегодня главное",
+    overviewProgress: "Прогресс",
+    viewAll: "Смотреть все",
+    emptyInsights: "Пока нет предложений.",
     todayProgress: "Прогресс сегодня",
     loadingTodayProgress: "Загрузка прогресса…",
     loadTodayError: "Не удалось загрузить задачи. Попробуйте снова.",

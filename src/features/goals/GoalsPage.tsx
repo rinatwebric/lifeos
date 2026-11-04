@@ -22,7 +22,7 @@ function hasActiveFilters(filters: GoalFilterQuery): boolean {
 function GoalCardSkeleton() {
   return (
     <Card>
-      <div className="animate-pulse space-y-3" aria-hidden="true">
+      <div className="space-y-3 motion-safe:animate-pulse" aria-hidden="true">
         <div className="h-5 w-2/3 rounded bg-surface-muted" />
         <div className="flex gap-2">
           <div className="h-5 w-20 rounded-full bg-surface-muted" />

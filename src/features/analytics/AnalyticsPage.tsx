@@ -193,7 +193,7 @@ export function AnalyticsPage() {
         <div role="status" aria-label={t.loadingLabel}>
           <span className="sr-only">{t.loadingLabel}</span>
           <Card>
-            <div className="animate-pulse space-y-2" aria-hidden="true">
+            <div className="motion-safe:animate-pulse space-y-2" aria-hidden="true">
               <div className="h-4 w-1/3 rounded bg-surface-muted" />
               <div className="h-40 rounded bg-surface-muted" />
             </div>
