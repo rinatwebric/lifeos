@@ -243,11 +243,19 @@ AI-ассистент помогает управлять целями/зада�
 > задачу (Д8), точная пара `(task_id,start,end)` сверяется по инстантам
 > (`Date.parse`, как в `applyPlan`) — read-then-insert, при повторе зеркало
 > всё равно дописывается; `update_preferences` → update
-> `user_preferences`/`profiles` только по ненуллевым полям. `applied_at`
-> выставляется только после всех записей; частичный сбой → 500
-> `apply_failed` `{applied, total}`, предложение остаётся `pending` (повтор
-> может создать дубли — известное ограничение, бэклог: RPC `apply_proposal`
-> (атомарно), миграция 0007, не в этой итерации). Даты-колонки (`start_date`,
+> `user_preferences`/`profiles` только по ненуллевым полям. Фикс гонки
+> (2026-11-04): approve сначала делает условный claim `UPDATE ... SET
+> status='approved', applied_at WHERE id + user_id + status='pending' +
+> select` — 0 строк → 409 `already_decided` (два параллельных approve
+> применяют действия один раз), затем apply, при сбое посреди apply — откат
+> в `pending`/`applied_at=null` и 500 `apply_failed` `{applied, total}`
+> (повтор может создать дубли — бэклог: RPC `apply_proposal` (атомарно),
+> миграция 0007, не в этой итерации). В apply до 2 запросов на действие
+> (`create_milestone`: position max+1 + insert; `schedule_blocks`: дедуп с
+> диапазоном `.gt end_time` / `.lt start_time` + insert + зеркало), осознанно —
+> N+1 нет (батч по типам невозможен: каждое действие пишет в свою таблицу).
+> 410 `expired` терминален для UI: предложение не применяется, повтор
+> невозможен, следующий шаг — новый диалог, а не Retry. Даты-колонки (`start_date`,
 > `target_date`, `due_date`) нормализуются в день пользователя
 > (`toDateOnly`: `YYYY-MM-DD` как есть, инстанты через `toDateKey`), метки
 > (`start_time`, `completed_at`, `applied_at`) — инстанты как есть.
@@ -262,9 +270,9 @@ AI-ассистент помогает управлять целями/зада�
 > контракт ошибок, что у `sendMessage`, плюс `proposalIdSchema` с тем же
 > `invalid_input`); `hooks.ts` — `useApproveProposal`/`useRejectProposal`.
 > Инвалидация: после approve — `assistant.proposals()` +
-> `assistant.messages(conversationId)` + `["tasks"]` (lists+details) +
-> `["goals"]` (lists+details+milestones) + `planner.blocks`; после reject —
-> только `assistant.*`. Тесты — расширения существующих файлов (отдельного
+> `assistant.messages(conversationId)` + `tasks.all` (lists+details) +
+> `goals.all` (lists+details+milestones) + `planner.blocks` (вместо хардкода
+> `["goals"]`); после reject — только `assistant.*`. Тесты — расширения существующих файлов (отдельного
 > `applyProposal.test.ts` нет): `request.test.ts` — 4 кейса
 > `parseDecideRequestBody`; `api.test.ts` — approve/reject успех (тело без
 > `user_id`), `invalid_input` до сети, `invalid_response` на кривой форме,

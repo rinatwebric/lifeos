@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { goals } from "@/features/goals/queryKeys";
 import { planner } from "@/features/planner/queryKeys";
 import { tasks } from "@/features/tasks/queryKeys";
 
@@ -75,7 +76,7 @@ export function useApproveProposal() {
         });
       }
       void queryClient.invalidateQueries({ queryKey: tasks.all });
-      void queryClient.invalidateQueries({ queryKey: ["goals"] });
+      void queryClient.invalidateQueries({ queryKey: goals.all });
       void queryClient.invalidateQueries({ queryKey: planner.blocks });
     },
   });

@@ -11,9 +11,11 @@
  * in the body; absence of `action` stays the chat path): POST
  * { action: "approve" | "reject", proposalId } re-reads the proposal as the
  * caller (RLS; чужой id = 404), re-validates every action with
- * `validateActions()` BEFORE the first write, applies in order with the
- * user-scoped client, then marks `approved + applied_at` (or `rejected` with
- * `applied_at` untouched) plus one audit `ai_messages` row without the
+ * `validateActions()` BEFORE the first write, claims the row with a
+ * conditional `UPDATE ... WHERE status = 'pending'` (0 rows means already
+ * decided, so two parallel approves apply once), applies in order with the
+ * user-scoped client with rollback to `pending` on mid-apply failure
+ * (or `rejected` with `applied_at` untouched) plus one audit `ai_messages` row without the
  * proposal body or secrets.
  *
  * Invariants (AGENTS.md §5):
@@ -22,9 +24,10 @@
  * - secrets live only in function env (`supabase secrets set`); nothing in
  *   git or `VITE_*`; logs carry names/statuses, never keys, tokens or bodies;
  * - chat stores proposals `pending` only; apply/reject re-validates in step 7.
- *   Partial apply failure leaves the proposal `pending` (`applied_at` is set
- *   only after every write); a retry may duplicate rows — atomic
- *   `rpc apply_proposal` is backlog (0007), not this step.
+ *   The claim flips `pending → approved + applied_at` atomically; a mid-apply
+ *   failure rolls back to `pending` (`applied_at = null`), so a retry starts
+ *   clean — but already-written rows stay (no transaction), a retry may
+ *   duplicate rows — atomic `rpc apply_proposal` is backlog (0007).
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.118.0";
@@ -37,6 +40,7 @@ import {
 } from "../../../src/lib/aiProposals.ts";
 
 import { ProviderError, type AiChatProvider, type ChatMessage } from "./provider.ts";
+import { claimProposal, releaseClaim } from "./approve.ts";
 import {
   callOpenAiCompatible,
   DEFAULT_TIMEOUT_MS,
@@ -525,7 +529,9 @@ async function applyAction(
         .from("time_blocks")
         .select("id,start_time,end_time")
         .eq("task_id", action.taskId)
-        .eq("user_id", userId);
+        .eq("user_id", userId)
+        .gt("end_time", action.startTime)
+        .lt("start_time", action.endTime);
       if (!existing.error && Array.isArray(existing.data)) {
         for (const row of existing.data) {
           if (!isRecord(row)) {
@@ -670,6 +676,24 @@ async function handleApprove(client: DbClient, userId: string, proposalId: strin
       actionCode: validation.code,
     });
   }
+  const claim = await claimProposal(
+    client as unknown as Parameters<typeof claimProposal>[0],
+    proposalId,
+    userId,
+    nowIso,
+  );
+  if (!claim.ok) {
+    if (claim.reason === "already_decided") {
+      return json(409, { code: "already_decided", message: "Proposal has already been decided." });
+    }
+    console.error("[ai-assistant] approve claim failed", { proposal: proposalId });
+    return json(500, {
+      code: "apply_failed",
+      message: "Could not apply the proposal. Please try again.",
+      applied: 0,
+      total,
+    });
+  }
   let applied = 0;
   try {
     for (const action of actions) {
@@ -678,20 +702,14 @@ async function handleApprove(client: DbClient, userId: string, proposalId: strin
     }
   } catch {
     console.error("[ai-assistant] apply failed", { proposal: proposalId, applied, total });
-    return json(500, {
-      code: "apply_failed",
-      message: "Could not apply the proposal. Please try again.",
-      applied,
-      total,
-    });
-  }
-  const statusResult = await client
-    .from("ai_proposals")
-    .update({ status: "approved", applied_at: nowIso })
-    .eq("id", proposalId)
-    .eq("user_id", userId);
-  if (statusResult.error) {
-    console.error("[ai-assistant] approve status update failed", { proposal: proposalId });
+    const released = await releaseClaim(
+      client as unknown as Parameters<typeof claimProposal>[0],
+      proposalId,
+      userId,
+    );
+    if (!released.ok) {
+      console.error("[ai-assistant] approve rollback failed", { proposal: proposalId });
+    }
     return json(500, {
       code: "apply_failed",
       message: "Could not apply the proposal. Please try again.",

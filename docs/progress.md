@@ -1375,3 +1375,41 @@ PostgREST отдаёт `timestamptz` с `"+00:00"` и `time` как `"HH:MM:SS"`
   после ревью (как 0005); живой прогон chat → proposal → approve возможен
   только после этого и только с ключом провайдера (иначе stub с честным
   баннером).
+
+## 2026-11-04 — Итерация 5, фикс гонки approve (сериализация решений)
+
+**Сделано (один коммит)**
+
+- `supabase/functions/ai-assistant/approve.ts` (new) + `approve.test.ts` (new):
+  чистый claim-модуль без Deno-зависимостей (Vitest): `claimProposal`
+  (`UPDATE ... SET approved + applied_at WHERE id + user_id + status='pending' +
+  select`, 0 строк → `already_decided`) и `releaseClaim` (откат в
+  `pending`/`applied_at=null`). Тесты: «два параллельных approve применяют
+  действия один раз» (Promise.all двух claim — ровно один winner, apply
+  вызывается один раз) и «откат возвращает pending при сбое посреди apply»
+  (claim → сбой второго действия → release → `pending`/null) + повторный claim
+  после отката.
+- `supabase/functions/ai-assistant/index.ts`: `handleApprove` — валидация ДО
+  claim (422 без записи), затем claim, затем apply по порядку; при сбое apply —
+  откат и 500 `apply_failed`; финальный `UPDATE approved` удалён (claim уже
+  выставил); `schedule_blocks` дедуп с диапазоном `.gt end_time` / `.lt
+  start_time` (меньше строк читается, точная пара сверяется по инстантам как
+  раньше); шапка про частичный сбой обновлена.
+- `src/features/assistant/hooks.ts`: `goals.all` вместо хардкода `["goals"]`
+  (значение то же, ключ теперь из фабрики как `tasks.all`/`planner.blocks`).
+- `docs/plan-phase-4.md`: записано «в apply до 2 запросов на действие
+  (`create_milestone`: position), осознанно» и «410 expired терминален для UI».
+
+**Проверено (числа)**
+
+- `npm run typecheck` — ok
+- `npm run lint` — 0 errors, 16 warnings (те же известные классы)
+- `npm test` — **671/671 в 69 файлах** (было 668/68 после шага 7: +3 новых
+  `approve.test.ts`)
+- `npm run build` — ok
+
+**Не проверено живьём**
+
+- Миграция 0006 НЕ применена, функция НЕ задеплоена — живые вызовы
+  невозможны; claim проверен фейковым клиентом с атомарным compare-and-swap,
+  не живой БД.
