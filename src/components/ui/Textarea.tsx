@@ -12,8 +12,11 @@ export function Textarea({ invalid, className, rows = 3, ...rest }: TextareaProp
       rows={rows}
       aria-invalid={invalid || undefined}
       className={cn(
-        "w-full rounded-lg border bg-surface px-3 py-2 text-sm text-content placeholder:text-muted",
-        invalid ? "border-red-500" : "border-line",
+        "w-full rounded-control border bg-surface px-3 py-2 text-base text-content placeholder:text-muted transition-[border-color] duration-fast ease-standard",
+        "sm:text-ui",
+        "focus:border-focus",
+        "disabled:cursor-not-allowed disabled:opacity-60",
+        invalid ? "border-danger" : "border-control",
         className,
       )}
       {...rest}

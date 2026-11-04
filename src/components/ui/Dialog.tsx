@@ -87,17 +87,17 @@ export function Dialog({ open, onClose, title, description, children, wide }: Di
       aria-describedby={description ? descriptionId : undefined}
       onClose={onClose}
       onClick={handleBackdropClick}
-      className={`rounded-xl border border-line bg-surface p-0 text-content shadow-xl backdrop:bg-black/50 ${
+      className={`m-auto rounded-card border border-line bg-surface p-0 text-content shadow-overlay overscroll-contain backdrop:bg-scrim ${
         wide ? "w-full max-w-2xl" : "w-full max-w-lg"
       }`}
     >
       <div className="space-y-4 p-6">
         <div className="space-y-1">
-          <h2 id={titleId} className="text-lg font-semibold tracking-tight">
+          <h2 id={titleId} className="text-heading font-semibold tracking-tight text-balance">
             {title}
           </h2>
           {description ? (
-            <p id={descriptionId} className="text-sm text-muted">
+            <p id={descriptionId} className="text-ui text-muted text-pretty">
               {description}
             </p>
           ) : null}

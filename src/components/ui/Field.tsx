@@ -37,7 +37,7 @@ export function Field({ id, label, hint, error, required, children }: FieldProps
 
   return (
     <div className="space-y-1.5">
-      <label htmlFor={id} className="block text-sm font-medium text-content">
+      <label htmlFor={id} className="block text-ui font-medium text-content">
         {label}
         {required ? (
           <span aria-hidden="true" className="text-muted">
@@ -47,12 +47,12 @@ export function Field({ id, label, hint, error, required, children }: FieldProps
       </label>
       {control}
       {hint && !error ? (
-        <p id={hintId} className="text-xs text-muted">
+        <p id={hintId} className="text-caption text-muted">
           {hint}
         </p>
       ) : null}
       {error ? (
-        <p id={errorId} role="alert" className="text-xs text-red-600 dark:text-red-400">
+        <p id={errorId} role="alert" className="text-micro text-danger">
           {error}
         </p>
       ) : null}

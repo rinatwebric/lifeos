@@ -9,13 +9,13 @@ interface ProgressBarProps {
 
 export function ProgressBar({ value, label, className }: ProgressBarProps) {
   if (value === null) {
-    return <p className="text-xs text-muted">{label ?? "No progress yet."}</p>;
+    return <p className="text-micro text-muted">{label ?? "No progress yet."}</p>;
   }
 
   const clamped = Math.min(100, Math.max(0, Math.round(value)));
 
   return (
-    <div className={cn("space-y-1", className)}>
+    <div className={cn("space-y-1 tabular-nums", className)}>
       <div
         role="progressbar"
         aria-valuenow={clamped}
@@ -24,7 +24,7 @@ export function ProgressBar({ value, label, className }: ProgressBarProps) {
         aria-label={label ?? "Progress"}
         className="h-2 w-full overflow-hidden rounded-full bg-surface-muted"
       >
-        <div className="h-full rounded-full bg-accent transition-all" style={{ width: `${clamped}%` }} />
+        <div className="h-full rounded-full bg-accent transition-[width] duration-slow ease-standard motion-reduce:transition-none" style={{ width: `${clamped}%` }} />
       </div>
     </div>
   );

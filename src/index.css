@@ -2,16 +2,34 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* ---------------------------------------------------------------------------
+ * Tier 1 — primitives. Named by value, never referenced directly in
+ * components. Light appearance lives in `:root`, dark in `.dark`.
+ * ------------------------------------------------------------------------- */
 :root {
   --raw-canvas: #f5f6f8;
   --raw-surface: #ffffff;
   --raw-surface-muted: #f9fafb;
   --raw-line: #e4e7ec;
+  --raw-control: #75849a;
   --raw-content: #0f172a;
   --raw-muted: #667085;
   --raw-accent: #0f172a;
   --raw-accent-content: #ffffff;
   --raw-focus: #2563eb;
+  --raw-scrim: oklch(0 0 0 / 0.5);
+  --raw-danger: #b42318;
+  --raw-danger-content: #ffffff;
+  --raw-danger-subtle: #fef3f2;
+  --raw-danger-border: #fecdca;
+  --raw-success: #067647;
+  --raw-success-content: #ffffff;
+  --raw-success-subtle: #ecfdf3;
+  --raw-success-border: #a6f4c5;
+  --raw-warning: #93370d;
+  --raw-warning-content: #ffffff;
+  --raw-warning-subtle: #fffaeb;
+  --raw-warning-border: #fedf89;
   color-scheme: light;
 }
 
@@ -20,28 +38,115 @@
   --raw-surface: #111823;
   --raw-surface-muted: #0f1520;
   --raw-line: #1f2a37;
+  --raw-control: #5b6b82;
   --raw-content: #e6edf6;
   --raw-muted: #93a1b5;
   --raw-accent: #f1f5f9;
   --raw-accent-content: #0b0f14;
   --raw-focus: #60a5fa;
+  --raw-scrim: oklch(0 0 0 / 0.6);
+  --raw-danger: #f97066;
+  --raw-danger-content: #250a08;
+  --raw-danger-subtle: #2a1215;
+  --raw-danger-border: #7a271a;
+  --raw-success: #32d583;
+  --raw-success-content: #052e16;
+  --raw-success-subtle: #0b1f17;
+  --raw-success-border: #05603a;
+  --raw-warning: #fdb022;
+  --raw-warning-content: #241a08;
+  --raw-warning-subtle: #241a08;
+  --raw-warning-border: #93370d;
   color-scheme: dark;
 }
 
+/* ---------------------------------------------------------------------------
+ * Tier 2 — semantic tokens. The only tier components may reference.
+ * Legacy names (surface, content, line, accent, focus, muted, surface-muted)
+ * are unchanged so existing screens keep working.
+ * ------------------------------------------------------------------------- */
 @theme inline {
   --color-canvas: var(--raw-canvas);
   --color-surface: var(--raw-surface);
   --color-surface-muted: var(--raw-surface-muted);
   --color-line: var(--raw-line);
+  --color-control: var(--raw-control);
   --color-content: var(--raw-content);
   --color-muted: var(--raw-muted);
   --color-accent: var(--raw-accent);
   --color-accent-content: var(--raw-accent-content);
   --color-focus: var(--raw-focus);
+  --color-scrim: var(--raw-scrim);
+  --color-danger: var(--raw-danger);
+  --color-danger-content: var(--raw-danger-content);
+  --color-danger-subtle: var(--raw-danger-subtle);
+  --color-danger-border: var(--raw-danger-border);
+  --color-success: var(--raw-success);
+  --color-success-content: var(--raw-success-content);
+  --color-success-subtle: var(--raw-success-subtle);
+  --color-success-border: var(--raw-success-border);
+  --color-warning: var(--raw-warning);
+  --color-warning-content: var(--raw-warning-content);
+  --color-warning-subtle: var(--raw-warning-subtle);
+  --color-warning-border: var(--raw-warning-border);
 
   --font-sans:
-    "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue",
-    sans-serif;
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue",
+    Arial, sans-serif;
+}
+
+/* ---------------------------------------------------------------------------
+ * Type scale, shape, elevation and motion tokens (static across themes).
+ * ------------------------------------------------------------------------- */
+@theme {
+  --text-title: 1.5rem;
+  --text-title--line-height: 1.2;
+  --text-title--font-weight: 600;
+
+  --text-heading: 1.125rem;
+  --text-heading--line-height: 1.3;
+  --text-heading--font-weight: 600;
+
+  --text-body: 1rem;
+  --text-body--line-height: 1.5;
+  --text-body--font-weight: 400;
+
+  --text-ui: 0.875rem;
+  --text-ui--line-height: 1.5;
+  --text-ui--font-weight: 400;
+
+  --text-caption: 0.8125rem;
+  --text-caption--line-height: 1.4;
+  --text-caption--font-weight: 400;
+
+  --text-micro: 0.75rem;
+  --text-micro--line-height: 1.4;
+  --text-micro--font-weight: 400;
+
+  --radius-control: 0.5rem;
+  --radius-card: 0.75rem;
+
+  --shadow-raised:
+    0 0 0 1px oklch(0 0 0 / 0.06),
+    0 1px 2px -1px oklch(0 0 0 / 0.06),
+    0 2px 4px 0 oklch(0 0 0 / 0.04);
+  --shadow-overlay:
+    0 0 0 1px oklch(0 0 0 / 0.08),
+    0 4px 8px -2px oklch(0 0 0 / 0.08),
+    0 16px 40px -8px oklch(0 0 0 / 0.22);
+
+  --duration-fast: 150ms;
+  --duration-base: 200ms;
+  --duration-slow: 300ms;
+
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+}
+
+.dark {
+  --shadow-raised: 0 0 0 1px oklch(1 0 0 / 0.08);
+  --shadow-overlay:
+    0 0 0 1px oklch(1 0 0 / 0.12),
+    0 16px 48px -8px oklch(0 0 0 / 0.6);
 }
 
 @layer base {
@@ -53,7 +158,10 @@
     background-color: var(--raw-canvas);
     color: var(--raw-content);
     font-family: var(--font-sans);
+    font-size: var(--text-body);
+    line-height: 1.5;
     -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
   }
 
@@ -64,5 +172,10 @@
 
   ::selection {
     background-color: color-mix(in oklab, var(--raw-focus) 25%, transparent);
+  }
+
+  time,
+  [data-numeric="true"] {
+    font-variant-numeric: tabular-nums;
   }
 }
