@@ -16,8 +16,12 @@
  *   node scripts/seed-demo.mjs             # clean leftovers, then seed
  *   node scripts/seed-demo.mjs --clean     # remove demo rows only
  *
- * Secrets come from local gitignored files and are never printed:
- * `.env.local` (URL + anon key) and `.env.e2e` (demo user credentials).
+ * Secrets come from the local gitignored `.env.local` and are never printed:
+ * the Supabase URL + anon key, plus `VITE_DEMO_EMAIL` / `VITE_DEMO_PASSWORD`.
+ * The demo account is deliberately separate from the e2e account (visitors
+ * change demo data; e2e assertions must stay stable), so `E2E_*` is never read
+ * here — the same two variables also drive the "Explore the demo account"
+ * button on `/sign-in`.
  */
 
 import { existsSync, readFileSync } from "node:fs";
@@ -218,15 +222,17 @@ if (dryRun) {
 }
 
 const local = loadEnvFile(".env.local");
-const e2e = loadEnvFile(".env.e2e");
 
 const SUPABASE_URL = local.VITE_SUPABASE_URL;
 const ANON_KEY = local.VITE_SUPABASE_ANON_KEY;
-const EMAIL = e2e.E2E_EMAIL;
-const PASSWORD = e2e.E2E_PASSWORD;
+const EMAIL = local.VITE_DEMO_EMAIL;
+const PASSWORD = local.VITE_DEMO_PASSWORD;
 
 if (!SUPABASE_URL || !ANON_KEY || !EMAIL || !PASSWORD) {
-  throw new Error("VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY / E2E_EMAIL / E2E_PASSWORD required");
+  throw new Error(
+    "VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY / VITE_DEMO_EMAIL / VITE_DEMO_PASSWORD " +
+      "required in .env.local — create the demo account first (it must NOT be the e2e account)",
+  );
 }
 
 async function rest(path, { token, method = "GET", body = null } = {}) {
