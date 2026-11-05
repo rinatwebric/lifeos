@@ -5,31 +5,35 @@ import { Button } from "@/components/ui/Button";
 
 import { signIn } from "./api";
 import { getDemoCredentials, isDemoSignInAvailable } from "./demoAccount";
-import { AUTH_ERROR_MESSAGES, AuthServiceError, toAuthError } from "./errors";
+import { AuthServiceError, toAuthError, type AuthErrorCode } from "./errors";
+import { useMessages } from "@/lib/i18n/I18nContext";
 
 export const DEMO_SIGN_IN_COPY = {
   button: "Explore the demo account",
   pending: "Signing in…",
   caption: "Signs in to a shared demo account with sample goals and tasks.",
+  unavailable: "Demo account is unavailable in this environment.",
 } as const;
 
 interface DemoSignInButtonProps {
-  /** Same channel as the sign-in form error (`AuthAlert`). */
-  onError: (message: string) => void;
+  /** Same channel as the sign-in form error (`AuthAlert`); code so it re-translates. */
+  onError: (code: AuthErrorCode) => void;
 }
 
 /**
  * One-click entry into the shared demo account (iteration 3, unit 2).
  * Uses the existing `signIn()` service — no `service_role`, no e2e account,
- * no `AuthProvider`/RLS changes. Renders nothing when the demo env is absent.
+ * no `AuthProvider`/RLS changes. Without demo env renders an honest
+ * unavailable note instead of a dead button.
  */
 export function DemoSignInButton({ onError }: DemoSignInButtonProps) {
+  const m = useMessages();
   const navigate = useNavigate();
   const [pending, setPending] = useState(false);
   const available = isDemoSignInAvailable();
 
   if (!available) {
-    return null;
+    return <p className="text-center text-micro text-muted">{DEMO_SIGN_IN_COPY.unavailable}</p>;
   }
 
   const handleClick = async (): Promise<void> => {
@@ -46,7 +50,7 @@ export function DemoSignInButton({ onError }: DemoSignInButtonProps) {
       await navigate("/", { replace: true });
     } catch (error) {
       const authError = error instanceof AuthServiceError ? error : toAuthError(error);
-      onError(AUTH_ERROR_MESSAGES[authError.code]);
+      onError(authError.code);
     } finally {
       setPending(false);
     }
@@ -61,9 +65,9 @@ export function DemoSignInButton({ onError }: DemoSignInButtonProps) {
         loading={pending}
         onClick={() => void handleClick()}
       >
-        {pending ? DEMO_SIGN_IN_COPY.pending : DEMO_SIGN_IN_COPY.button}
+        {pending ? m.auth.demo.signingIn : m.auth.demo.title}
       </Button>
-      <p className="text-micro text-muted">{DEMO_SIGN_IN_COPY.caption}</p>
+      <p className="text-micro text-muted">{m.auth.demo.hint}</p>
     </div>
   );
 }

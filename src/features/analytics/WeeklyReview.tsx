@@ -1,26 +1,23 @@
 import { ListOrdered } from "lucide-react";
 
 import { Card } from "@/components/ui/Card";
+import { useMessages } from "@/lib/i18n/I18nContext";
 
 interface WeeklyReviewProps {
   lines: string[];
 }
 
-const WEEKLY_REVIEW_COPY = {
-  title: "Weekly review",
-  description: "A deterministic summary of the current week — no model involved.",
-  empty: "Nothing to review yet: no tasks due, no habit obligations, no active goals this week.",
-} as const;
-
 export function WeeklyReview({ lines }: WeeklyReviewProps) {
+  const t = useMessages().weeklyReview;
+
   return (
     <Card>
       <div className="space-y-1">
-        <h2 className="text-title font-semibold text-content">{WEEKLY_REVIEW_COPY.title}</h2>
-        <p className="text-ui text-muted">{WEEKLY_REVIEW_COPY.description}</p>
+        <h2 className="text-title font-semibold text-content">{t.title}</h2>
+        <p className="text-ui text-muted">{t.description}</p>
       </div>
       {lines.length === 0 ? (
-        <p className="text-ui text-muted mt-3">{WEEKLY_REVIEW_COPY.empty}</p>
+        <p className="text-ui text-muted mt-3">{t.empty}</p>
       ) : (
         <ul className="mt-3 space-y-2">
           {lines.map((line) => (

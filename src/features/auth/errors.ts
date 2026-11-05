@@ -39,6 +39,47 @@ export const AUTH_ERROR_MESSAGES: Record<AuthErrorCode, string> = {
   unknown: "Something went wrong. Please try again.",
 };
 
+/** Maps a stable error code to the current locale's text (open errors react). */
+export function translateAuthError(
+  code: AuthErrorCode,
+  messages: {
+    auth: {
+      errors: {
+        invalidCredentials: string;
+        emailNotConfirmed: string;
+        confirmationSent: string;
+        weakPassword: string;
+        invalidEmail: string;
+        rateLimited: string;
+        sessionExpired: string;
+        network: string;
+        unknown: string;
+      };
+    };
+  },
+): string {
+  switch (code) {
+    case "invalid_credentials":
+      return messages.auth.errors.invalidCredentials;
+    case "email_not_confirmed":
+      return messages.auth.errors.emailNotConfirmed;
+    case "user_already_exists":
+      return messages.auth.errors.confirmationSent;
+    case "weak_password":
+      return messages.auth.errors.weakPassword;
+    case "invalid_email":
+      return messages.auth.errors.invalidEmail;
+    case "rate_limited":
+      return messages.auth.errors.rateLimited;
+    case "session_missing":
+      return messages.auth.errors.sessionExpired;
+    case "network":
+      return messages.auth.errors.network;
+    case "unknown":
+      return messages.auth.errors.unknown;
+  }
+}
+
 interface AuthErrorLike {
   message?: unknown;
   status?: unknown;

@@ -9,6 +9,9 @@ import { isTaskClosed } from "@/types/domain";
 import type { Goal, MilestoneStatus, Task } from "@/types/domain";
 import { isTaskDueToday, isTaskOverdue, toDateKey } from "@/lib/dates";
 import { calculateCompletionRate, calculateGoalProgress } from "@/lib/progress";
+import { pluralCategory, tmpl } from "@/lib/i18n/format";
+import { useLocale, useMessages, type Messages } from "@/lib/i18n/I18nContext";
+import type { Locale } from "@/lib/i18n/types";
 
 export interface DashboardGoalItem {
   goal: Goal;
@@ -34,7 +37,6 @@ export function summarizeMilestones(
   slices: Pick<MilestoneProgressSlice, "goalId" | "status">[],
 ): Map<string, MilestoneStats> {
   const grouped = new Map<string, MilestoneStats>();
-
   for (const slice of slices) {
     const stats = grouped.get(slice.goalId) ?? {
       total: 0,
@@ -48,34 +50,21 @@ export function summarizeMilestones(
     }
     grouped.set(slice.goalId, stats);
   }
-
   return grouped;
 }
 
-/**
- * Pairs each active goal with its derived progress and remaining milestones.
- * `calculateGoalProgress` always returns a number (manual fallback when there
- * are no milestones), so no `?? goal.progress` is needed. Statuses come from
- * the `summarizeMilestones` map — no per-goal `.filter` over the raw slices.
- */
 export function buildActiveGoalItems(
   activeGoals: Goal[],
   slices: Pick<MilestoneProgressSlice, "goalId" | "status">[],
 ): DashboardGoalItem[] {
   const statsByGoal = summarizeMilestones(slices);
-
   return activeGoals.map((goal) => {
-    const stats = statsByGoal.get(goal.id) ?? {
-      total: 0,
-      completed: 0,
-      statuses: [] as MilestoneStatus[],
-    };
+    const stats = statsByGoal.get(goal.id) ?? { total: 0, completed: 0, statuses: [] as MilestoneStatus[] };
     const progress = calculateGoalProgress({
       progressMode: goal.progressMode,
       progress: goal.progress,
       milestones: stats.statuses.map((status) => ({ status })),
     });
-
     return {
       goal,
       progress,
@@ -96,46 +85,48 @@ export interface InsightCounts {
 /**
  * Deterministic rules over real numbers — not AI, not invented metrics.
  * Returns 0–3 lines; an empty result means the block stays hidden
- * (never a "No insights" placeholder).
+ * (never a "No insights" placeholder). Locale-aware plurals via
+ * `Intl.PluralRules` (ru 1/2/5/11/21).
  */
-export function buildInsights(counts: InsightCounts): string[] {
+export function buildInsights(
+  counts: InsightCounts,
+  locale: Locale = "en",
+  d?: Messages["dashboard"],
+): string[] {
   const lines: string[] = [];
+  const overdueOne = d?.overdueOne ?? "{count} task is overdue";
+  const overdueFew = d?.overdueFew ?? "{count} tasks are overdue";
+  const overdueMany = d?.overdueMany ?? "{count} tasks are overdue";
+  const noMsOne = d?.goalsWithoutMilestonesOne ?? "{count} goal has no milestones yet";
+  const noMsFew = d?.goalsWithoutMilestonesFew ?? "{count} goals have no milestones yet";
+  const noMsMany = d?.goalsWithoutMilestonesMany ?? "{count} goals have no milestones yet";
+  const completedTpl = d?.completedOf ?? "Completed {completed} of {total} tasks today";
 
   if (counts.overdueCount !== null && counts.overdueCount > 0) {
-    lines.push(
-      counts.overdueCount === 1 ? "1 task is overdue" : `${counts.overdueCount} tasks are overdue`,
-    );
+    const n = counts.overdueCount;
+    const cat = pluralCategory(locale, n);
+    const tpl = cat === "one" ? overdueOne : cat === "few" ? overdueFew : overdueMany;
+    lines.push(tmpl(tpl, { count: n }));
   }
 
   if (counts.goalsWithoutMilestones !== null && counts.goalsWithoutMilestones > 0) {
-    lines.push(
-      counts.goalsWithoutMilestones === 1
-        ? "1 goal has no milestones yet"
-        : `${counts.goalsWithoutMilestones} goals have no milestones yet`,
-    );
+    const n = counts.goalsWithoutMilestones;
+    const cat = pluralCategory(locale, n);
+    const tpl = cat === "one" ? noMsOne : cat === "few" ? noMsFew : noMsMany;
+    lines.push(tmpl(tpl, { count: n }));
   }
 
   if (counts.totalToday !== null && counts.totalToday > 0 && counts.completedToday !== null) {
-    lines.push(`Completed ${counts.completedToday} of ${counts.totalToday} tasks today`);
+    lines.push(tmpl(completedTpl, { completed: counts.completedToday, total: counts.totalToday }));
   }
 
   return lines.slice(0, 3);
 }
 
-/**
- * Tasks due on `todayKey`. `isTaskDueToday` covers open tasks; closed tasks
- * due today are kept explicitly so the daily progress counts completed work
- * (`isTaskDueToday` returns false for closed statuses by design).
- * `cancelled` never participates — neither in the day list nor in the
- * progress denominator.
- */
 export function selectTodayTasks(allTasks: Task[], now: Date, timeZone: string): Task[] {
   const todayKey = toDateKey(now, timeZone);
-
   return allTasks.filter((task) => {
-    if (task.status === "cancelled") {
-      return false;
-    }
+    if (task.status === "cancelled") return false;
     return (
       isTaskDueToday(task, now, timeZone) ||
       (task.dueDate === todayKey && task.dueDate !== null && isTaskClosed(task.status))
@@ -149,17 +140,7 @@ export interface DailyProgress {
   rate: number | null;
 }
 
-/**
- * Pure daily-progress aggregation over the raw task list. `total` counts
- * today's tasks without `cancelled`, `completed` counts `completed` among
- * them, `rate` is `calculateCompletionRate(completed, total)` (`null` when
- * nothing planned, e.g. only `cancelled` tasks due today).
- */
-export function selectDailyProgress(
-  allTasks: Task[],
-  now: Date,
-  timeZone: string,
-): DailyProgress {
+export function selectDailyProgress(allTasks: Task[], now: Date, timeZone: string): DailyProgress {
   const today = selectTodayTasks(allTasks, now, timeZone);
   const completed = today.filter((task) => task.status === "completed").length;
   const total = today.length;
@@ -170,16 +151,9 @@ export function selectOverdueTasks(allTasks: Task[], now: Date, timeZone: string
   return allTasks.filter((task) => isTaskOverdue(task, now, timeZone));
 }
 
-/**
- * Dashboard aggregation layer. The page renders from this hook and holds no
- * business logic: one query per data source, no requests in a loop.
- *
- * - profile → time zone + welcome name
- * - `listTasks({ dueAfter, dueBefore })` → today's tasks + daily progress
- * - `listGoals({ status: "active" })` + `listAllMilestones` → active goals
- * - `listTasks({ statuses: ["todo", "in_progress"] })` + `isTaskOverdue` → overdue count
- */
 export function useDashboardData(now: Date = new Date()) {
+  const locale = useLocale();
+  const m = useMessages();
   const profileQuery = useQuery({
     queryKey: profileQueryKey,
     queryFn: getProfile,
@@ -188,8 +162,6 @@ export function useDashboardData(now: Date = new Date()) {
   const timeZone = profileQuery.data?.timezone ?? "UTC";
   const todayKey = toDateKey(now, timeZone);
 
-  // Shared keys with the lists (`tasks.list(...)`) so task mutations refresh
-  // the dashboard through the normal invalidation paths.
   const todayQuery = useQuery({
     queryKey: tasks.list({ dueAfter: todayKey, dueBefore: todayKey }),
     queryFn: () => listTasks({ dueAfter: todayKey, dueBefore: todayKey }),
@@ -218,13 +190,16 @@ export function useDashboardData(now: Date = new Date()) {
   const activeGoals = buildActiveGoalItems(goalsQuery.data ?? [], milestonesQuery.data ?? []);
   const goalsWithoutMilestones = activeGoals.filter((item) => item.totalMilestones === 0).length;
 
-  const insights = buildInsights({
-    overdueCount: overdueQuery.data ? overdueTasks.length : null,
-    goalsWithoutMilestones:
-      goalsQuery.data && milestonesQuery.data ? goalsWithoutMilestones : null,
-    completedToday: todayQuery.data ? completedToday : null,
-    totalToday: todayQuery.data ? totalToday : null,
-  });
+  const insights = buildInsights(
+    {
+      overdueCount: overdueQuery.data ? overdueTasks.length : null,
+      goalsWithoutMilestones: goalsQuery.data && milestonesQuery.data ? goalsWithoutMilestones : null,
+      completedToday: todayQuery.data ? completedToday : null,
+      totalToday: todayQuery.data ? totalToday : null,
+    },
+    locale,
+    m.dashboard,
+  );
 
   const goalTitleById = new Map<string, string>();
   for (const item of activeGoals) {

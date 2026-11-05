@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   computeFreeWindows,
   explainSlot,
+  explainSlotParts,
   findConflicts,
   planDay,
   scoreTask,
@@ -653,5 +654,45 @@ describe("explainSlot", () => {
 
     expect(text).toContain("Write report");
     expect(text).toContain("working hours");
+  });
+});
+
+describe("explainSlotParts", () => {
+  it("returns stable structured reasons (no English comparison needed)", () => {
+    const parts = explainSlotParts(
+      makeTask({
+        title: "Write report",
+        priority: "high",
+        dueDate: "2026-11-04",
+        goalId: "goal-1",
+      }),
+      { start: "2026-11-05T09:00:00.000Z", end: "2026-11-05T11:00:00.000Z" },
+      context({ preferredPeriods: { thu: [{ start: "08:00", end: "12:00" }] } }),
+    );
+
+    expect(parts).toStrictEqual({
+      title: "Write report",
+      date: "2026-11-05",
+      timeRange: "09:00–11:00",
+      minutes: 120,
+      priority: "high",
+      dueState: "overdue",
+      dueDate: "2026-11-04",
+      linked: true,
+      preferred: true,
+      workOverlap: false,
+    });
+  });
+
+  it("marks tasks without due date and working-hours overlap", () => {
+    const parts = explainSlotParts(
+      makeTask({ title: "Write report" }),
+      { start: "2026-11-05T10:00:00.000Z", end: "2026-11-05T11:00:00.000Z" },
+      context({ workingHours: { thu: [{ start: "09:00", end: "18:00" }] } }),
+    );
+
+    expect(parts.dueState).toBe("none");
+    expect(parts.linked).toBe(false);
+    expect(parts.workOverlap).toBe(true);
   });
 });

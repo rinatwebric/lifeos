@@ -39,6 +39,36 @@ export const DB_ERROR_MESSAGES: Record<DbErrorCode, string> = {
   unknown: "Something went wrong. Please try again.",
 };
 
+/** Maps a stable DB code to the current locale's text (open errors react). */
+export function translateDbError(
+  code: DbErrorCode,
+  messages: {
+    dbErrors: {
+      invalid: string;
+      notFound: string;
+      noAccess: string;
+      conflict: string;
+      network: string;
+      unknown: string;
+    };
+  },
+): string {
+  switch (code) {
+    case "validation":
+      return messages.dbErrors.invalid;
+    case "not_found":
+      return messages.dbErrors.notFound;
+    case "forbidden":
+      return messages.dbErrors.noAccess;
+    case "conflict":
+      return messages.dbErrors.conflict;
+    case "network":
+      return messages.dbErrors.network;
+    case "unknown":
+      return messages.dbErrors.unknown;
+  }
+}
+
 interface DbErrorLike {
   message?: unknown;
   status?: unknown;

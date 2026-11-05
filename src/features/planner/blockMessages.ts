@@ -1,6 +1,9 @@
 import { findConflicts, type PlanBlock, type WeeklyAvailability } from "@/lib/planner";
 
 import { BlockServiceError, type BlockErrorCode } from "./errors";
+import type { Messages } from "@/lib/i18n/I18nContext";
+import { pluralCategory, tmpl } from "@/lib/i18n/format";
+import type { Locale } from "@/lib/i18n/types";
 
 /**
  * User-facing copy for the manual-block dialogs (plan.md Unit 7).
@@ -56,25 +59,35 @@ const DRAFT_BLOCK_ID = "__draft__";
 const FALLBACK_WAKE_UP = "00:00";
 const FALLBACK_SLEEP = "23:59";
 
-function overlapMessage(count: number): string {
-  return count === 1
-    ? "This block shares its time with another block. Both stay in your plan and are marked as overlapping."
-    : `This block shares its time with ${count} other blocks. They all stay in your plan and are marked as overlapping.`;
+function overlapMessage(
+  count: number,
+  t: Messages["planner"],
+  locale: Locale,
+): string {
+  if (count === 1) return t.overlapWarning;
+  const cat = pluralCategory(locale, count);
+  void cat;
+  return tmpl(t.overlapWarningMany, { count });
 }
 
-function sleepMessage(wakeUpTime: string, sleepTime: string): string {
-  return `This block runs outside your waking hours (${wakeUpTime}–${sleepTime}). The planner never puts tasks there on its own; a block you add stays where you put it.`;
+function sleepMessage(wakeUpTime: string, sleepTime: string, t: Messages["planner"]): string {
+  return tmpl(t.outsideWarning, { start: wakeUpTime, end: sleepTime });
 }
 
-const PAST_MESSAGE =
-  "This block is in the past. Nothing new is planned there, so it stays as a record of what already happened.";
+function pastMessage(t: Messages["planner"]): string {
+  return t.pastWarning;
+}
 
 /**
  * Warnings for one draft block, in a stable order: overlap, then waking hours,
  * then past. An invalid interval (empty, reversed, unparseable) produces no
  * warnings — the form reports that as a field error instead of guessing.
  */
-export function collectBlockWarnings(input: BlockWarningsInput): BlockWarning[] {
+export function collectBlockWarnings(
+  input: BlockWarningsInput,
+  t?: Messages["planner"],
+  locale?: Locale,
+): BlockWarning[] {
   const startMs = Date.parse(input.startTime);
   const endMs = Date.parse(input.endTime);
 
@@ -130,15 +143,29 @@ export function collectBlockWarnings(input: BlockWarningsInput): BlockWarning[] 
   const warnings: BlockWarning[] = [];
 
   if (overlapCount > 0) {
-    warnings.push({ kind: "overlap", message: overlapMessage(overlapCount) });
+    warnings.push({
+      kind: "overlap",
+      message: t && locale ? overlapMessage(overlapCount, t, locale) : overlapMessage(overlapCount, {
+        overlapWarning: "This block shares its time with another block. Both stay in your plan and are marked as overlapping.",
+        overlapWarningMany: "This block shares its time with {count} other blocks. They all stay in your plan and are marked as overlapping.",
+      } as Messages["planner"], "en"),
+    });
   }
 
   if (crossesSleep && input.wakeUpTime !== null && input.sleepTime !== null) {
-    warnings.push({ kind: "sleep", message: sleepMessage(input.wakeUpTime, input.sleepTime) });
+    warnings.push({
+      kind: "sleep",
+      message: t
+        ? sleepMessage(input.wakeUpTime, input.sleepTime, t)
+        : `This block runs outside your waking hours (${input.wakeUpTime}–${input.sleepTime}). The planner never puts tasks there on its own; a block you add stays where you put it.`,
+    });
   }
 
   if (inPast) {
-    warnings.push({ kind: "past", message: PAST_MESSAGE });
+    warnings.push({
+      kind: "past",
+      message: t ? pastMessage(t) : "This block is in the past. Nothing new is planned there, so it stays as a record of what already happened.",
+    });
   }
 
   return warnings;
@@ -159,10 +186,21 @@ const BLOCK_ERROR_UI_COPY: Record<BlockErrorCode, string> = {
   unknown: "The block could not be saved. Try again in a moment.",
 };
 
-export function describeBlockError(error: unknown): string {
+export function describeBlockError(error: unknown, t?: Messages["planner"]): string {
+  const copy: Record<BlockErrorCode, string> = t
+    ? {
+        validation: t.blockSaveError,
+        not_found: t.blockGoneError,
+        forbidden: t.blockAccessError,
+        conflict: t.blockOverlapError,
+        network: t.blockNetworkError,
+        unknown: t.blockUnknownError,
+      }
+    : BLOCK_ERROR_UI_COPY;
+
   if (error instanceof BlockServiceError) {
-    return BLOCK_ERROR_UI_COPY[error.code];
+    return copy[error.code];
   }
 
-  return BLOCK_ERROR_UI_COPY.unknown;
+  return copy.unknown;
 }

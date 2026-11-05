@@ -10,6 +10,7 @@ import { SignInPage } from "@/features/auth/SignInPage";
 import { SignUpPage } from "@/features/auth/SignUpPage";
 import { AuthLayout } from "@/features/auth/AuthLayout";
 import { useAuth } from "@/features/auth/useAuth";
+import { useMessages } from "@/lib/i18n/I18nContext";
 import { DashboardPage } from "@/features/dashboard/DashboardPage";
 import { GoalDetailPage } from "@/features/goals/GoalDetailPage";
 import { GoalsPage } from "@/features/goals/GoalsPage";
@@ -30,11 +31,12 @@ import { RouteErrorPage } from "./RouteErrorPage";
  */
 function ResetPasswordRoute() {
   const { status } = useAuth();
+  const m = useMessages();
 
   if (status === "loading") {
     return (
       <div role="status" className="text-ui text-muted">
-        Loading…
+        {m.common.loading}
       </div>
     );
   }

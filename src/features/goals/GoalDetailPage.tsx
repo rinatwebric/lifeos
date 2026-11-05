@@ -12,7 +12,8 @@ import { MilestoneList } from "@/features/goals/components/MilestoneList";
 import { GoalServiceError } from "@/features/goals/errors";
 import { useGoal, useMilestones } from "@/features/goals/hooks";
 import { calculateGoalProgress } from "@/lib/progress";
-import { humanize } from "@/lib/strings";
+import { tmpl } from "@/lib/i18n/format";
+import { useMessages, useIntlLocale } from "@/lib/i18n/I18nContext";
 import type { Goal, GoalStatus } from "@/types/domain";
 
 const STATUS_TONE: Record<GoalStatus, "accent" | "neutral" | "outline"> = {
@@ -23,14 +24,17 @@ const STATUS_TONE: Record<GoalStatus, "accent" | "neutral" | "outline"> = {
   archived: "outline",
 };
 
-function formatDateRange(goal: Goal): string {
+function formatDateRange(goal: Goal, started: string): string {
   if (goal.targetDate) {
     return `${goal.startDate} – ${goal.targetDate}`;
   }
-  return `Started ${goal.startDate}`;
+  return started;
 }
 
 export function GoalDetailPage() {
+  const m = useMessages();
+  const t = m.goals;
+  void useIntlLocale();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const goalQuery = useGoal(id);
@@ -43,12 +47,12 @@ export function GoalDetailPage() {
     return (
       <div className="space-y-6">
         <Link to="/goals" className="text-ui text-muted hover:underline">
-          ← All goals
+          ← {t.allGoals}
         </Link>
-        <div role="status" aria-label="Loading goal">
-          <span className="sr-only">Loading goal…</span>
+        <div role="status" aria-label={t.loadingGoal}>
+          <span className="sr-only">{t.loadingGoal}</span>
           <Card>
-            <div className="animate-pulse space-y-3" aria-hidden="true">
+            <div className="space-y-3 motion-safe:animate-pulse" aria-hidden="true">
               <div className="h-6 w-1/2 rounded bg-surface-muted" />
               <div className="h-5 w-1/3 rounded bg-surface-muted" />
               <div className="h-2 w-full rounded-full bg-surface-muted" />
@@ -70,13 +74,13 @@ export function GoalDetailPage() {
       return (
         <div className="space-y-6">
           <Link to="/goals" className="text-ui text-muted hover:underline">
-            ← All goals
+            ← {t.allGoals}
           </Link>
           <div role="alert" className="rounded-card border border-line bg-surface p-4">
-            <p className="text-ui text-content">Could not load goal. Please try again.</p>
+            <p className="text-ui text-content">{t.loadGoalError}</p>
             <div className="mt-3">
               <Button variant="secondary" size="sm" onClick={() => void goalQuery.refetch()}>
-                Retry
+                {m.common.retry}
               </Button>
             </div>
           </div>
@@ -86,19 +90,19 @@ export function GoalDetailPage() {
     return (
       <div className="space-y-6">
         <Link to="/goals" className="text-ui text-muted hover:underline">
-          ← All goals
+          ← {t.allGoals}
         </Link>
         <Card>
-          <h1 className="text-heading font-semibold tracking-tight text-content">Goal not found</h1>
+          <h1 className="text-heading font-semibold tracking-tight text-content">{t.goalNotFound}</h1>
           <p className="mt-1 text-ui text-muted">
-            This goal does not exist or has been deleted.
+            {t.goalNotFoundHint}
           </p>
           <div className="mt-4">
             <Link
               to="/goals"
               className="inline-flex h-8 items-center justify-center gap-2 rounded-control border border-line bg-surface px-3 text-ui font-medium text-content transition-[background-color] duration-fast ease-standard hover:bg-surface-muted"
             >
-              Back to goals
+              {t.backToGoals}
             </Link>
           </div>
         </Card>
@@ -118,7 +122,7 @@ export function GoalDetailPage() {
   return (
     <div className="space-y-6">
       <Link to="/goals" className="text-ui text-muted hover:underline">
-        ← All goals
+        ← {t.allGoals}
       </Link>
 
       <section className="space-y-4">
@@ -128,24 +132,24 @@ export function GoalDetailPage() {
               {goal.title}
             </h1>
             <div className="flex flex-wrap gap-1.5">
-              <Badge tone={STATUS_TONE[goal.status]}>{humanize(goal.status)}</Badge>
-              <Badge>{humanize(goal.category)}</Badge>
-              <Badge tone="outline">{humanize(goal.priority)} priority</Badge>
+              <Badge tone={STATUS_TONE[goal.status]}>{m.enums.status[goal.status]}</Badge>
+              <Badge>{m.enums.category[goal.category]}</Badge>
+              <Badge tone="outline">{m.enums.priority[goal.priority]}</Badge>
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <Button variant="secondary" size="sm" onClick={() => setEditingGoal(true)}>
               <Pencil className="size-3.5" aria-hidden="true" />
-              Edit
+              {t.edit}
             </Button>
             <Button
               variant="ghost"
               size="sm"
               onClick={() => setDeletingGoal(true)}
-              aria-label={`Delete ${goal.title}`}
+              aria-label={tmpl(t.deleteAria, { title: goal.title })}
             >
               <Trash2 className="size-3.5" aria-hidden="true" />
-              Delete
+              {t.delete}
             </Button>
           </div>
         </div>
@@ -153,14 +157,16 @@ export function GoalDetailPage() {
         {goal.description ? <p className="text-ui text-muted break-words">{goal.description}</p> : null}
 
         <div className="space-y-1">
-          <ProgressBar value={progress} label={`Progress for ${goal.title}`} />
+          <ProgressBar value={progress} label={tmpl(t.progressLabel, { title: goal.title })} />
           <p className="text-micro text-muted tabular-nums">
-            {`${progress}% complete`}
-            {goal.progressMode === "milestones" ? " · from milestones" : " · manual"}
+            {tmpl(t.percentComplete, { percent: progress })}
+            {goal.progressMode === "milestones" ? ` · ${t.fromMilestones}` : ` · ${t.manual}`}
           </p>
         </div>
 
-        <p className="text-micro text-muted tabular-nums">{formatDateRange(goal)}</p>
+        <p className="text-micro text-muted tabular-nums">
+          {formatDateRange(goal, tmpl(t.started, { date: goal.startDate }))}
+        </p>
 
         {goal.progressMode === "manual" ? (
           <p className="text-micro text-muted">
@@ -169,19 +175,19 @@ export function GoalDetailPage() {
               className="cursor-pointer underline"
               onClick={() => setEditingGoal(true)}
             >
-              Switch this goal to milestone progress to see it update automatically.
+              {t.switchToMilestones}
             </button>
           </p>
         ) : null}
       </section>
 
       <section className="space-y-4">
-        <h2 className="text-heading font-semibold tracking-tight text-content">Milestones</h2>
+        <h2 className="text-heading font-semibold tracking-tight text-content">{t.milestones}</h2>
         {milestonesQuery.isLoading ? (
-          <div role="status" aria-label="Loading milestones">
-            <span className="sr-only">Loading milestones…</span>
+          <div role="status" aria-label={t.loadingMilestones}>
+            <span className="sr-only">{t.loadingMilestones}</span>
             <Card>
-              <div className="animate-pulse space-y-2" aria-hidden="true">
+              <div className="space-y-2 motion-safe:animate-pulse" aria-hidden="true">
                 <div className="h-5 w-2/3 rounded bg-surface-muted" />
                 <div className="h-5 w-1/2 rounded bg-surface-muted" />
               </div>
@@ -189,10 +195,10 @@ export function GoalDetailPage() {
           </div>
         ) : milestonesQuery.isError ? (
           <div role="alert" className="rounded-card border border-line bg-surface p-4">
-            <p className="text-ui text-content">Could not load milestones. Please try again.</p>
+            <p className="text-ui text-content">{t.loadMilestonesError}</p>
             <div className="mt-3">
               <Button variant="secondary" size="sm" onClick={() => void milestonesQuery.refetch()}>
-                Retry
+                {m.common.retry}
               </Button>
             </div>
           </div>

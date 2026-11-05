@@ -74,7 +74,7 @@ describe("DayView", () => {
   it("shows a loading status and keeps the empty state away", () => {
     renderDay(EMPTY_DAY, { isLoading: true });
 
-    expect(screen.getByRole("status", { name: "Loading the day" })).toBeInTheDocument();
+    expect(screen.getByRole("status", { name: "Loading the day…" })).toBeInTheDocument();
     expect(screen.queryByText("Nothing planned for this day")).not.toBeInTheDocument();
     expect(screen.queryByText("Day summary")).not.toBeInTheDocument();
   });

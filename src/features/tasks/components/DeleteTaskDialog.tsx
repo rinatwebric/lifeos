@@ -3,6 +3,8 @@ import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import { useDeleteTask } from "@/features/tasks/hooks";
+import { tmpl } from "@/lib/i18n/format";
+import { useMessages } from "@/lib/i18n/I18nContext";
 import type { Task } from "@/types/domain";
 
 interface DeleteTaskDialogProps {
@@ -12,6 +14,8 @@ interface DeleteTaskDialogProps {
 }
 
 export function DeleteTaskDialog({ open, onClose, task }: DeleteTaskDialogProps) {
+  const m = useMessages();
+  const t = m.tasks;
   const deleteTask = useDeleteTask();
   const [serverError, setServerError] = useState<string | null>(null);
 
@@ -26,7 +30,7 @@ export function DeleteTaskDialog({ open, onClose, task }: DeleteTaskDialogProps)
       await deleteTask.mutateAsync({ id: task.id, goalId: task.goalId });
       onClose();
     } catch (error) {
-      setServerError(error instanceof Error ? error.message : "Could not delete the task.");
+      setServerError(error instanceof Error ? error.message : t.deleteTaskError);
     }
   };
 
@@ -34,8 +38,8 @@ export function DeleteTaskDialog({ open, onClose, task }: DeleteTaskDialogProps)
     <Dialog
       open={open}
       onClose={onClose}
-      title={task ? `Delete ${task.title}?` : "Delete task?"}
-      description="This cannot be undone."
+      title={task ? tmpl(t.deleteWithTitle, { title: task.title }) : t.deleteTitle}
+      description={t.deleteDescription}
     >
       {serverError ? (
         <p role="alert" className="text-micro text-danger">
@@ -45,10 +49,10 @@ export function DeleteTaskDialog({ open, onClose, task }: DeleteTaskDialogProps)
 
       <div className="flex justify-end gap-2">
         <Button variant="secondary" size="lg" data-autofocus onClick={onClose} disabled={deleteTask.isPending}>
-          Cancel
+          {t.cancel}
         </Button>
         <Button variant="danger" size="lg" onClick={() => void handleConfirm()} loading={deleteTask.isPending}>
-          Delete
+          {t.delete}
         </Button>
       </div>
     </Dialog>

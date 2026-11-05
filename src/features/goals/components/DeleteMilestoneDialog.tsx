@@ -3,6 +3,8 @@ import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import { useDeleteMilestone } from "@/features/goals/hooks";
+import { tmpl } from "@/lib/i18n/format";
+import { useMessages } from "@/lib/i18n/I18nContext";
 import type { Milestone } from "@/types/domain";
 
 interface DeleteMilestoneDialogProps {
@@ -12,6 +14,8 @@ interface DeleteMilestoneDialogProps {
 }
 
 export function DeleteMilestoneDialog({ open, onClose, milestone }: DeleteMilestoneDialogProps) {
+  const m = useMessages();
+  const t = m.goals;
   const deleteMilestone = useDeleteMilestone();
   const [serverError, setServerError] = useState<string | null>(null);
 
@@ -24,7 +28,7 @@ export function DeleteMilestoneDialog({ open, onClose, milestone }: DeleteMilest
       await deleteMilestone.mutateAsync({ id: milestone.id, goalId: milestone.goalId });
       onClose();
     } catch (error) {
-      setServerError(error instanceof Error ? error.message : "Could not delete the milestone.");
+      setServerError(error instanceof Error ? error.message : t.deleteMilestoneError);
     }
   };
 
@@ -32,8 +36,8 @@ export function DeleteMilestoneDialog({ open, onClose, milestone }: DeleteMilest
     <Dialog
       open={open}
       onClose={onClose}
-      title={milestone ? `Delete ${milestone.title}?` : "Delete milestone?"}
-      description="This milestone will be permanently removed. This cannot be undone."
+      title={milestone ? tmpl(t.deleteMilestoneWithTitle, { title: milestone.title }) : t.deleteMilestoneTitle}
+      description={t.deleteMilestoneDescription}
     >
       {serverError ? (
         <p role="alert" className="text-micro text-danger">
@@ -43,7 +47,7 @@ export function DeleteMilestoneDialog({ open, onClose, milestone }: DeleteMilest
 
       <div className="flex justify-end gap-2">
         <Button variant="secondary" size="lg" data-autofocus onClick={onClose} disabled={deleteMilestone.isPending}>
-          Cancel
+          {t.cancel}
         </Button>
         <Button
           variant="danger"
@@ -51,7 +55,7 @@ export function DeleteMilestoneDialog({ open, onClose, milestone }: DeleteMilest
           onClick={() => void handleConfirm()}
           loading={deleteMilestone.isPending}
         >
-          Delete
+          {t.delete}
         </Button>
       </div>
     </Dialog>

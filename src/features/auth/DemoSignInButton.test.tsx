@@ -5,13 +5,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { signIn } from "./api";
 import { DEMO_SIGN_IN_COPY, DemoSignInButton } from "./DemoSignInButton";
-import { AUTH_ERROR_MESSAGES } from "./errors";
 
 vi.mock("./api", () => ({ signIn: vi.fn() }));
 
 const mockedSignIn = vi.mocked(signIn);
 
-function renderDemo(onError: (message: string) => void = vi.fn()) {
+function renderDemo(onError: (code: unknown) => void = vi.fn()) {
   return render(
     <MemoryRouter initialEntries={["/sign-in"]}>
       <Routes>
@@ -31,23 +30,23 @@ afterEach(() => {
 });
 
 describe("DemoSignInButton", () => {
-  it("renders nothing without demo env", () => {
+  it("shows an honest unavailable note without demo env", () => {
     vi.stubEnv("VITE_DEMO_EMAIL", "");
     vi.stubEnv("VITE_DEMO_PASSWORD", "");
 
-    const { container } = renderDemo();
+    renderDemo();
 
-    expect(container).toBeEmptyDOMElement();
+    expect(screen.getByText(DEMO_SIGN_IN_COPY.unavailable)).toBeInTheDocument();
     expect(mockedSignIn).not.toHaveBeenCalled();
   });
 
-  it("renders nothing when only one credential is set", () => {
+  it("shows an honest unavailable note when only one credential is set", () => {
     vi.stubEnv("VITE_DEMO_EMAIL", "demo@example.com");
     vi.stubEnv("VITE_DEMO_PASSWORD", "");
 
-    const { container } = renderDemo();
+    renderDemo();
 
-    expect(container).toBeEmptyDOMElement();
+    expect(screen.getByText(DEMO_SIGN_IN_COPY.unavailable)).toBeInTheDocument();
   });
 
   it("signs in with the demo credentials and navigates home", async () => {
@@ -80,7 +79,7 @@ describe("DemoSignInButton", () => {
     await user.click(screen.getByRole("button", { name: DEMO_SIGN_IN_COPY.button }));
 
     await vi.waitFor(() => expect(onError).toHaveBeenCalledTimes(1));
-    expect(onError).toHaveBeenCalledWith(AUTH_ERROR_MESSAGES.invalid_credentials);
+    expect(onError).toHaveBeenCalledWith("invalid_credentials");
     expect(screen.queryByText("Home")).not.toBeInTheDocument();
   });
 

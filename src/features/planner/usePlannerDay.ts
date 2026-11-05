@@ -142,16 +142,37 @@ export function minutesToLabel(minutes: number): string {
 }
 
 /** "45 min", "1 h", "1 h 30 min" — a duration never appears as a bare number. */
-export function formatDurationMinutes(minutes: number): string {
+export function formatDurationMinutes(minutes: number, locale: "en" | "ru" = "en"): string {
   const total = Math.max(0, Math.round(minutes));
   const hours = Math.floor(total / 60);
   const rest = total % 60;
+
+  if (locale === "ru") {
+    const hourWord = pluralRu(hours, "час", "часа", "часов");
+    const minWord = pluralRu(rest, "минута", "минуты", "минут");
+    if (hours === 0) {
+      return `${rest} ${minWord}`;
+    }
+    return rest === 0 ? `${hours} ${hourWord}` : `${hours} ${hourWord} ${rest} ${minWord}`;
+  }
 
   if (hours === 0) {
     return `${rest} min`;
   }
 
   return rest === 0 ? `${hours} h` : `${hours} h ${rest} min`;
+}
+
+/** Russian 1/2/5/11/21 forms via Intl.PluralRules (one/few/many). */
+function pluralRu(count: number, one: string, few: string, many: string): string {
+  switch (new Intl.PluralRules("ru-RU").select(count)) {
+    case "one":
+      return one;
+    case "few":
+      return few;
+    default:
+      return many;
+  }
 }
 export function isValidDateKey(value: string | null | undefined): value is string {
   if (!value) {

@@ -17,19 +17,17 @@ import { TASK_LIST_LIMIT } from "@/features/tasks/api";
 import { useTasks } from "@/features/tasks/hooks";
 import type { TaskFilters } from "@/features/tasks/api";
 import type { Task } from "@/types/domain";
+import { pluralCategory, tmpl } from "@/lib/i18n/format";
+import { useLocale, useMessages } from "@/lib/i18n/I18nContext";
 
 function hasActiveFilters(filters: TaskFilters): boolean {
   return Boolean(filters.status ?? filters.priority ?? filters.goalId ?? filters.search);
 }
 
-function taskCountLabel(count: number): string {
-  return `${count} ${count === 1 ? "task" : "tasks"}`;
-}
-
 function TaskRowSkeleton() {
   return (
     <li className="px-4 py-3" aria-hidden="true">
-      <div className="animate-pulse space-y-2">
+      <div className="space-y-2 motion-safe:animate-pulse">
         <div className="h-4 w-2/3 rounded bg-surface-muted" />
         <div className="flex gap-2">
           <div className="h-5 w-20 rounded-full bg-surface-muted" />
@@ -41,6 +39,9 @@ function TaskRowSkeleton() {
 }
 
 export function TasksPage() {
+  const m = useMessages();
+  const t = m.tasks;
+  const locale = useLocale();
   const [filters, setFilters] = useState<TaskFilters>({});
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<Task | null>(null);
@@ -81,15 +82,21 @@ export function TasksPage() {
   const filtering = hasActiveFilters(filters);
   const atLimit = tasks.length === TASK_LIST_LIMIT;
 
+  const taskCountLabel = (count: number): string => {
+    const cat = pluralCategory(locale, count);
+    const tpl = cat === "one" ? t.tasksCountOne : cat === "few" ? t.tasksCountFew : t.tasksCountMany;
+    return tmpl(tpl, { count });
+  };
+
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Tasks"
-        description="Daily execution: what to do, when, and how it connects to your goals."
+        title={t.title}
+        description={t.description}
         actions={
           <Button onClick={() => setCreating(true)}>
             <Plus className="size-4" aria-hidden="true" />
-            New task
+            {t.newTask}
           </Button>
         }
       />
@@ -98,13 +105,13 @@ export function TasksPage() {
 
       <p className="text-ui text-muted tabular-nums" aria-live="polite">
         {tasksQuery.isLoading
-          ? "Loading tasks…"
-          : `${taskCountLabel(tasks.length)}${atLimit ? ` · Showing first ${TASK_LIST_LIMIT} tasks` : ""}`}
+          ? t.loading
+          : `${taskCountLabel(tasks.length)}${atLimit ? ` · ${tmpl(t.showingFirst, { limit: TASK_LIST_LIMIT })}` : ""}`}
       </p>
 
       {tasksQuery.isLoading ? (
-        <div role="status" aria-label="Loading tasks">
-          <span className="sr-only">Loading tasks…</span>
+        <div role="status" aria-label={t.loading}>
+          <span className="sr-only">{t.loading}</span>
           <Card className="p-0">
             <ul className="divide-y divide-line">
               <TaskRowSkeleton />
@@ -115,33 +122,33 @@ export function TasksPage() {
         </div>
       ) : tasksQuery.isError ? (
         <div role="alert" className="rounded-card border border-line bg-surface p-4">
-          <p className="text-ui text-content">Could not load tasks. Please try again.</p>
+          <p className="text-ui text-content">{t.loadError}</p>
           <div className="mt-3">
             <Button variant="secondary" size="sm" onClick={() => void tasksQuery.refetch()}>
-              Retry
+              {m.common.retry}
             </Button>
           </div>
         </div>
       ) : tasks.length === 0 && !filtering ? (
         <EmptyState
           icon={ListChecks}
-          title="No tasks yet"
-          description="Capture your first task to turn today's intentions into done."
+          title={t.emptyTitle}
+          description={t.emptyDescription}
           action={
             <Button onClick={() => setCreating(true)}>
               <Plus className="size-4" aria-hidden="true" />
-              Create your first task
+              {t.createFirst}
             </Button>
           }
         />
       ) : tasks.length === 0 ? (
         <EmptyState
           icon={ListChecks}
-          title="No tasks match these filters"
-          description="Try adjusting the filters, or clear them to see all tasks."
+          title={t.noMatchTitle}
+          description={t.noMatchDescription}
           action={
             <Button variant="secondary" onClick={() => setFilters({})}>
-              Clear filters
+              {t.clearFilters}
             </Button>
           }
         />

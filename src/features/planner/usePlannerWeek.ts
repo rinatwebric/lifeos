@@ -8,6 +8,7 @@ import {
   profileQueryKey,
 } from "@/features/settings/api";
 import { localDateTimeToIso, toDateKey } from "@/lib/dates";
+import { useIntlLocale } from "@/lib/i18n/I18nContext";
 import type { WeeklyAvailability } from "@/lib/planner";
 import type { TimeBlock, Weekday } from "@/types/domain";
 
@@ -100,15 +101,28 @@ export interface BuildPlannerWeekInput {
   sleepTime: string | null;
   workingHours?: WeeklyAvailability;
   studyHours?: WeeklyAvailability;
+  intl?: string;
 }
 
 /** "3 blocks" / "1 block" — a count never appears as a bare number. */
-export function formatBlockCount(count: number): string {
-  return `${count} ${count === 1 ? "block" : "blocks"}`;
+export function formatBlockCount(
+  count: number,
+  t?: { blocksOne: string; blocksMany: string },
+): string {
+  if (!t) {
+    return `${count} ${count === 1 ? "block" : "blocks"}`;
+  }
+  if (count === 1) return t.blocksOne;
+  return t.blocksMany.replace("{count}", String(count));
 }
 
-function formatPart(date: Date, timeZone: string, options: Intl.DateTimeFormatOptions): string {
-  return new Intl.DateTimeFormat("en-US", { ...options, timeZone }).format(date);
+function formatPart(
+  date: Date,
+  timeZone: string,
+  options: Intl.DateTimeFormatOptions,
+  intl: string = "en-US",
+): string {
+  return new Intl.DateTimeFormat(intl, { ...options, timeZone }).format(date);
 }
 
 /** Noon probe: the calendar date rendered in `timeZone`, never shifted by DST. */
@@ -156,18 +170,18 @@ export function plannerWeekBounds(
  * crosses their boundary, so the label stays short without losing meaning.
  * An en dash marks the range.
  */
-export function plannerWeekLabel(dateKey: string, timeZone: string): string {
+export function plannerWeekLabel(dateKey: string, timeZone: string, intl = "en-US"): string {
   const startDateKey = startOfWeekKey(dateKey);
   const endDateKey = shiftDateKey(startDateKey, WEEK_LENGTH - 1);
   const start = noonProbe(startDateKey, timeZone);
   const end = noonProbe(endDateKey, timeZone);
 
-  const startDay = formatPart(start, timeZone, { day: "numeric" });
-  const endDay = formatPart(end, timeZone, { day: "numeric" });
-  const startMonth = formatPart(start, timeZone, { month: "long" });
-  const endMonth = formatPart(end, timeZone, { month: "long" });
-  const startYear = formatPart(start, timeZone, { year: "numeric" });
-  const endYear = formatPart(end, timeZone, { year: "numeric" });
+  const startDay = formatPart(start, timeZone, { day: "numeric" }, intl);
+  const endDay = formatPart(end, timeZone, { day: "numeric" }, intl);
+  const startMonth = formatPart(start, timeZone, { month: "long" }, intl);
+  const endMonth = formatPart(end, timeZone, { month: "long" }, intl);
+  const startYear = formatPart(start, timeZone, { year: "numeric" }, intl);
+  const endYear = formatPart(end, timeZone, { year: "numeric" }, intl);
 
   if (startYear !== endYear) {
     return `${startMonth} ${startDay}, ${startYear} – ${endMonth} ${endDay}, ${endYear}`;
@@ -182,6 +196,7 @@ export function plannerWeekLabel(dateKey: string, timeZone: string): string {
 
 export function buildPlannerWeek(input: BuildPlannerWeekInput): PlannerWeek {
   const { timeZone } = input;
+  const intl = input.intl ?? "en-US";
   const startDateKey = startOfWeekKey(input.dateKey);
   const endDateKey = shiftDateKey(startDateKey, WEEK_LENGTH - 1);
   const todayKey = toDateKey(input.now, timeZone);
@@ -227,12 +242,17 @@ export function buildPlannerWeek(input: BuildPlannerWeekInput): PlannerWeek {
     days.push({
       dateKey,
       weekday: calendarWeekday(dateKey),
-      weekdayShort: formatPart(noonProbe(dateKey, timeZone), timeZone, { weekday: "short" }),
-      weekdayLong: formatPart(noonProbe(dateKey, timeZone), timeZone, { weekday: "long" }),
-      dateLabel: formatPart(noonProbe(dateKey, timeZone), timeZone, {
-        month: "short",
-        day: "numeric",
-      }),
+      weekdayShort: formatPart(noonProbe(dateKey, timeZone), timeZone, { weekday: "short" }, intl),
+      weekdayLong: formatPart(noonProbe(dateKey, timeZone), timeZone, { weekday: "long" }, intl),
+      dateLabel: formatPart(
+        noonProbe(dateKey, timeZone),
+        timeZone,
+        {
+          month: "short",
+          day: "numeric",
+        },
+        intl,
+      ),
       blockCount: day.blocks.length,
       totals: {
         task: day.totals.task,
@@ -253,7 +273,7 @@ export function buildPlannerWeek(input: BuildPlannerWeekInput): PlannerWeek {
   return {
     startDateKey,
     endDateKey,
-    label: plannerWeekLabel(input.dateKey, timeZone),
+    label: plannerWeekLabel(input.dateKey, timeZone, intl),
     timeZone,
     days,
     totals,
@@ -288,6 +308,7 @@ export function usePlannerWeek({
   dateKey,
   now = new Date(),
 }: PlannerWeekOptions): PlannerWeekViewModel {
+  const intl = useIntlLocale();
   const profileQuery = useQuery({
     queryKey: profileQueryKey,
     queryFn: getProfile,
@@ -328,8 +349,9 @@ export function usePlannerWeek({
         sleepTime,
         workingHours,
         studyHours,
+        intl,
       }),
-    [blockList, dateKey, timeZone, nowMs, wakeUpTime, sleepTime, workingHours, studyHours],
+    [blockList, dateKey, timeZone, nowMs, wakeUpTime, sleepTime, workingHours, studyHours, intl],
   );
 
   return {

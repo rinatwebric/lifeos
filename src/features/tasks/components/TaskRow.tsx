@@ -4,7 +4,8 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { useSetTaskStatus } from "@/features/tasks/hooks";
 import { isTaskOverdue } from "@/lib/dates";
-import { humanize } from "@/lib/strings";
+import { tmpl } from "@/lib/i18n/format";
+import { useMessages } from "@/lib/i18n/I18nContext";
 import { cn } from "@/lib/cn";
 import type { Task } from "@/types/domain";
 
@@ -29,6 +30,9 @@ export function TaskRow({
   onReschedule,
   onDelete,
 }: TaskRowProps) {
+  const m = useMessages();
+  const t = m.tasks;
+
   const setStatus = useSetTaskStatus();
 
   const completed = task.status === "completed";
@@ -58,7 +62,11 @@ export function TaskRow({
           type="checkbox"
           checked={completed}
           onChange={handleToggle}
-          aria-label={completed ? `Mark ${task.title} as not completed` : `Mark ${task.title} as completed`}
+          aria-label={
+            completed
+              ? tmpl(t.markIncomplete, { title: task.title })
+              : tmpl(t.markComplete, { title: task.title })
+          }
           className="mt-0.5 size-4 shrink-0 accent-current"
         />
       </label>
@@ -74,12 +82,16 @@ export function TaskRow({
           {task.title}
         </p>
         <div className="flex flex-wrap items-center gap-1.5">
-          {showPriorityBadge ? <Badge tone="outline">{humanize(task.priority)} priority</Badge> : null}
-          {task.recurrenceRuleId ? <Badge tone="outline">Repeat</Badge> : null}
+          {showPriorityBadge ? (
+            <Badge tone="outline">
+              {tmpl(t.priorityBadge, { priority: m.enums.priority[task.priority] })}
+            </Badge>
+          ) : null}
+          {task.recurrenceRuleId ? <Badge tone="outline">{m.enums.repeat}</Badge> : null}
           {task.dueDate ? (
             <span className="text-micro text-muted tabular-nums">{task.dueDate}</span>
           ) : null}
-          {overdue ? <Badge tone="danger">Overdue</Badge> : null}
+          {overdue ? <Badge tone="danger">{m.enums.overdue}</Badge> : null}
           {task.goalId && goalTitle ? (
             <Link
               to={`/goals/${task.goalId}`}
@@ -99,7 +111,7 @@ export function TaskRow({
         </div>
         {setStatus.isError ? (
           <p role="alert" className="text-micro text-danger">
-            Could not update the status. Please try again.
+            {t.updateStatusError}
           </p>
         ) : null}
       </div>
@@ -110,7 +122,7 @@ export function TaskRow({
           className="relative after:absolute after:-inset-1 after:content-['']"
           onClick={() => onEdit(task)}
         >
-          Edit
+          {t.edit}
         </Button>
         <Button
           variant="ghost"
@@ -118,16 +130,16 @@ export function TaskRow({
           className="relative after:absolute after:-inset-1 after:content-['']"
           onClick={() => onReschedule(task)}
         >
-          Reschedule
+          {t.reschedule}
         </Button>
         <Button
           variant="ghost"
           size="sm"
           className="relative after:absolute after:-inset-1 after:content-['']"
           onClick={() => onDelete(task)}
-          aria-label={`Delete ${task.title}`}
+          aria-label={tmpl(t.deleteAria, { title: task.title })}
         >
-          Delete
+          {t.delete}
         </Button>
       </div>
     </li>

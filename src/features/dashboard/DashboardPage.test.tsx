@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { DashboardPage } from "./DashboardPage";
+import { DASHBOARD_COPY, DashboardPage } from "./DashboardPage";
 import { useDashboardSchedule, type DashboardSchedule } from "./useDashboardSchedule";
 import { listAllMilestones, listGoals } from "@/features/goals/api";
 import { getProfile } from "@/features/settings/api";
@@ -201,8 +201,8 @@ describe("DashboardPage", () => {
     renderDashboard();
 
     await screen.findByRole("heading", { name: "Welcome back, Alex" });
-    const expected = `${formatLongDate(new Date(), TIME_ZONE)} · times shown in ${TIME_ZONE}`;
-    expect(screen.getByText(expected)).toBeInTheDocument();
+    expect(screen.getByText(formatLongDate(new Date(), TIME_ZONE))).toBeInTheDocument();
+    expect(screen.getByText(`Times shown in ${TIME_ZONE}.`)).toBeInTheDocument();
   });
 
   it("shows an empty state instead of 0% on an empty day", async () => {
@@ -300,7 +300,7 @@ describe("DashboardPage", () => {
     expect(await screen.findByText("1 task is overdue")).toBeInTheDocument();
   });
 
-  it("hides the insights block when there is nothing to report", async () => {
+  it("shows a quiet empty line in insights when there is nothing to report", async () => {
     stubDashboard({
       todayTasks: [],
       todoTasks: [],
@@ -311,8 +311,7 @@ describe("DashboardPage", () => {
 
     await screen.findByRole("heading", { name: "Welcome back, Alex" });
     await screen.findByText(/0 of 1 milestones remaining/);
-    expect(screen.queryByRole("heading", { name: "Insights" })).not.toBeInTheDocument();
-    expect(screen.queryByText("No insights")).not.toBeInTheDocument();
+    expect(await screen.findByText(DASHBOARD_COPY.emptyInsights)).toBeInTheDocument();
   });
 
   it("offers the planner from an empty schedule card", async () => {

@@ -84,7 +84,7 @@ describe("WeekView", () => {
   it("shows a loading status and keeps the empty state away", () => {
     renderWeek(EMPTY_WEEK, { isLoading: true });
 
-    expect(screen.getByRole("status", { name: "Loading the week" })).toBeInTheDocument();
+    expect(screen.getByRole("status", { name: "Loading the week…" })).toBeInTheDocument();
     expect(screen.queryByText("Nothing planned for this week")).not.toBeInTheDocument();
     expect(screen.queryByText("Week summary")).not.toBeInTheDocument();
   });

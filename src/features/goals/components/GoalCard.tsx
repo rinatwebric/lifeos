@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { ProgressBar } from "@/components/ui/ProgressBar";
 import { useUpdateGoal } from "@/features/goals/hooks";
-import { humanize } from "@/lib/strings";
+import { tmpl } from "@/lib/i18n/format";
+import { useMessages } from "@/lib/i18n/I18nContext";
 import type { Goal, GoalStatus } from "@/types/domain";
 
 interface GoalCardProps {
@@ -24,14 +25,19 @@ const STATUS_TONE: Record<GoalStatus, "accent" | "neutral" | "outline"> = {
   archived: "outline",
 };
 
-function formatDateRange(goal: Goal): string {
+function formatDateRange(
+  goal: Goal,
+  started: (vars: Record<string, string>) => string,
+): string {
   if (goal.targetDate) {
     return `${goal.startDate} – ${goal.targetDate}`;
   }
-  return `Started ${goal.startDate}`;
+  return started({ date: goal.startDate });
 }
 
 export function GoalCard({ goal, progress, onEdit, onDelete }: GoalCardProps) {
+  const m = useMessages();
+  const t = m.goals;
   const updateGoal = useUpdateGoal();
 
   const handleArchive = (): void => {
@@ -49,7 +55,7 @@ export function GoalCard({ goal, progress, onEdit, onDelete }: GoalCardProps) {
             {goal.title}
           </Link>
         </h3>
-        <Badge tone={STATUS_TONE[goal.status]}>{humanize(goal.status)}</Badge>
+        <Badge tone={STATUS_TONE[goal.status]}>{m.enums.status[goal.status]}</Badge>
       </div>
 
       {goal.description ? (
@@ -57,24 +63,26 @@ export function GoalCard({ goal, progress, onEdit, onDelete }: GoalCardProps) {
       ) : null}
 
       <div className="flex flex-wrap gap-1.5">
-        <Badge>{humanize(goal.category)}</Badge>
-        <Badge tone="outline">{humanize(goal.priority)} priority</Badge>
+        <Badge>{m.enums.category[goal.category]}</Badge>
+        <Badge tone="outline">{m.enums.priority[goal.priority]}</Badge>
       </div>
 
       <div className="space-y-1">
-        <ProgressBar value={progress} label={`Progress for ${goal.title}`} />
+        <ProgressBar value={progress} label={tmpl(t.progressLabel, { title: goal.title })} />
         <p className="text-micro text-muted tabular-nums">
-          {`${progress}% complete`}
-          {goal.progressMode === "milestones" ? " · from milestones" : " · manual"}
+          {tmpl(t.percentComplete, { percent: progress })}
+          {goal.progressMode === "milestones" ? ` · ${t.fromMilestones}` : ` · ${t.manual}`}
         </p>
       </div>
 
-      <p className="text-micro text-muted tabular-nums">{formatDateRange(goal)}</p>
+      <p className="text-micro text-muted tabular-nums">
+        {formatDateRange(goal, (vars) => tmpl(t.started, vars))}
+      </p>
 
       <div className="mt-auto flex flex-wrap gap-2 pt-1">
         <Button variant="secondary" size="sm" onClick={() => onEdit(goal)}>
           <Pencil className="size-3.5" aria-hidden="true" />
-          Edit
+          {t.edit}
         </Button>
         {goal.status === "archived" ? null : (
           <Button
@@ -84,12 +92,17 @@ export function GoalCard({ goal, progress, onEdit, onDelete }: GoalCardProps) {
             loading={updateGoal.isPending}
           >
             <Archive className="size-3.5" aria-hidden="true" />
-            Archive
+            {t.archive}
           </Button>
         )}
-        <Button variant="ghost" size="sm" onClick={() => onDelete(goal)} aria-label={`Delete ${goal.title}`}>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => onDelete(goal)}
+          aria-label={tmpl(t.deleteAria, { title: goal.title })}
+        >
           <Trash2 className="size-3.5" aria-hidden="true" />
-          Delete
+          {t.delete}
         </Button>
       </div>
     </Card>

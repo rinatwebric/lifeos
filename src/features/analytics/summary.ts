@@ -1,4 +1,7 @@
 import { toDateKey, isTaskOverdue } from "@/lib/dates";
+import { pluralCategory, tmpl } from "@/lib/i18n/format";
+import type { Messages } from "@/lib/i18n/I18nContext";
+import type { Locale } from "@/lib/i18n/types";
 import type { HabitStats } from "@/lib/habits";
 import type { Goal, Habit, Task } from "@/types/domain";
 
@@ -177,8 +180,27 @@ export interface WeeklyReviewInput {
 }
 
 /** Deterministic weekly review lines (no model, no "AI" in the name). */
-export function buildWeeklyReview(input: WeeklyReviewInput): string[] {
+export function buildWeeklyReview(
+  input: WeeklyReviewInput,
+  locale: Locale = "en",
+  d?: Messages["weeklyReview"],
+): string[] {
   const { tasks, goals, habitRows, weekFrom, timeZone } = input;
+  const t = {
+    noDue: d?.noDue ?? "No tasks due this week yet — add due dates to see weekly progress.",
+    doneAll: d?.doneAll ?? "{done} of {total} tasks due this week done. Clear week.",
+    donePartial: d?.donePartial ?? "{done} of {total} tasks due this week done.",
+    overdueOne: d?.overdueOne ?? "{count} overdue task needs a new date — reschedule or reprioritize.",
+    overdueFew:
+      d?.overdueFew ?? "{count} overdue tasks need a new date — reschedule or reprioritize.",
+    overdueMany:
+      d?.overdueMany ?? "{count} overdue tasks need a new date — reschedule or reprioritize.",
+    noHabits: d?.noHabits ?? "No habit obligations this week yet.",
+    habitsDone: d?.habitsDone ?? "habits: {completed} of {planned} planned days done.",
+    goalsOne: d?.goalsOne ?? "{count} active goal at {avg}% average progress.",
+    goalsFew: d?.goalsFew ?? "{count} active goals at {avg}% average progress.",
+    goalsMany: d?.goalsMany ?? "{count} active goals at {avg}% average progress.",
+  };
   const lines: string[] = [];
 
   const weekTo = addDays(weekFrom, 6);
@@ -188,35 +210,46 @@ export function buildWeeklyReview(input: WeeklyReviewInput): string[] {
   const doneThisWeek = dueThisWeek.filter((t) => t.status === "completed");
 
   if (dueThisWeek.length === 0) {
-    lines.push("No tasks due this week yet — add due dates to see weekly progress.");
+    lines.push(t.noDue);
   } else {
     lines.push(
-      `${doneThisWeek.length} of ${dueThisWeek.length} tasks due this week done` +
-        (doneThisWeek.length === dueThisWeek.length ? ". Clear week." : "."),
+      tmpl(doneThisWeek.length === dueThisWeek.length ? t.doneAll : t.donePartial, {
+        done: doneThisWeek.length,
+        total: dueThisWeek.length,
+      }),
     );
   }
 
   const now = new Date();
   const overdue = tasks.filter((t) => isTaskOverdue(t, now, timeZone));
   if (overdue.length > 0) {
+    const cat = pluralCategory(locale, overdue.length);
     lines.push(
-      `${overdue.length} ${overdue.length === 1 ? "overdue task needs" : "overdue tasks need"} a new date — reschedule or reprioritize.`,
+      tmpl(cat === "one" ? t.overdueOne : cat === "few" ? t.overdueFew : t.overdueMany, {
+        count: overdue.length,
+      }),
     );
   }
 
   const plannedHabits = habitRows.filter((r) => r.stats.planned > 0);
   if (plannedHabits.length === 0) {
-    lines.push("No habit obligations this week yet.");
+    lines.push(t.noHabits);
   } else {
     const planned = plannedHabits.reduce((sum, r) => sum + r.stats.planned, 0);
     const completed = plannedHabits.reduce((sum, r) => sum + r.stats.completed, 0);
-    lines.push(`habits: ${completed} of ${planned} planned days done.`);
+    lines.push(tmpl(t.habitsDone, { completed, planned }));
   }
 
   const activeGoals = goals.filter((g) => g.status === "active");
   if (activeGoals.length > 0) {
     const avg = Math.round(activeGoals.reduce((sum, g) => sum + g.progress, 0) / activeGoals.length);
-    lines.push(`${activeGoals.length} ${activeGoals.length === 1 ? "active goal" : "active goals"} at ${avg}% average progress.`);
+    const cat = pluralCategory(locale, activeGoals.length);
+    lines.push(
+      tmpl(cat === "one" ? t.goalsOne : cat === "few" ? t.goalsFew : t.goalsMany, {
+        count: activeGoals.length,
+        avg,
+      }),
+    );
   }
 
   return lines;

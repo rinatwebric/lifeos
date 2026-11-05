@@ -12,7 +12,7 @@ import {
   updateProfile,
 } from "./api";
 import { profileFormSchema, type ProfileFormValues } from "./schemas";
-import { applyTheme } from "@/app/theme";
+import { useTheme } from "@/app/theme";
 import { useAuth } from "@/features/auth/useAuth";
 import { signOut } from "@/features/auth/api";
 import { zodResolver } from "@/features/auth/resolver";
@@ -24,6 +24,8 @@ import { Select } from "@/components/ui/Select";
 import { Button } from "@/components/ui/Button";
 import { isSupabaseConfigured } from "@/lib/env";
 import { toWallTime } from "@/lib/dates";
+import { useLanguageSync, useMessages } from "@/lib/i18n/I18nContext";
+import type { ProfileLanguage, ProfileTheme } from "@/types/domain";
 
 export const SETTINGS_COPY = {
   title: "Settings",
@@ -49,18 +51,20 @@ export const SETTINGS_COPY = {
   signOutFailed: "Could not sign out. Please try again.",
 } as const;
 
-const LANGUAGE_OPTIONS = [
-  { value: "en", label: "English" },
-  { value: "ru", label: "Русский" },
-  { value: "ky", label: "Кыргызча" },
-] as const;
+const LANGUAGE_OPTIONS: ReadonlyArray<{ value: ProfileLanguage; labelKey: "en" | "ru" | "soon"; disabled?: boolean }> = [
+  { value: "en", labelKey: "en" },
+  { value: "ru", labelKey: "ru" },
+  { value: "ky", labelKey: "soon", disabled: true },
+];
 
-const THEME_OPTIONS = [
-  { value: "light", label: "Light" },
-  { value: "dark", label: "Dark" },
-] as const;
+const THEME_OPTIONS: ReadonlyArray<{ value: ProfileTheme; labelKey: "light" | "dark" }> = [
+  { value: "light", labelKey: "light" },
+  { value: "dark", labelKey: "dark" },
+];
 
 export function SettingsPage() {
+  const m = useMessages();
+  const t = m.settings;
   const { status, user } = useAuth();
   const queryClient = useQueryClient();
 
@@ -82,9 +86,9 @@ export function SettingsPage() {
   if (!isSupabaseConfigured) {
     return (
       <div className="space-y-6">
-        <PageHeader title={SETTINGS_COPY.title} description={SETTINGS_COPY.description} />
+        <PageHeader title={t.title} description={t.description} />
         <p role="status" className="text-ui text-muted">
-          {SETTINGS_COPY.notConfigured}
+          {t.notConfigured}
         </p>
       </div>
     );
@@ -93,9 +97,9 @@ export function SettingsPage() {
   if (profileQuery.isPending || preferencesQuery.isPending) {
     return (
       <div className="space-y-6">
-        <PageHeader title={SETTINGS_COPY.title} description={SETTINGS_COPY.description} />
+        <PageHeader title={t.title} description={t.description} />
         <p role="status" className="text-ui text-muted">
-          {SETTINGS_COPY.loading}
+          {t.loading}
         </p>
       </div>
     );
@@ -109,9 +113,9 @@ export function SettingsPage() {
   ) {
     return (
       <div className="space-y-6">
-        <PageHeader title={SETTINGS_COPY.title} description={SETTINGS_COPY.description} />
+        <PageHeader title={t.title} description={t.description} />
         <p role="alert" className="text-ui text-danger">
-          {SETTINGS_COPY.loadError}
+          {t.loadError}
         </p>
         <Button
           variant="secondary"
@@ -122,7 +126,7 @@ export function SettingsPage() {
             void preferencesQuery.refetch();
           }}
         >
-          {SETTINGS_COPY.retry}
+          {m.common.retry}
         </Button>
       </div>
     );
@@ -138,12 +142,12 @@ export function SettingsPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title={SETTINGS_COPY.title} description={SETTINGS_COPY.description} />
+      <PageHeader title={t.title} description={t.description} />
 
       <Card className="space-y-4">
         <div className="space-y-1.5">
           <label htmlFor="settings-email" className="block text-ui font-medium text-content">
-            {SETTINGS_COPY.emailLabel}
+            {t.emailLabel}
           </label>
           <input
             id="settings-email"
@@ -153,24 +157,23 @@ export function SettingsPage() {
             value={user?.email ?? ""}
             className="h-10 w-full rounded-control border border-line bg-surface-muted px-3 py-2 text-base text-muted sm:text-ui"
           />
-          <p className="text-micro text-muted">{SETTINGS_COPY.emailHint}</p>
+          <p className="text-micro text-muted">{t.emailHint}</p>
         </div>
 
-        <ProfileForm
-          key={`profile-${profile.fullName ?? ""}-${profile.language}-${profile.theme}`}
-          defaultValues={{
-            fullName: profile.fullName ?? "",
-            language: profile.language,
-            theme: profile.theme,
-          }}
-          onSavedTheme={(theme) => applyTheme(theme)}
+        {/* Stable key: account only. Language/theme changes must never remount
+            the name field (draft wipe + focus loss). */}
+        <ProfileNameForm
+          key={`profile-name-${profile.id}`}
+          defaultValues={{ fullName: profile.fullName ?? "" }}
           invalidate={() => queryClient.invalidateQueries({ queryKey: profileQueryKey })}
         />
+
+        <InstantPreferences />
       </Card>
 
       <Card className="space-y-4">
         <PreferencesForm
-          key={`prefs-${profile.timezone}-${wakeUpTime}-${sleepTime}`}
+          key={`prefs-${profile.id}-${profile.timezone}-${wakeUpTime}-${sleepTime}`}
           defaultValues={{
             timezone: profile.timezone,
             wakeUpTime,
@@ -190,11 +193,162 @@ export function SettingsPage() {
 }
 
 /**
+ * Instant language/theme controls. No submit: choosing applies immediately
+ * to the UI + device storage and syncs in the background (single-field
+ * PATCH). Never touches the name/day forms, never steals focus.
+ */
+function InstantPreferences() {
+  const m = useMessages();
+  const t = m.settings;
+  const {
+    locale,
+    setLocale,
+    syncStatus: langStatus,
+    syncError: langError,
+    retrySync: retryLang,
+    isKyFallback,
+  } = useLanguageSync();
+  const { theme, setTheme, syncStatus: themeStatus, syncError: themeError, retrySync: retryTheme } =
+    useTheme();
+
+  const languageLabel = (value: ProfileLanguage): string => {
+    if (value === "en") return "English";
+    if (value === "ru") return "Русский";
+    return t.kySoon;
+  };
+
+  const themeLabel = (value: ProfileTheme): string =>
+    value === "light" ? t.themeLight : t.themeDark;
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-3">
+        <Field id="settings-language" label={t.languageLabel} hint={t.languageHint}>
+          <Select
+            id="settings-language"
+            value={isKyFallback ? "ky" : locale}
+            onChange={(event) => {
+              const next = event.target.value as ProfileLanguage;
+              if (next === "en" || next === "ru") {
+                setLocale(next);
+              }
+            }}
+            aria-describedby={isKyFallback ? "settings-language-ky-note" : undefined}
+          >
+            {LANGUAGE_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value} disabled={option.disabled}>
+                {languageLabel(option.value)}
+              </option>
+            ))}
+          </Select>
+        </Field>
+
+        <Field id="settings-theme" label={t.themeLabel}>
+          <Select
+            id="settings-theme"
+            value={theme}
+            onChange={(event) => setTheme(event.target.value as ProfileTheme)}
+          >
+            {THEME_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {themeLabel(option.value)}
+              </option>
+            ))}
+          </Select>
+        </Field>
+      </div>
+
+      {isKyFallback ? (
+        <p id="settings-language-ky-note" role="note" className="text-micro text-muted">
+          {t.languageUnavailable}
+        </p>
+      ) : null}
+
+      <PreferenceSyncNotice
+        status={langStatus}
+        error={langError}
+        onRetry={retryLang}
+        savedText={t.syncSaved}
+        savingText={t.syncSaving}
+        errorText={m.common.notSavedInAccount}
+        retryText={m.common.retrySync}
+        testId="language-sync"
+      />
+      <PreferenceSyncNotice
+        status={themeStatus}
+        error={themeError}
+        onRetry={retryTheme}
+        savedText={t.syncSaved}
+        savingText={t.syncSaving}
+        errorText={m.common.notSavedInAccount}
+        retryText={m.common.retrySync}
+        testId="theme-sync"
+      />
+    </div>
+  );
+}
+
+function PreferenceSyncNotice({
+  status,
+  error,
+  onRetry,
+  savedText,
+  savingText,
+  errorText,
+  retryText,
+  testId,
+}: {
+  status: "idle" | "saving" | "saved" | "error";
+  error: string | null;
+  onRetry: () => void;
+  savedText: string;
+  savingText: string;
+  errorText: string;
+  retryText: string;
+  testId: string;
+}) {
+  if (status === "saving") {
+    return (
+      <p role="status" data-testid={`${testId}-saving`} className="text-micro text-muted">
+        {savingText}
+      </p>
+    );
+  }
+
+  if (status === "error") {
+    return (
+      <p role="alert" data-testid={`${testId}-error`} className="text-micro text-danger">
+        {errorText} {error ? `(${error})` : null}{" "}
+        <button
+          type="button"
+          onClick={onRetry}
+          className="font-medium underline underline-offset-4"
+        >
+          {retryText}
+        </button>
+      </p>
+    );
+  }
+
+  if (status === "saved") {
+    return (
+      <p role="status" data-testid={`${testId}-saved`} className="text-micro text-success">
+        {savedText}
+      </p>
+    );
+  }
+
+  return null;
+}
+
+/**
  * Ends the session on this device. No navigation call needed: `signOut`
  * flips the auth status to anonymous and `RequireAuth` redirects to
  * `/sign-in` by itself.
  */
 function SignOutCard() {
+  const m = useMessages();
+  const t = m.settings;
   const [signingOut, setSigningOut] = useState(false);
   const [signOutError, setSignOutError] = useState<string | null>(null);
 
@@ -209,7 +363,7 @@ function SignOutCard() {
     try {
       await signOut();
     } catch {
-      setSignOutError(SETTINGS_COPY.signOutFailed);
+      setSignOutError(t.signOutFailed);
     } finally {
       setSigningOut(false);
     }
@@ -218,8 +372,8 @@ function SignOutCard() {
   return (
     <Card className="space-y-3">
       <div className="space-y-1">
-        <h2 className="text-ui font-medium text-content">{SETTINGS_COPY.signOutTitle}</h2>
-        <p className="text-micro text-muted">{SETTINGS_COPY.signOutHint}</p>
+        <h2 className="text-ui font-medium text-content">{t.signOutTitle}</h2>
+        <p className="text-micro text-muted">{t.signOutHint}</p>
       </div>
 
       {signOutError ? (
@@ -236,21 +390,22 @@ function SignOutCard() {
         disabled={signingOut}
         loading={signingOut}
       >
-        {signingOut ? SETTINGS_COPY.signingOut : SETTINGS_COPY.signOut}
+        {signingOut ? t.signingOut : t.signOut}
       </Button>
     </Card>
   );
 }
 
-function ProfileForm({
+/** Name-only form. PATCHes `{fullName}` — never language/theme/timezone. */
+function ProfileNameForm({
   defaultValues,
-  onSavedTheme,
   invalidate,
 }: {
-  defaultValues: ProfileFormValues;
-  onSavedTheme: (theme: ProfileFormValues["theme"]) => void;
+  defaultValues: Pick<ProfileFormValues, "fullName">;
   invalidate: () => Promise<unknown>;
 }) {
+  const m = useMessages();
+  const t = m.settings;
   const [serverError, setServerError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
@@ -258,67 +413,36 @@ function ProfileForm({
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
-  } = useForm<ProfileFormValues>({
-    resolver: zodResolver(profileFormSchema),
+  } = useForm<Pick<ProfileFormValues, "fullName">>({
+    resolver: zodResolver(profileFormSchema.pick({ fullName: true })),
     defaultValues,
   });
 
-  const onSubmit = async (values: ProfileFormValues): Promise<void> => {
+  const onSubmit = async (values: Pick<ProfileFormValues, "fullName">): Promise<void> => {
     setServerError(null);
     setSaved(false);
 
     try {
       const trimmed = values.fullName?.trim();
-      const updated = await updateProfile({
-        fullName: trimmed ? trimmed : null,
-        language: values.language,
-        theme: values.theme,
-      });
-      onSavedTheme(updated.theme);
+      await updateProfile({ fullName: trimmed ? trimmed : null });
       await invalidate();
       setSaved(true);
     } catch (error) {
-      setServerError(error instanceof Error ? error.message : "Please try again.");
+      setServerError(error instanceof Error ? error.message : t.profileSaved);
     }
   };
 
   return (
     <form noValidate onSubmit={(event) => void handleSubmit(onSubmit)(event)} className="space-y-4">
-      <Field id="settings-name" label={SETTINGS_COPY.nameLabel} error={errors.fullName?.message}>
+      <Field id="settings-name" label={t.nameLabel} error={errors.fullName?.message}>
         <Input
           type="text"
           autoComplete="name"
-          placeholder={SETTINGS_COPY.namePlaceholder}
+          placeholder={t.namePlaceholder}
           disabled={isSubmitting}
-          {...register("fullName")}
+          {...register("fullName", { onChange: () => setSaved(false) })}
         />
       </Field>
-
-      <div className="grid grid-cols-2 gap-3">
-        <Field
-          id="settings-language"
-          label={SETTINGS_COPY.languageLabel}
-          hint={SETTINGS_COPY.languageHint}
-        >
-          <Select disabled={isSubmitting} {...register("language")}>
-            {LANGUAGE_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </Select>
-        </Field>
-
-        <Field id="settings-theme" label={SETTINGS_COPY.themeLabel}>
-          <Select disabled={isSubmitting} {...register("theme")}>
-            {THEME_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </Select>
-        </Field>
-      </div>
 
       {serverError ? (
         <p role="alert" className="text-micro text-danger">
@@ -327,12 +451,12 @@ function ProfileForm({
       ) : null}
       {saved ? (
         <p role="status" className="text-micro text-success">
-          {SETTINGS_COPY.profileSaved}
+          {t.nameSaved}
         </p>
       ) : null}
 
       <Button type="submit" className="w-full" disabled={isSubmitting} loading={isSubmitting}>
-        {isSubmitting ? SETTINGS_COPY.profileSaving : SETTINGS_COPY.profileSubmit}
+        {isSubmitting ? t.nameSaving : t.nameSubmit}
       </Button>
     </form>
   );

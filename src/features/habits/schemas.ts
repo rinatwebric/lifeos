@@ -134,3 +134,98 @@ export type CreateHabitLogInput = z.infer<typeof createHabitLogSchema>;
 export const updateHabitLogSchema = habitLogBaseSchema.omit({ habitId: true }).partial();
 
 export type UpdateHabitLogInput = z.infer<typeof updateHabitLogSchema>;
+
+export interface HabitValidationMessages {
+  titleRequired: string;
+  titleTooLong: string;
+  descriptionTooLong: string;
+  dateFormat: string;
+  timeFormat: string;
+  weekdayRequired: string;
+  targetCountMin: string;
+  targetCountMax: string;
+  validHabit: string;
+  completedCountMin: string;
+  completedCountMax: string;
+  noteTooLong: string;
+}
+
+/**
+ * Localized factories for forms; static exports above stay English for tests.
+ * Accepted values are identical to the static schemas (messages never affect
+ * parsing); the service layer keeps the static schemas.
+ */
+export function createHabitFormSchemas(v: HabitValidationMessages) {
+  const titleField = z.string().trim().min(1, v.titleRequired).max(200, v.titleTooLong);
+  const descriptionField = z
+    .string()
+    .trim()
+    .max(2000, v.descriptionTooLong)
+    .nullable()
+    .optional();
+  const dateKeyField = z.iso.date({ error: v.dateFormat });
+  const weekdayField = z.number().int().min(0).max(6);
+  const targetCountField = z
+    .number()
+    .int()
+    .min(1, v.targetCountMin)
+    .max(MAX_SQL_INTEGER, v.targetCountMax);
+  const reminderTimeField = z
+    .string()
+    .regex(/^([01]\d|2[0-3]):([0-5]\d)$/, v.timeFormat)
+    .nullable()
+    .optional();
+  const base = z.object({
+    title: titleField,
+    description: descriptionField,
+    frequency: z.enum(RECURRENCE_FREQUENCIES),
+    weekdays: z.array(weekdayField).default([]),
+    targetCount: targetCountField,
+    reminderTime: reminderTimeField,
+    startDate: dateKeyField,
+    status: z.enum(HABIT_STATUSES),
+  });
+  const createHabitSchema = base.refine((values) => values.frequency !== "weekdays" || values.weekdays.length > 0, {
+    message: v.weekdayRequired,
+    path: ["weekdays"],
+  });
+  const updateHabitSchema = z
+    .object({
+      title: titleField.optional(),
+      description: descriptionField,
+      frequency: z.enum(RECURRENCE_FREQUENCIES).optional(),
+      weekdays: z.array(weekdayField).optional(),
+      targetCount: targetCountField.optional(),
+      reminderTime: reminderTimeField,
+      startDate: dateKeyField.optional(),
+      status: z.enum(HABIT_STATUSES).optional(),
+    })
+    .refine(
+      (values) =>
+        values.frequency !== "weekdays" ||
+        (values.weekdays !== undefined && values.weekdays.length > 0),
+      { message: v.weekdayRequired, path: ["weekdays"] },
+    );
+  return { createHabitSchema, updateHabitSchema };
+}
+
+/** Localized factories for the log dialog; static exports above stay English. */
+export function createHabitLogFormSchemas(v: HabitValidationMessages) {
+  const dateKeyField = z.iso.date({ error: v.dateFormat });
+  const completedCountField = z
+    .number()
+    .int()
+    .min(0, v.completedCountMin)
+    .max(MAX_SQL_INTEGER, v.completedCountMax);
+  const noteField = z.string().trim().max(2000, v.noteTooLong).nullable().optional();
+  const base = z.object({
+    habitId: z.string().uuid(v.validHabit),
+    logDate: dateKeyField,
+    completedCount: completedCountField,
+    note: noteField,
+  });
+  return {
+    createHabitLogSchema: base,
+    updateHabitLogSchema: base.omit({ habitId: true }).partial(),
+  };
+}

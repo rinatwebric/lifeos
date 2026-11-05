@@ -196,7 +196,7 @@ describe("ProposalModal", () => {
     );
 
     expect(screen.getByText("Proposal expired")).toBeInTheDocument();
-    expect(screen.getByText(ASSISTANT_ERROR_MESSAGES.expired)).toBeInTheDocument();
+    expect(screen.getByText("This proposal has expired.")).toBeInTheDocument();
     expect(
       screen.getByText("Start a new conversation for a fresh suggestion."),
     ).toBeInTheDocument();
@@ -230,7 +230,7 @@ describe("ProposalModal", () => {
         onClose={vi.fn()}
       />,
     );
-    expect(screen.getByText(ASSISTANT_ERROR_MESSAGES.already_decided)).toBeInTheDocument();
+    expect(screen.getByText("This proposal has already been decided.")).toBeInTheDocument();
 
     stubMutations({
       approveError: new AssistantServiceError(
@@ -248,7 +248,7 @@ describe("ProposalModal", () => {
         onClose={vi.fn()}
       />,
     );
-    expect(screen.getByText(ASSISTANT_ERROR_MESSAGES.validation_failed)).toBeInTheDocument();
+    expect(screen.getByText("Some actions are no longer valid.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Dismiss" })).toBeInTheDocument();
   });
 

@@ -56,3 +56,40 @@ export const selectedIndexesSchema = z
   );
 
 export type SelectedIndexes = z.infer<typeof selectedIndexesSchema>;
+
+export interface AssistantValidationMessages {
+  messageRequired: string;
+  messageTooLong: string;
+  invalidConversation: string;
+  invalidProposal: string;
+  selectAction: string;
+  duplicateAction: string;
+  actionOrder: string;
+}
+
+/** Localized factories for forms; static exports above stay English for tests. */
+export function createAssistantSchemas(v: AssistantValidationMessages) {
+  const sendMessageSchema = z.object({
+    message: z.string().trim().min(1, v.messageRequired).max(4000, v.messageTooLong),
+    conversationId: z.string().uuid(v.invalidConversation).nullable(),
+  });
+  const proposalIdSchema = z.string().uuid(v.invalidProposal);
+  const selectedIndexesSchema = z
+    .array(z.number().int().nonnegative())
+    .min(1, v.selectAction)
+    .refine((indexes) => new Set(indexes).size === indexes.length, {
+      message: v.duplicateAction,
+    })
+    .refine(
+      (indexes) => {
+        for (let i = 1; i < indexes.length; i += 1) {
+          if (indexes[i] <= indexes[i - 1]) {
+            return false;
+          }
+        }
+        return true;
+      },
+      { message: v.actionOrder },
+    );
+  return { sendMessageSchema, proposalIdSchema, selectedIndexesSchema };
+}

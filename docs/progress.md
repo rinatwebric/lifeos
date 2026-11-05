@@ -3,6 +3,70 @@
 Состояние проекта живёт в файлах и Git, а не в памяти модели. Каждая запись — дата, что сделано,
 чем проверено, что осталось.
 
+## 2026-11-06 — Integration: Phase 5 + i18n EN/RU + editorial UI (ветка `integration/phase5-i18n-design`, НЕ готово)
+
+**Сделано (коммиты без push)**
+
+- Ветка от `main` 176b1c8. Merge `--no-ff feat/i18n-preferences` — чисто; merge
+  `--no-ff feat/editorial-ui` — 5 конфликтов, все разрешены в пользу обоих
+  результатов: `Sidebar` (убрана phase-подпись, дизайн), `AuthLayout`
+  (структура дизайна + строки из словаря `auth.layout`, `AUTH_LAYOUT_COPY`
+  оставлен для тестов), `ResetPasswordPage` (логика кодов ошибок i18n +
+  mail-off заметка и `requestSentMailOff` дизайна), `DashboardPage` (структура
+  дизайна + все `t.*`, `formatLongDate`/`formatDurationMinutes` с локалью,
+  `DASHBOARD_COPY` из словаря), `ScheduleCard` (тонкая обёртка дизайна поверх
+  i18n-`ScheduleBody`, `duration(locale)` сохранён). Ни одной миграции, БД/API,
+  RLS, сервисы, формулы и AI/Planner/habits-расчёты не тронуты.
+- Habits/Analytics переведены полностью EN/RU через `I18nContext` (страницы,
+  формы, диалоги, streaks/плюралы 1/2/5/11/21, чарты, периоды, loading/empty/
+  error/success, aria); `buildWeeklyReview(input, locale, dict)` с EN-фолбэком
+  байт-в-байт; локализованные фабрики схем + `useRevalidateOnLocaleChange`.
+  Пользовательский контент и enum/UTC не тронуты. Новых провайдеров нет,
+  статичного en-US нет. Минимальные общие токены (`motion-safe:animate-pulse`)
+  применены к скелетонам Habits/Analytics.
+- Найден и исправлен подтверждённый интеграционный баг (код, не тесты):
+  очередь фоновых PATCH `language`/`theme` из feat/i18n-preferences теряла
+  последний выбор, пришедший mid-flight (resolve оставлял `pending` без
+  изменений — эффект не перезапускался, вечный `saving`, значение не
+  сохранялось). Исправление: chaining через `pendingRef` в `I18nContext.tsx`
+  и `theme.tsx` (серийные PATCH, last-wins, single-field, account isolation
+  сохранены). Регресс-тесты в `sync.test.tsx`/`theme.test.tsx` падают без
+  фикса и проходят с ним.
+- Новый `e2e/i18n-habits-analytics.spec.ts` (2 теста, read-only, self-restore):
+  RU Habits/Analytics desktop + 375px без overflow, обе темы, reload.
+  Ресторы/прекондиции shared-аккаунта — детерминированный REST
+  (`restoreProfileBaseline` в `helpers.ts`), UI round-trip остаётся предметом
+  основных ассёртов.
+
+**Проверено (числа)**
+
+- `npm run typecheck` — ok; `npm run lint` — 0 errors (25 pre-existing
+  `react-refresh` warnings); `npm test` — все файлы зелёные (93+2, ~870
+  тестов, включая 18 новых RU/RTL и 2 регресса очереди);
+  `npm run build` — ok (pre-existing chunk-warning); `git diff --check` —
+  чист; UI-leftovers grep по AGENTS §7 — 0 совпадений.
+- Live (workers:1): `habits.spec` **6/6 без skips** — получено дважды в полных
+  прогонах; RU Habits/Analytics desktop+375px и обе темы — 2/2; i18n-anon 2/3
+  (третий — артефакт сохранённой сессии `e2e/.auth/state.json`, не приложения).
+  Общий аккаунт дважды найден в состоянии RU/dark (не baseline) — возвращён
+  в EN/light через REST; флип-вотч 150 с тишины — посторонних писателей нет;
+  миграций не применяли, лишних строк не создавали (новые спеки read-only).
+
+**КРАСНОЕ (готово НЕ называется)**
+
+- `e2e/i18n.spec.ts` стабильно не находит `getByLabel("Language")` в полных
+  прогонах (на /settings заходит уже RU-страница), хотя соло с чистого EN
+  проходит целиком включая restore. Ресторы/прекондиции переведены на REST с
+  ассёртом сохранённого значения — валидирующий полный прогон 9/9 при
+  истечении времени не получен. Главный подозреваемый: гонка фонового синка
+  вокруг reload/закрытия контекста; e2e-селекторы и EN-строки при этом
+  побайтово сохранены, код приложения правится только по подтверждённым
+  находкам.
+- После прогонов проверить таблицы habits/logs/versions 0/0/0 и baseline
+  аккаунта EN/light отдельным запуском; `e2e/i18n-anon.spec.ts` гонять только
+  в truly-anonymous окружении (без `e2e/.auth/state.json` и кредов), иначе
+  1-й тест видит дашборд вместо sign-in.
+
 ## 2026-11-06 — Phase 5 закрыта живьём: e2e 6/6, RLS двух пользователей, таблицы 0/0/0
 
 **Что доказано на живом проекте (миграции `0007`+`0008` применены владельцем через SQL Editor)**

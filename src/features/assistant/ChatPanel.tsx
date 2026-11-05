@@ -7,34 +7,32 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Textarea } from "@/components/ui/Textarea";
 import { cn } from "@/lib/cn";
 import type { AssistantProposal } from "@/lib/aiProposals";
+import { pluralCategory, tmpl } from "@/lib/i18n/format";
+import { useLocale, useMessages } from "@/lib/i18n/I18nContext";
 
-import { ASSISTANT_ERROR_MESSAGES, AssistantServiceError } from "./errors";
-import { useConversations, useMessages, useSendMessage } from "./hooks";
+import { translateAssistantError, AssistantServiceError, type AssistantErrorCode } from "./errors";
+import { useConversations, useMessages as useAssistantMessages, useSendMessage } from "./hooks";
 import { ProposalModal } from "./ProposalModal";
 
 const MAX_MESSAGE_CHARS = 4000;
 
-const EMPTY_TITLE = "Ask about your week, or ask for a plan.";
-const EMPTY_DESCRIPTION =
-  "Nothing changes until you review and confirm a proposal. Start a conversation and the assistant will suggest next steps for you to approve.";
-
-const EXAMPLE_PROMPTS = [
-  "I want to become a frontend developer in 6 months.",
-  "I am sick and cannot work normally this week.",
-  "Why am I not making progress?",
-] as const;
-
-function errorMessage(error: unknown): { code: string | null; text: string } {
+function errorCode(error: unknown): AssistantErrorCode {
   if (error instanceof AssistantServiceError) {
-    return { code: error.code, text: error.message };
+    return error.code;
   }
-  return { code: null, text: ASSISTANT_ERROR_MESSAGES.unknown };
+  return "unknown";
+}
+
+function errorText(error: unknown, m: Parameters<typeof translateAssistantError>[1]): string {
+  return translateAssistantError(errorCode(error), m);
 }
 
 function ConversationSkeleton() {
+  const m = useMessages();
+
   return (
-    <div role="status" aria-label="Loading conversations">
-      <span className="sr-only">Loading conversations…</span>
+    <div role="status" aria-label={m.assistant.loadingConversations}>
+      <span className="sr-only">{m.assistant.loadingConversations}</span>
       <div className="space-y-3 motion-safe:animate-pulse" aria-hidden="true">
         <div className="h-11 w-full rounded-control bg-surface-muted" />
         <div className="h-11 w-full rounded-control bg-surface-muted" />
@@ -44,9 +42,11 @@ function ConversationSkeleton() {
 }
 
 function MessagesSkeleton() {
+  const m = useMessages();
+
   return (
-    <div role="status" aria-label="Loading messages">
-      <span className="sr-only">Loading messages…</span>
+    <div role="status" aria-label={m.assistant.loadingMessages}>
+      <span className="sr-only">{m.assistant.loadingMessages}</span>
       <div className="space-y-3 motion-safe:animate-pulse" aria-hidden="true">
         <div className="h-14 w-full rounded-control bg-surface-muted" />
         <div className="h-14 w-full rounded-control bg-surface-muted" />
@@ -56,6 +56,9 @@ function MessagesSkeleton() {
 }
 
 export function ChatPanel() {
+  const m = useMessages();
+  const t = m.assistant;
+  const locale = useLocale();
   const conversationsQuery = useConversations();
   const [selectedId, setSelectedId] = useState<string | null | undefined>(undefined);
   const [draft, setDraft] = useState("");
@@ -63,7 +66,7 @@ export function ChatPanel() {
   // No effect: the first dialog is the default until the user picks another
   // one (`undefined` = not chosen yet, `null` = explicit new conversation).
   const effectiveId = selectedId === undefined ? (conversations[0]?.id ?? null) : selectedId;
-  const messagesQuery = useMessages(effectiveId ?? undefined);
+  const messagesQuery = useAssistantMessages(effectiveId ?? undefined);
   const sendMutation = useSendMessage();
   const [lastProposal, setLastProposal] = useState<{
     proposalId: string;
@@ -71,7 +74,7 @@ export function ChatPanel() {
     conversationId: string;
   } | null>(null);
   const [reviewOpen, setReviewOpen] = useState(false);
-  const [decisionNotice, setDecisionNotice] = useState<string | null>(null);
+  const [decision, setDecision] = useState<{ kind: "approved"; applied: number; total: number } | { kind: "rejected" } | null>(null);
   const userTimeZone =
     typeof Intl !== "undefined"
       ? (Intl.DateTimeFormat().resolvedOptions().timeZone ?? "UTC")
@@ -80,6 +83,8 @@ export function ChatPanel() {
   const trimmed = draft.trim();
   const tooLong = draft.length > MAX_MESSAGE_CHARS;
   const sendDisabled = trimmed.length === 0 || tooLong || sendMutation.isPending;
+
+  const examplePrompts = [t.exampleFrontend, t.exampleSick, t.exampleStuck];
 
   const handleSubmit = async (): Promise<void> => {
     if (sendDisabled) {
@@ -92,7 +97,7 @@ export function ChatPanel() {
       });
       setDraft("");
       setSelectedId(result.conversationId);
-      setDecisionNotice(null);
+      setDecision(null);
       if (result.proposal.actions.length > 0) {
         setLastProposal({
           proposalId: result.proposalId,
@@ -111,14 +116,17 @@ export function ChatPanel() {
 
   const showReview = lastProposal !== null && lastProposal.conversationId === effectiveId;
 
-  const sendError = sendMutation.error ? errorMessage(sendMutation.error) : null;
+  const sendErrorCode = sendMutation.error ? errorCode(sendMutation.error) : null;
+
+  const proposedCount = lastProposal?.proposal.actions.length ?? 0;
+  const proposedCat = pluralCategory(locale, proposedCount);
 
   return (
     <>
     <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
       <Card className="space-y-3 lg:w-72 lg:shrink-0">
         <div className="flex items-center justify-between gap-2">
-          <h2 className="text-ui font-medium text-content">Conversations</h2>
+          <h2 className="text-ui font-medium text-content">{t.conversations}</h2>
           <Button
             variant="secondary"
             size="lg"
@@ -129,24 +137,24 @@ export function ChatPanel() {
             }}
           >
             <Plus className="size-4" aria-hidden="true" />
-            New
+            {t.newChat}
           </Button>
         </div>
         {conversationsQuery.isLoading ? (
           <ConversationSkeleton />
         ) : conversationsQuery.isError ? (
           <div role="alert" className="space-y-2">
-            <p className="text-ui text-content">{errorMessage(conversationsQuery.error).text}</p>
+            <p className="text-ui text-content">{errorText(conversationsQuery.error, m)}</p>
             <Button
               variant="secondary"
               size="lg"
               onClick={() => void conversationsQuery.refetch()}
             >
-              Retry
+              {m.common.retry}
             </Button>
           </div>
         ) : conversations.length === 0 ? (
-          <p className="text-ui text-muted">No conversations yet. Start one below.</p>
+          <p className="text-ui text-muted">{t.noConversations}</p>
         ) : (
           <ul className="space-y-1">
             {conversations.map((conversation) => {
@@ -180,20 +188,20 @@ export function ChatPanel() {
 
       <Card className="min-w-0 flex-1 space-y-4">
         <div className="space-y-1">
-          <h2 className="text-heading text-content">Chat</h2>
+          <h2 className="text-heading text-content">{t.chat}</h2>
           <p className="text-ui text-muted">
-            The assistant only proposes. Nothing changes until you review and confirm.
+            {t.proposalsOnly}
           </p>
         </div>
 
         {effectiveId === null || (messagesQuery.isSuccess && (messagesQuery.data ?? []).length === 0) ? (
           <EmptyState
             icon={MessageSquare}
-            title={EMPTY_TITLE}
-            description={EMPTY_DESCRIPTION}
+            title={t.askPlaceholder}
+            description={t.askHint}
             action={
               <div className="flex flex-col gap-2">
-                {EXAMPLE_PROMPTS.map((example) => (
+                {examplePrompts.map((example) => (
                   <button
                     key={example}
                     type="button"
@@ -210,10 +218,10 @@ export function ChatPanel() {
           <MessagesSkeleton />
         ) : messagesQuery.isError ? (
           <div role="alert" className="space-y-2">
-            <p className="text-ui font-medium text-content">Could not load messages</p>
-            <p className="text-ui text-muted">{errorMessage(messagesQuery.error).text}</p>
+            <p className="text-ui font-medium text-content">{t.loadMessagesError}</p>
+            <p className="text-ui text-muted">{errorText(messagesQuery.error, m)}</p>
             <Button variant="secondary" size="lg" onClick={() => void messagesQuery.refetch()}>
-              Retry
+              {m.common.retry}
             </Button>
           </div>
         ) : (
@@ -227,7 +235,7 @@ export function ChatPanel() {
                 )}
               >
                 <p className="text-micro text-muted">
-                  {message.role === "user" ? "You" : "Assistant"}
+                  {message.role === "user" ? t.you : t.assistantName}
                 </p>
                 <p className="text-body text-content text-pretty">{message.content}</p>
               </li>
@@ -241,19 +249,19 @@ export function ChatPanel() {
               {lastProposal.proposal.summary}
             </p>
             <p className="text-ui text-muted text-pretty">
-              {lastProposal.proposal.actions.length === 1
-                ? "1 proposed action. Review it before anything changes."
-                : `${lastProposal.proposal.actions.length} proposed actions. Review them before anything changes.`}
+              {proposedCat === "one" ? t.proposedActionsOne : tmpl(t.proposedActionsMany, { count: proposedCount })}
             </p>
             <Button size="lg" onClick={() => setReviewOpen(true)}>
-              Review proposal
+              {t.reviewProposal}
             </Button>
           </div>
         ) : null}
 
-        {decisionNotice ? (
+        {decision ? (
           <p role="status" className="text-ui text-muted">
-            {decisionNotice}
+            {decision.kind === "approved"
+              ? tmpl(t.appliedOf, { done: decision.applied, total: decision.total })
+              : t.rejected}
           </p>
         ) : null}
 
@@ -265,14 +273,14 @@ export function ChatPanel() {
           }}
         >
           <label htmlFor="assistant-composer" className="text-ui font-medium text-content">
-            Message
+            {t.messageLabel}
           </label>
           <Textarea
             id="assistant-composer"
             rows={3}
             value={draft}
             disabled={sendMutation.isPending}
-            placeholder="Ask about your week, or ask for a plan."
+            placeholder={t.messagePlaceholder}
             onChange={(event) => setDraft(event.target.value)}
             onKeyDown={(event) => {
               if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
@@ -291,26 +299,26 @@ export function ChatPanel() {
               {draft.length} / {MAX_MESSAGE_CHARS}
             </p>
             <Button type="submit" size="lg" disabled={sendDisabled} loading={sendMutation.isPending}>
-              Send
+              {t.send}
             </Button>
           </div>
-          <p className="text-micro text-muted">Ctrl+Enter or Cmd+Enter sends the message.</p>
+          <p className="text-micro text-muted">{t.sendHint}</p>
           {tooLong ? (
             <p role="alert" className="text-ui text-danger">
-              Your message is too long. Please keep it under {MAX_MESSAGE_CHARS} characters.
+              {t.messageTooLong}
             </p>
           ) : null}
-          {sendError ? (
+          {sendErrorCode ? (
             <div role="alert" className="space-y-2">
-              <p className="text-ui font-medium text-content">Could not send the message</p>
-              <p className="text-ui text-muted">{sendError.text}</p>
-              {sendError.code === "rate_limited" ? (
+              <p className="text-ui font-medium text-content">{t.sendMessageError}</p>
+              <p className="text-ui text-muted">{translateAssistantError(sendErrorCode, m)}</p>
+              {sendErrorCode === "rate_limited" ? (
                 <p className="text-ui text-muted">
-                  The daily limit is 50 messages. Your count resets tomorrow.
+                  {t.dailyLimit}
                 </p>
               ) : null}
               <Button variant="secondary" size="lg" onClick={() => void handleSubmit()}>
-                Retry
+                {m.common.retry}
               </Button>
             </div>
           ) : null}
@@ -327,9 +335,9 @@ export function ChatPanel() {
         onClose={() => setReviewOpen(false)}
         onDecided={(outcome) => {
           if (outcome.kind === "approved") {
-            setDecisionNotice(`Applied ${outcome.applied} of ${outcome.total} actions.`);
+            setDecision({ kind: "approved", applied: outcome.applied, total: outcome.total });
           } else {
-            setDecisionNotice("Rejected. Nothing was changed.");
+            setDecision({ kind: "rejected" });
           }
           setLastProposal(null);
           setReviewOpen(false);

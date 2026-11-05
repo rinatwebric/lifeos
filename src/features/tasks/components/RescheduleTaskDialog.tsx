@@ -5,6 +5,8 @@ import { Dialog } from "@/components/ui/Dialog";
 import { Field } from "@/components/ui/Field";
 import { Input } from "@/components/ui/Input";
 import { useRescheduleTask } from "@/features/tasks/hooks";
+import { tmpl } from "@/lib/i18n/format";
+import { useMessages } from "@/lib/i18n/I18nContext";
 import type { Task } from "@/types/domain";
 
 interface RescheduleTaskDialogProps {
@@ -14,6 +16,8 @@ interface RescheduleTaskDialogProps {
 }
 
 export function RescheduleTaskDialog({ open, onClose, task }: RescheduleTaskDialogProps) {
+  const m = useMessages();
+  const t = m.tasks;
   const rescheduleTask = useRescheduleTask();
   const [dueDate, setDueDate] = useState<string>("");
   const [serverError, setServerError] = useState<string | null>(null);
@@ -40,7 +44,7 @@ export function RescheduleTaskDialog({ open, onClose, task }: RescheduleTaskDial
       await rescheduleTask.mutateAsync({ id: task.id, dueDate: dueDate === "" ? null : dueDate });
       onClose();
     } catch (error) {
-      setServerError(error instanceof Error ? error.message : "Could not reschedule the task.");
+      setServerError(error instanceof Error ? error.message : t.rescheduleError);
     }
   };
 
@@ -48,11 +52,11 @@ export function RescheduleTaskDialog({ open, onClose, task }: RescheduleTaskDial
     <Dialog
       open={open}
       onClose={onClose}
-      title={task ? `Reschedule ${task.title}` : "Reschedule task"}
-      description="Pick a new due date, or clear the input to leave the task unscheduled."
+      title={task ? tmpl(t.rescheduleWithTitle, { title: task.title }) : t.rescheduleTitle}
+      description={t.rescheduleDescription}
     >
       <div className="space-y-4">
-        <Field id="task-reschedule-date" label="Due date" error={undefined}>
+        <Field id="task-reschedule-date" label={t.rescheduleDueDate} error={undefined}>
           <Input
             data-autofocus
             type="date"
@@ -69,10 +73,10 @@ export function RescheduleTaskDialog({ open, onClose, task }: RescheduleTaskDial
 
         <div className="flex justify-end gap-2">
           <Button variant="secondary" size="lg" onClick={onClose} disabled={rescheduleTask.isPending}>
-            Cancel
+            {t.cancel}
           </Button>
           <Button size="lg" onClick={() => void handleSave()} loading={rescheduleTask.isPending}>
-            Save
+            {t.rescheduleSave}
           </Button>
         </div>
       </div>

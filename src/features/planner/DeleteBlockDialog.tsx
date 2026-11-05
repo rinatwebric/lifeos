@@ -5,6 +5,8 @@ import { Dialog } from "@/components/ui/Dialog";
 
 import { describeBlockError } from "./blockMessages";
 import { useDeleteBlock } from "./hooks";
+import { tmpl } from "@/lib/i18n/format";
+import { useMessages } from "@/lib/i18n/I18nContext";
 
 /**
  * Delete confirmation for one time block (plan.md Unit 7).
@@ -27,13 +29,9 @@ export interface DeleteBlockDialogProps {
   block: DeleteBlockTarget | null;
 }
 
-function describeConsequence(taskId: string | null): string {
-  return taskId === null
-    ? "The block leaves your plan and the time becomes free again. This cannot be undone."
-    : "The block leaves your plan and the task stops showing a scheduled time. The task itself stays. This cannot be undone.";
-}
-
 export function DeleteBlockDialog({ open, onClose, block }: DeleteBlockDialogProps) {
+  const m = useMessages();
+  const t = m.planner;
   const deleteBlock = useDeleteBlock();
   const [serverError, setServerError] = useState<string | null>(null);
 
@@ -48,7 +46,7 @@ export function DeleteBlockDialog({ open, onClose, block }: DeleteBlockDialogPro
       await deleteBlock.mutateAsync({ id: block.id, taskId: block.taskId });
       onClose();
     } catch (error) {
-      setServerError(describeBlockError(error));
+      setServerError(describeBlockError(error, t));
     }
   };
 
@@ -56,8 +54,8 @@ export function DeleteBlockDialog({ open, onClose, block }: DeleteBlockDialogPro
     <Dialog
       open={open}
       onClose={onClose}
-      title={block ? `Delete “${block.title}”?` : "Delete block?"}
-      description={describeConsequence(block?.taskId ?? null)}
+      title={block ? tmpl(t.deleteBlockWithTitle, { title: block.title }) : t.deleteBlockTitle}
+      description={block?.taskId ? t.deleteBlockTaskHint : t.deleteBlockHint}
     >
       {serverError ? (
         <p role="alert" className="text-ui text-danger">
@@ -67,7 +65,7 @@ export function DeleteBlockDialog({ open, onClose, block }: DeleteBlockDialogPro
 
       <div className="flex flex-wrap items-center justify-end gap-2">
         <Button variant="secondary" size="lg" data-autofocus onClick={onClose} disabled={deleteBlock.isPending}>
-          Cancel
+          {t.cancel}
         </Button>
         <Button
           variant="danger"
@@ -75,7 +73,7 @@ export function DeleteBlockDialog({ open, onClose, block }: DeleteBlockDialogPro
           loading={deleteBlock.isPending}
           onClick={() => void handleConfirm()}
         >
-          Delete block
+          {t.deleteBlock}
         </Button>
       </div>
     </Dialog>

@@ -187,7 +187,7 @@ describe("ChatPanel", () => {
 
     render(<ChatPanel />);
 
-    expect(screen.getByText(ASSISTANT_ERROR_MESSAGES.rate_limited)).toBeInTheDocument();
+    expect(screen.getByText("You have sent a lot of messages today. Your count resets tomorrow.")).toBeInTheDocument();
     expect(screen.getByText("The daily limit is 50 messages. Your count resets tomorrow.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
   });

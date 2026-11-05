@@ -71,6 +71,53 @@ export const ASSISTANT_ERROR_MESSAGES: Record<AssistantErrorCode, string> = {
   unknown: "Something went wrong. Please try again.",
 };
 
+type AssistantMessages = {
+  assistant: {
+    needsSignIn: string;
+    tooManyMessages: string;
+    limitReached: string;
+    checkMessage: string;
+    temporarilyUnavailable: string;
+    unexpectedResponse: string;
+    alreadyDecided: string;
+    expired: string;
+    invalidActions: string;
+    applyFailed: string;
+    networkError: string;
+    unknownError: string;
+  };
+};
+
+/** Maps a stable error code to the current locale's text (open errors react). */
+export function translateAssistantError(code: AssistantErrorCode, m: AssistantMessages): string {
+  switch (code) {
+    case "forbidden":
+      return m.assistant.needsSignIn;
+    case "rate_limited":
+      return m.assistant.tooManyMessages;
+    case "too_large":
+      return m.assistant.limitReached;
+    case "invalid_input":
+      return m.assistant.checkMessage;
+    case "ai_unavailable":
+      return m.assistant.temporarilyUnavailable;
+    case "invalid_response":
+      return m.assistant.unexpectedResponse;
+    case "already_decided":
+      return m.assistant.alreadyDecided;
+    case "expired":
+      return m.assistant.expired;
+    case "validation_failed":
+      return m.assistant.invalidActions;
+    case "apply_failed":
+      return m.assistant.applyFailed;
+    case "network":
+      return m.assistant.networkError;
+    case "unknown":
+      return m.assistant.unknownError;
+  }
+}
+
 function readStatus(error: unknown): number | undefined {
   if (typeof error !== "object" || error === null) {
     return undefined;
