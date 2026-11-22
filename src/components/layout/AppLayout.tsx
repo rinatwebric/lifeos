@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Outlet } from "react-router-dom";
+import { Outlet, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 
 import { CommandPalette } from "@/components/layout/CommandPalette";
@@ -16,6 +16,7 @@ import { useMessages } from "@/lib/i18n/I18nContext";
 export function AppLayout() {
   const { status } = useAuth();
   const m = useMessages();
+  const location = useLocation();
   const [commandOpen, setCommandOpen] = useState(false);
 
   useEffect(() => {
@@ -60,7 +61,9 @@ export function AppLayout() {
           tabIndex={-1}
           className="mx-auto w-full max-w-[1180px] flex-1 px-4 pt-6 pb-28 sm:px-6 lg:px-10 lg:pt-10 lg:pb-14"
         >
-          <Outlet />
+          <div key={location.pathname} className="motion-page">
+            <Outlet />
+          </div>
         </main>
 
         <MobileNav />

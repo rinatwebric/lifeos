@@ -107,8 +107,8 @@ export function Dialog({
         wide ? "max-w-2xl" : "max-w-lg"
       } ${
         sheet
-          ? "max-lg:mt-auto max-lg:mb-0 max-lg:w-full max-lg:max-w-none max-lg:rounded-b-none max-lg:border-x-0 max-lg:border-b-0"
-          : ""
+          ? "motion-sheet max-lg:mt-auto max-lg:mb-0 max-lg:w-full max-lg:max-w-none max-lg:rounded-b-none max-lg:border-x-0 max-lg:border-b-0"
+          : "motion-dialog"
       }`}
     >
       <div className="space-y-4 p-6">

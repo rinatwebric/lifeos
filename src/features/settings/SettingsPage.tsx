@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { LogOut } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -396,11 +397,16 @@ function SignOutCard() {
 
   return (
     <Card className="space-y-4 p-6">
-      <div className="space-y-1.5">
-        <h2 className="text-[15px] leading-snug font-medium text-content">{t.signOutTitle}</h2>
-        <p className="max-w-2xl text-caption leading-relaxed text-muted text-pretty">
-          {t.signOutHint}
-        </p>
+      <div className="flex items-start gap-3">
+        <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-danger-subtle text-danger">
+          <LogOut className="size-4" aria-hidden="true" />
+        </span>
+        <div className="min-w-0 space-y-1.5">
+          <h2 className="text-[15px] leading-snug font-medium text-content">{t.signOutTitle}</h2>
+          <p className="max-w-2xl text-caption leading-relaxed text-muted text-pretty">
+            {t.signOutHint}
+          </p>
+        </div>
       </div>
 
       {signOutError ? (
@@ -411,13 +417,14 @@ function SignOutCard() {
 
       <Button
         type="button"
-        variant="ghost"
-        className="min-h-11 self-start px-2 hover:bg-surface-muted"
+        variant="danger"
+        className="min-h-11 self-start"
         onClick={() => void onSignOut()}
         disabled={signingOut}
         loading={signingOut}
       >
-        <span className="text-danger">{signingOut ? t.signingOut : t.signOut}</span>
+        {signingOut ? null : <LogOut className="size-4" aria-hidden="true" />}
+        {signingOut ? t.signingOut : t.signOut}
       </Button>
     </Card>
   );

@@ -201,7 +201,8 @@ describe("HabitsPage", () => {
 
     render(<HabitsPage />, { wrapper });
 
-    fireEvent.click(screen.getByRole("button", { name: "Pause Read 20 minutes" }));
+    fireEvent.click(screen.getByRole("button", { name: "Actions: Read 20 minutes" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Pause Read 20 minutes" }));
     expect(mutate).toHaveBeenCalledWith({ id: "h1", status: "paused" });
   });
 });

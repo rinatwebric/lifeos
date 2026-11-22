@@ -107,6 +107,45 @@ function InlineError({ message, onRetry }: { message: string; onRetry: () => voi
   );
 }
 
+function CardEmpty({
+  icon,
+  title,
+  description,
+  href,
+  action,
+}: {
+  icon: ReactNode;
+  title: string;
+  description: string;
+  href: string;
+  action: string;
+}) {
+  return (
+    <div className="flex flex-1 items-center px-6 py-6">
+      <div className="motion-rise w-full rounded-card bg-surface-muted/60 p-5">
+        <div className="flex items-start gap-3">
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-surface text-muted">
+            {icon}
+          </span>
+          <div className="min-w-0">
+            <p className="text-ui font-medium text-content">{title}</p>
+            <p className="mt-1 max-w-sm text-caption leading-relaxed text-muted text-pretty">
+              {description}
+            </p>
+          </div>
+        </div>
+        <Link
+          to={href}
+          className="mt-4 inline-flex min-h-11 items-center gap-1.5 rounded-pill border border-control bg-surface px-4 text-ui font-medium text-content transition-[background-color,scale] duration-fast ease-standard hover:bg-surface-raised motion-safe:active:scale-[0.97]"
+        >
+          {action}
+          <ArrowRight className="size-3.5" aria-hidden="true" />
+        </Link>
+      </div>
+    </div>
+  );
+}
+
 export function DashboardPage() {
   const now = new Date();
   const m = useMessages();
@@ -248,7 +287,26 @@ export function DashboardPage() {
           ) : todayQuery.isError ? (
             <InlineError message={t.loadTodayError} onRetry={() => void todayQuery.refetch()} />
           ) : dailyProgress === null ? (
-            <p className="mt-6 text-ui text-muted">{t.emptyToday}</p>
+            <div className="motion-rise mt-6 flex flex-1 flex-col justify-center rounded-card bg-surface-muted/60 p-5">
+              <div className="flex items-baseline justify-between gap-4">
+                <p className="text-[40px] leading-none font-semibold tracking-[-0.04em] text-content tabular-nums">
+                  0<span className="ml-1 text-[15px] font-medium text-muted">%</span>
+                </p>
+                <p className="max-w-[18rem] text-right text-caption leading-relaxed text-muted text-pretty">
+                  {t.emptyToday}
+                </p>
+              </div>
+              <div className="mt-5 h-1 overflow-hidden rounded-full bg-surface">
+                <div className="h-full w-0 rounded-full bg-accent" />
+              </div>
+              <Link
+                to="/tasks"
+                className="mt-4 inline-flex min-h-11 items-center gap-1.5 self-start rounded-pill border border-control bg-surface px-4 text-ui font-medium text-content transition-[background-color,scale] duration-fast ease-standard hover:bg-surface-raised motion-safe:active:scale-[0.97]"
+              >
+                {t.openTasks}
+                <ArrowRight className="size-3.5" aria-hidden="true" />
+              </Link>
+            </div>
           ) : (
             <>
               <div className="mt-6">
@@ -268,7 +326,7 @@ export function DashboardPage() {
                 className="mt-5 h-1 overflow-hidden rounded-full bg-surface-muted"
               >
                 <div
-                  className="h-full rounded-full bg-accent transition-[width] duration-slow ease-standard motion-reduce:transition-none"
+                  className="motion-progress h-full rounded-full bg-accent transition-[width] duration-slow ease-standard motion-reduce:transition-none"
                   style={{ width: `${dailyProgress}%` }}
                 />
               </div>
@@ -374,14 +432,13 @@ export function DashboardPage() {
         </Card>
 
         <Card className="flex flex-col p-0">
-          <div className="flex items-start justify-between gap-3 px-6 pt-5">
+          <div className="flex items-center justify-between gap-3 px-6 pt-5">
             <div>
               <h2 className="text-[15px] font-medium text-content">{t.nextActions}</h2>
               <p className="mt-0.5 text-micro text-muted tabular-nums">
                 {tmpl(t.tasksLeft, { count: pendingTasks.length })}
               </p>
             </div>
-            <ListChecks className="mt-0.5 size-4 text-muted" aria-hidden="true" />
           </div>
 
           {profileQuery.isError ? (
@@ -402,15 +459,13 @@ export function DashboardPage() {
               <InlineError message={t.loadTodayError} onRetry={() => void todayQuery.refetch()} />
             </div>
           ) : nextActions.length === 0 ? (
-            <div className="flex flex-1 flex-col items-start justify-center gap-2 px-6 py-8">
-              <p className="text-ui font-medium text-content">
-                {totalToday === 0 ? t.noTasksToday : t.noTasksLeft}
-              </p>
-              <Link to="/tasks" className={QUIET_LINK_CLASS}>
-                {t.addTask}
-                <ArrowRight className="size-3.5" aria-hidden="true" />
-              </Link>
-            </div>
+            <CardEmpty
+              icon={<ListChecks className="size-4" aria-hidden="true" />}
+              title={totalToday === 0 ? t.noTasksToday : t.noTasksLeft}
+              description={totalToday === 0 ? t.noTasksTodayHint : t.noTasksLeftHint}
+              href="/tasks"
+              action={t.addTask}
+            />
           ) : (
             <ul className="mt-4 flex flex-1 flex-col">
               {nextActions.map((task, index) => {
@@ -475,11 +530,11 @@ export function DashboardPage() {
 
           {nextActions.length > 0 ? (
             <div className="mt-auto flex items-center justify-between border-t border-line px-6 py-3">
-              <Link to="/tasks" className={QUIET_LINK_CLASS}>
+              <Link to="/tasks" className={cn(QUIET_LINK_CLASS, "text-content")}>
                 {t.openAllTasks}
                 <ArrowRight className="size-3.5" aria-hidden="true" />
               </Link>
-              <Link to="/tasks" className={cn(QUIET_LINK_CLASS, "text-content")}>
+              <Link to="/tasks" className={QUIET_LINK_CLASS}>
                 {t.addTask}
               </Link>
             </div>
@@ -487,8 +542,8 @@ export function DashboardPage() {
         </Card>
       </div>
 
-      <div className="grid items-stretch gap-4 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
-        <Card className="flex flex-col p-0">
+      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
+        <Card className="flex min-h-[240px] flex-col p-0">
           <div className="flex items-center justify-between gap-3 px-6 pt-5">
             <h2 className="text-[15px] font-medium text-content">{t.todayBlocks}</h2>
             <span className="text-micro text-muted tabular-nums">
@@ -514,14 +569,13 @@ export function DashboardPage() {
               <InlineError message={t.loadScheduleError} onRetry={retrySchedule} />
             </div>
           ) : schedule.dayBlocks.length === 0 ? (
-            <div className="flex flex-1 flex-col items-start justify-center gap-2 px-6 py-8">
-              <p className="text-ui font-medium text-content">{t.nothingScheduled}</p>
-              <p className="max-w-sm text-caption text-muted">{t.nothingScheduledHint}</p>
-              <Link to="/planner" className={cn(QUIET_LINK_CLASS, "mt-1 text-content")}>
-                {t.openPlanner}
-                <ArrowRight className="size-3.5" aria-hidden="true" />
-              </Link>
-            </div>
+            <CardEmpty
+              icon={<CalendarDays className="size-4" aria-hidden="true" />}
+              title={t.nothingScheduled}
+              description={t.nothingScheduledHint}
+              href="/planner"
+              action={t.openPlanner}
+            />
           ) : (
             <ol className="mt-2 divide-y divide-line">
               {schedule.dayBlocks.map((block) => {
@@ -537,7 +591,7 @@ export function DashboardPage() {
                     <span
                       title={block.title}
                       className={cn(
-                        "min-w-0 text-ui leading-snug",
+                        "min-w-0 truncate text-ui leading-snug",
                         isPast ? "text-muted" : "text-content",
                         isCurrent && "font-medium",
                       )}
@@ -560,17 +614,16 @@ export function DashboardPage() {
           )}
 
           {schedule.dayBlocks.length > 0 ? (
-            <div className="mt-auto flex items-center justify-between border-t border-line px-6 py-3">
+            <div className="mt-auto border-t border-line px-6 py-3">
               <Link to="/planner" className={QUIET_LINK_CLASS}>
                 {t.openPlanner}
                 <ArrowRight className="size-3.5" aria-hidden="true" />
               </Link>
-              <CalendarDays className="size-4 text-muted" aria-hidden="true" />
             </div>
           ) : null}
         </Card>
 
-        <Card className="flex flex-col p-0">
+        <Card className="flex min-h-[240px] flex-col p-0">
           <div className="flex items-center justify-between gap-3 px-6 pt-5">
             <h2 className="text-[15px] font-medium text-content">{t.activeGoals}</h2>
             <Link to="/goals" className={QUIET_LINK_CLASS}>
@@ -596,14 +649,13 @@ export function DashboardPage() {
               />
             </div>
           ) : goals.length === 0 ? (
-            <div className="flex flex-1 flex-col items-start justify-center gap-2 px-6 py-8">
-              <p className="text-ui font-medium text-content">{t.noActiveGoals}</p>
-              <p className="max-w-sm text-caption text-muted">{t.noActiveGoalsHint}</p>
-              <Link to="/goals" className={cn(QUIET_LINK_CLASS, "mt-1 text-content")}>
-                {t.goToGoals}
-                <ArrowRight className="size-3.5" aria-hidden="true" />
-              </Link>
-            </div>
+            <CardEmpty
+              icon={<Target className="size-4" aria-hidden="true" />}
+              title={t.noActiveGoals}
+              description={t.noActiveGoalsHint}
+              href="/goals"
+              action={t.goToGoals}
+            />
           ) : (
             <ul className="mt-4 flex flex-1 flex-col">
               {goals.map((item) => (
@@ -654,12 +706,11 @@ export function DashboardPage() {
           )}
 
           {goals.length > 0 ? (
-            <div className="mt-auto flex items-center justify-between border-t border-line px-6 py-3">
+            <div className="mt-auto border-t border-line px-6 py-3">
               <Link to="/goals" className={QUIET_LINK_CLASS}>
                 {t.goToGoals}
                 <ArrowRight className="size-3.5" aria-hidden="true" />
               </Link>
-              <Target className="size-4 text-muted" aria-hidden="true" />
             </div>
           ) : null}
         </Card>

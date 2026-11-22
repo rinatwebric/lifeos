@@ -1,7 +1,8 @@
-import { Check, Pause, Pencil, Play, Trash2 } from "lucide-react";
+import { Check } from "lucide-react";
 
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { HabitActionsMenu } from "@/features/habits/components/HabitActionsMenu";
 import { cn } from "@/lib/cn";
 import { pluralCategory, tmpl } from "@/lib/i18n/format";
 import { useLocale, useMessages } from "@/lib/i18n/I18nContext";
@@ -59,24 +60,38 @@ export function HabitRow({ habit, stats, onLog, onEdit, onTogglePause, onDelete 
   return (
     <li
       className={cn(
-        "flex flex-col gap-4 px-5 py-4 lg:grid lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)_auto] lg:items-center",
+        "grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-x-3 gap-y-3 px-5 py-4 transition-colors duration-fast hover:bg-surface-raised/40 sm:px-6 lg:grid-cols-[auto_minmax(0,1fr)_minmax(0,0.85fr)_auto] lg:items-center",
         archived && "opacity-70",
       )}
     >
-      <div className="min-w-0 flex-1 space-y-1.5">
+      <Button
+        variant="ghost"
+        size="sm"
+        className="size-11 shrink-0 justify-center bg-surface-muted p-0 text-content hover:bg-surface-raised lg:min-h-9 lg:w-auto lg:justify-start lg:gap-2 lg:px-3"
+        aria-label={tmpl(t.logAria, { title: habit.title })}
+        title={t.log}
+        onClick={() => onLog(habit)}
+      >
+        <Check className="size-4" aria-hidden="true" />
+        <span className="hidden lg:inline">{t.log}</span>
+      </Button>
+
+      <div className="min-w-0 space-y-1.5">
         <p title={habit.title} className="truncate text-ui font-medium text-content">
           {habit.title}
         </p>
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-caption text-muted">
           <span>{frequencyLabel}</span>
-          <span aria-hidden="true">·</span>
+          <span className="hidden sm:inline" aria-hidden="true">
+            ·
+          </span>
           <span className="tabular-nums">{targetLabel}</span>
           {paused ? <Badge tone="outline">{m.enums.status.paused}</Badge> : null}
           {archived ? <Badge tone="outline">{m.enums.status.archived}</Badge> : null}
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-x-5 gap-y-1 text-caption lg:shrink-0">
+      <div className="col-start-2 flex flex-wrap gap-x-5 gap-y-1 text-caption lg:col-start-auto lg:shrink-0">
         <span
           className={cn("tabular-nums", stats.currentStreak > 0 ? "text-accent" : "text-muted")}
         >
@@ -91,49 +106,13 @@ export function HabitRow({ habit, stats, onLog, onEdit, onTogglePause, onDelete 
         )}
       </div>
 
-      <div className="grid shrink-0 grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center lg:justify-end">
-        <Button
-          variant="ghost"
-          size="sm"
-          className="min-h-11 justify-start gap-2 bg-surface-muted px-3 text-content hover:bg-surface-raised"
-          onClick={() => onLog(habit)}
-        >
-          <Check className="size-4" aria-hidden="true" />
-          {t.log}
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="min-h-11 justify-start gap-2 bg-surface-muted px-3 hover:bg-surface-raised"
-          onClick={() => onEdit(habit)}
-        >
-          <Pencil className="size-4" aria-hidden="true" />
-          {t.edit}
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="min-h-11 justify-start gap-2 bg-surface-muted px-3 hover:bg-surface-raised"
-          onClick={() => onTogglePause(habit)}
-          aria-label={tmpl(paused || archived ? t.resumeAria : t.pauseAria, { title: habit.title })}
-        >
-          {paused || archived ? (
-            <Play className="size-4" aria-hidden="true" />
-          ) : (
-            <Pause className="size-4" aria-hidden="true" />
-          )}
-          {paused || archived ? t.resume : t.pause}
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="min-h-11 justify-start gap-2 bg-surface-muted px-3 text-danger hover:bg-danger-subtle hover:text-danger"
-          onClick={() => onDelete(habit)}
-          aria-label={tmpl(t.deleteAria, { title: habit.title })}
-        >
-          <Trash2 className="size-4" aria-hidden="true" />
-          {t.delete}
-        </Button>
+      <div className="col-start-3 row-start-1 lg:col-start-auto lg:row-start-auto">
+        <HabitActionsMenu
+          habit={habit}
+          onEdit={onEdit}
+          onTogglePause={onTogglePause}
+          onDelete={onDelete}
+        />
       </div>
     </li>
   );

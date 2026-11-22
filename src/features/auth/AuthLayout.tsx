@@ -31,7 +31,7 @@ export function AuthLayout() {
   const t = useMessages().auth.layout;
 
   return (
-    <div className="min-h-dvh bg-canvas text-content">
+    <div className="motion-page min-h-dvh bg-canvas text-content">
       <div className="mx-auto grid min-h-dvh w-full max-w-[1240px] lg:grid-cols-[minmax(0,1fr)_420px] lg:gap-16 lg:px-12 xl:gap-24 xl:px-16">
         <aside className="hidden lg:flex lg:flex-col lg:py-10">
           <Brand className="-ml-2" />

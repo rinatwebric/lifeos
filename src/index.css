@@ -60,7 +60,7 @@
   --raw-accent-content: #ffffff;
   --raw-accent-subtle: #fbf3df;
   --raw-accent-border: #e8d5a8;
-  --raw-focus: #171715;
+  --raw-focus: #b45309;
   --raw-scrim: rgb(20 20 17 / 0.45);
 
   --raw-danger: #b42318;
@@ -94,7 +94,7 @@
   --raw-accent-content: #141210;
   --raw-accent-subtle: #2a2113;
   --raw-accent-border: #5c471f;
-  --raw-focus: #f7f7f7;
+  --raw-focus: #eab25c;
   --raw-scrim: rgb(0 0 0 / 0.72);
 
   --raw-danger: #e56a72;
@@ -193,8 +193,12 @@
   --duration-fast: 150ms;
   --duration-base: 200ms;
   --duration-slow: 300ms;
+  --duration-page: 420ms;
+  --duration-enter: 560ms;
 
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-emphasis: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring: cubic-bezier(0.22, 1.18, 0.36, 1);
 }
 
 .dark {
@@ -278,4 +282,133 @@
       scroll-behavior: auto !important;
     }
   }
+}
+
+/* ---------------------------------------------------------------------------
+ * Motion: one restrained language for arrival, overlays and progress.
+ * Durations are long enough to read as intent, short enough to stay out of
+ * the way. Every effect has a reduced-motion escape in the base layer above.
+ * ------------------------------------------------------------------------- */
+@keyframes lifeos-page-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 10px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes lifeos-rise-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes lifeos-menu-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, -4px, 0) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes lifeos-dialog-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0) scale(0.975);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes lifeos-sheet-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 24px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes lifeos-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes lifeos-progress-in {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes lifeos-check-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.35);
+  }
+  65% {
+    opacity: 1;
+    transform: scale(1.12);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@layer utilities {
+  .motion-page {
+    animation: lifeos-page-in var(--duration-page) var(--ease-emphasis) both;
+  }
+
+  .motion-rise {
+    animation: lifeos-rise-in var(--duration-enter) var(--ease-emphasis) both;
+  }
+
+  .motion-menu {
+    transform-origin: top right;
+    animation: lifeos-menu-in 180ms var(--ease-emphasis) both;
+  }
+
+  .motion-dialog {
+    animation: lifeos-dialog-in 220ms var(--ease-emphasis) both;
+  }
+
+  .motion-sheet {
+    animation: lifeos-sheet-in 340ms var(--ease-emphasis) both;
+  }
+
+  .motion-progress {
+    transform-origin: left center;
+    animation: lifeos-progress-in 780ms var(--ease-emphasis) both;
+  }
+
+  .motion-check {
+    animation: lifeos-check-pop 240ms var(--ease-spring) both;
+  }
+}
+
+dialog[open]::backdrop {
+  animation: lifeos-fade-in 180ms var(--ease-standard) both;
 }

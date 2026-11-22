@@ -14,7 +14,7 @@ export function NotFoundPage() {
   const m = useMessages();
 
   return (
-    <div className="flex min-h-dvh flex-col overflow-hidden bg-canvas px-5 py-6 text-content sm:px-8 lg:px-12">
+    <div className="motion-page flex min-h-dvh flex-col overflow-hidden bg-canvas px-5 py-6 text-content sm:px-8 lg:px-12">
       <header className="flex shrink-0 items-center">
         <Brand className="-ml-2" />
       </header>

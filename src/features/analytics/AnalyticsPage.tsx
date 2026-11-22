@@ -407,6 +407,8 @@ export function AnalyticsPage() {
                     fill={SERIES_FILL}
                     maxBarSize={24}
                     radius={[4, 4, 0, 0]}
+                    animationDuration={700}
+                    animationEasing="ease-out"
                   />
                 </BarChart>
               </ResponsiveContainer>
@@ -439,7 +441,14 @@ export function AnalyticsPage() {
                     labelStyle={TOOLTIP_LABEL_STYLE}
                     cursor={TOOLTIP_CURSOR}
                   />
-                  <Bar dataKey="count" fill={SERIES_FILL} maxBarSize={24} radius={[0, 4, 4, 0]} />
+                  <Bar
+                    dataKey="count"
+                    fill={SERIES_FILL}
+                    maxBarSize={24}
+                    radius={[0, 4, 4, 0]}
+                    animationDuration={700}
+                    animationEasing="ease-out"
+                  />
                 </BarChart>
               </ResponsiveContainer>
             </ChartShell>
@@ -479,6 +488,8 @@ export function AnalyticsPage() {
                     fill={SERIES_FILL}
                     maxBarSize={24}
                     radius={[0, 4, 4, 0]}
+                    animationDuration={700}
+                    animationEasing="ease-out"
                   />
                 </BarChart>
               </ResponsiveContainer>
@@ -517,7 +528,14 @@ export function AnalyticsPage() {
                       labelStyle={TOOLTIP_LABEL_STYLE}
                       cursor={TOOLTIP_CURSOR}
                     />
-                    <Bar dataKey="rate" fill={SERIES_FILL} maxBarSize={24} radius={[0, 4, 4, 0]} />
+                    <Bar
+                      dataKey="rate"
+                      fill={SERIES_FILL}
+                      maxBarSize={24}
+                      radius={[0, 4, 4, 0]}
+                      animationDuration={700}
+                      animationEasing="ease-out"
+                    />
                   </BarChart>
                 </ResponsiveContainer>
               </ChartShell>

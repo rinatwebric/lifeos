@@ -31,7 +31,7 @@ export function ProgressBar({ value, label, tone = "accent", className }: Progre
       >
         <div
           className={cn(
-            "h-full rounded-full transition-[width] duration-slow ease-standard motion-reduce:transition-none",
+            "motion-progress h-full rounded-full transition-[width] duration-slow ease-standard motion-reduce:transition-none",
             tone === "neutral" ? "bg-muted/60" : "bg-accent",
           )}
           style={{ width: `${clamped}%` }}

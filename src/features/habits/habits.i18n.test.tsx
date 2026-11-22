@@ -237,7 +237,8 @@ describe("HabitsPage RU", () => {
     expect(screen.getByText("серия 3 дня · лучшая 5")).toBeInTheDocument();
     expect(screen.getByText("75% выполнения")).toBeInTheDocument();
     expect(screen.getByText("Цель 1 / день")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Приостановить «Read 20 minutes»" }));
+    fireEvent.click(screen.getByRole("button", { name: "Действия: «Read 20 minutes»" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Приостановить «Read 20 minutes»" }));
     expect(mockedSetStatus().mutate).toHaveBeenCalledWith({ id: "h1", status: "paused" });
   });
 });
