@@ -397,16 +397,11 @@ function SignOutCard() {
 
   return (
     <Card className="space-y-4 p-6">
-      <div className="flex items-start gap-3">
-        <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-danger-subtle text-danger">
-          <LogOut className="size-4" aria-hidden="true" />
-        </span>
-        <div className="min-w-0 space-y-1.5">
-          <h2 className="text-[15px] leading-snug font-medium text-content">{t.signOutTitle}</h2>
-          <p className="max-w-2xl text-caption leading-relaxed text-muted text-pretty">
-            {t.signOutHint}
-          </p>
-        </div>
+      <div className="min-w-0 space-y-1.5">
+        <h2 className="text-[15px] leading-snug font-medium text-content">{t.signOutTitle}</h2>
+        <p className="max-w-2xl text-caption leading-relaxed text-muted text-pretty">
+          {t.signOutHint}
+        </p>
       </div>
 
       {signOutError ? (

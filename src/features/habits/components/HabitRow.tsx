@@ -60,14 +60,14 @@ export function HabitRow({ habit, stats, onLog, onEdit, onTogglePause, onDelete 
   return (
     <li
       className={cn(
-        "grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 gap-y-3 px-5 py-4 transition-colors duration-fast hover:bg-surface-raised/40 sm:px-6 lg:grid-cols-[auto_minmax(0,1fr)_minmax(0,0.85fr)_auto] lg:items-center",
+        "grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 gap-y-3 px-5 py-4 transition-colors duration-fast hover:bg-surface-raised/40 sm:px-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.85fr)_auto_auto] lg:items-center",
         archived && "opacity-70",
       )}
     >
       <Button
         variant="ghost"
         size="sm"
-        className="col-span-2 col-start-1 row-start-3 min-h-11 w-full justify-center gap-2 bg-surface-muted px-3 text-content hover:bg-surface-raised lg:col-span-1 lg:col-start-1 lg:row-start-1 lg:min-h-9 lg:w-auto lg:justify-start"
+        className="col-span-2 col-start-1 row-start-3 min-h-11 w-full justify-center gap-2 bg-surface-muted px-3 text-content hover:bg-surface-raised lg:col-span-1 lg:col-start-3 lg:row-start-1 lg:min-h-9 lg:w-auto lg:justify-start"
         aria-label={tmpl(t.logAria, { title: habit.title })}
         title={t.log}
         onClick={() => onLog(habit)}
@@ -76,7 +76,7 @@ export function HabitRow({ habit, stats, onLog, onEdit, onTogglePause, onDelete 
         {t.log}
       </Button>
 
-      <div className="col-start-1 row-start-1 min-w-0 space-y-1.5 lg:col-start-2">
+      <div className="col-start-1 row-start-1 min-w-0 space-y-1.5 lg:col-start-1">
         <p title={habit.title} className="truncate text-ui font-medium text-content">
           {habit.title}
         </p>
@@ -91,7 +91,7 @@ export function HabitRow({ habit, stats, onLog, onEdit, onTogglePause, onDelete 
         </div>
       </div>
 
-      <div className="col-span-2 col-start-1 row-start-2 flex flex-wrap gap-x-5 gap-y-1 text-caption lg:col-span-1 lg:col-start-3 lg:row-start-1 lg:shrink-0">
+      <div className="col-span-2 col-start-1 row-start-2 flex flex-wrap gap-x-5 gap-y-1 text-caption lg:col-span-1 lg:col-start-2 lg:row-start-1 lg:shrink-0">
         <span
           className={cn("tabular-nums", stats.currentStreak > 0 ? "text-accent" : "text-muted")}
         >

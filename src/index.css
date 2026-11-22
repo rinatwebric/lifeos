@@ -378,12 +378,15 @@
 }
 
 @layer utilities {
+  /* Fill only during the entrance. `both` keeps an identity transform after
+   * the animation, which makes the element the containing block for fixed
+   * descendants and displaces select popups inside the page or a dialog. */
   .motion-page {
-    animation: lifeos-page-in var(--duration-page) var(--ease-emphasis) both;
+    animation: lifeos-page-in var(--duration-page) var(--ease-emphasis) backwards;
   }
 
   .motion-rise {
-    animation: lifeos-rise-in var(--duration-enter) var(--ease-emphasis) both;
+    animation: lifeos-rise-in var(--duration-enter) var(--ease-emphasis) backwards;
   }
 
   .motion-menu {
@@ -392,11 +395,11 @@
   }
 
   .motion-dialog {
-    animation: lifeos-dialog-in 220ms var(--ease-emphasis) both;
+    animation: lifeos-dialog-in 220ms var(--ease-emphasis) backwards;
   }
 
   .motion-sheet {
-    animation: lifeos-sheet-in 340ms var(--ease-emphasis) both;
+    animation: lifeos-sheet-in 340ms var(--ease-emphasis) backwards;
   }
 
   .motion-progress {

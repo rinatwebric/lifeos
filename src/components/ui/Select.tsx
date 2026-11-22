@@ -170,20 +170,23 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
       // nearest dialog as the boundary, not just the viewport, and flip the
       // list up when the room below is smaller than a comfortable menu.
       const dialog = trigger.closest("dialog");
-      const boundaryBottom = dialog
-        ? Math.min(window.innerHeight, dialog.getBoundingClientRect().bottom)
+      const dialogRect = dialog?.getBoundingClientRect();
+      const boundaryTop = dialogRect ? Math.max(8, dialogRect.top) : 0;
+      const boundaryBottom = dialogRect
+        ? Math.min(window.innerHeight, dialogRect.bottom)
         : window.innerHeight;
+      const boundaryLeft = dialogRect ? Math.max(8, dialogRect.left + 8) : 8;
+      const boundaryRight = dialogRect
+        ? Math.min(window.innerWidth - 8, dialogRect.right - 8)
+        : window.innerWidth - 8;
       const spaceBelow = boundaryBottom - rect.bottom - 16;
-      const spaceAbove = rect.top - 16;
+      const spaceAbove = rect.top - boundaryTop - 16;
       const openUp = spaceBelow < 320 && spaceAbove > spaceBelow;
       const maxHeight = Math.min(288, Math.max(120, openUp ? spaceAbove : spaceBelow));
-      const left = Math.max(
-        8,
-        Math.min(
-          rect.right - width < 8 ? rect.left : rect.right - width,
-          window.innerWidth - width - 8,
-        ),
-      );
+      // Select menus open under their trigger, not right-aligned like a compact
+      // action menu. Clamp to the viewport and the enclosing dialog instead of
+      // letting a wider list hang outside the dialog's left edge.
+      const left = Math.max(boundaryLeft, Math.min(rect.left, boundaryRight - width));
       setPosition(
         openUp
           ? { bottom: window.innerHeight - rect.top + 8, left, width, maxHeight }
