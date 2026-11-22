@@ -144,7 +144,7 @@ export function TaskRow({
         </div>
       ) : null}
 
-      <div className="-mt-1.5 col-start-3 row-start-1 self-start lg:col-start-4 lg:row-start-1 lg:mt-0 lg:self-center">
+      <div className="-mt-1.5 col-start-3 row-start-1 self-start lg:col-start-4 lg:row-start-1">
         <TaskActionsMenu
           task={task}
           onEdit={onEdit}
