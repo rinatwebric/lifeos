@@ -14,7 +14,7 @@ export function Input({ invalid, className, ...rest }: InputProps) {
         "h-10 w-full rounded-control border bg-surface px-3 text-base text-content placeholder:text-muted transition-[border-color,background-color] duration-fast ease-standard",
         "sm:text-ui",
         "hover:border-muted",
-        "focus:border-content",
+
         "disabled:cursor-not-allowed disabled:opacity-60",
         invalid ? "border-danger" : "border-control",
         className,

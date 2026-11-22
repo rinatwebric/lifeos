@@ -16,7 +16,7 @@ import { useIntlLocale, useLocale, useMessages } from "@/lib/i18n/I18nContext";
 import type { Task } from "@/types/domain";
 
 const PRIMARY_LINK_CLASS =
-  "inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-pill bg-content px-4 text-ui font-medium text-canvas transition-[opacity,scale] duration-fast ease-standard hover:opacity-90 motion-safe:active:scale-[0.97]";
+  "flex min-h-11 w-full shrink-0 items-center justify-center gap-2 rounded-pill bg-content px-5 text-ui font-medium text-canvas transition-[opacity,scale] duration-fast ease-standard hover:opacity-90 motion-safe:active:scale-[0.97] sm:inline-flex sm:min-h-9 sm:w-auto sm:px-4";
 
 const QUIET_LINK_CLASS =
   "inline-flex items-center gap-1 rounded-full text-micro font-medium text-muted transition-colors duration-fast ease-standard hover:text-content";
@@ -121,8 +121,8 @@ function CardEmpty({
   action: string;
 }) {
   return (
-    <div className="flex flex-1 items-center px-6 py-6">
-      <div className="motion-rise w-full rounded-card bg-surface-muted/60 p-5">
+    <div className="flex flex-1 items-stretch px-5 py-5">
+      <div className="motion-rise flex w-full flex-col justify-center rounded-card bg-surface-muted/60 p-5">
         <div className="flex items-start gap-3">
           <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-surface text-muted">
             {icon}
@@ -543,7 +543,7 @@ export function DashboardPage() {
       </div>
 
       <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
-        <Card className="flex min-h-[240px] flex-col p-0">
+        <Card className="flex flex-col p-0">
           <div className="flex items-center justify-between gap-3 px-6 pt-5">
             <h2 className="text-[15px] font-medium text-content">{t.todayBlocks}</h2>
             <span className="text-micro text-muted tabular-nums">
@@ -623,7 +623,7 @@ export function DashboardPage() {
           ) : null}
         </Card>
 
-        <Card className="flex min-h-[240px] flex-col p-0">
+        <Card className="flex flex-col p-0">
           <div className="flex items-center justify-between gap-3 px-6 pt-5">
             <h2 className="text-[15px] font-medium text-content">{t.activeGoals}</h2>
             <Link to="/goals" className={QUIET_LINK_CLASS}>

@@ -217,7 +217,7 @@ export function CommandPalette({ onClose }: CommandPaletteProps) {
           aria-controls={listId}
           aria-autocomplete="list"
           aria-activedescendant={items[safeActive] ? `${listId}-${safeActive}` : undefined}
-          className="h-11 w-full rounded-control border border-control bg-surface pr-3 pl-9 text-base text-content placeholder:text-muted focus:border-content sm:text-ui"
+          className="h-11 w-full rounded-control border border-control bg-surface pr-3 pl-9 text-base text-content placeholder:text-muted sm:text-ui"
         />
       </div>
 

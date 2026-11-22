@@ -337,7 +337,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
           "flex h-10 w-full cursor-pointer items-center justify-between gap-2 rounded-control border bg-surface px-3 text-left text-base text-content transition-[border-color,background-color] duration-fast ease-standard",
           "sm:text-ui",
           "hover:border-muted",
-          "focus:border-content",
+
           "disabled:cursor-not-allowed disabled:opacity-60",
           invalid ? "border-danger" : "border-control",
           className,

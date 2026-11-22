@@ -281,7 +281,7 @@ export function DateTimePicker({
           "flex h-10 min-h-11 w-full items-center justify-between gap-3 rounded-control border bg-surface px-3 text-left text-base text-content transition-[border-color,background-color] duration-fast ease-standard",
           "sm:min-h-10 sm:text-ui",
           "hover:border-muted",
-          "focus:border-content",
+
           "disabled:cursor-not-allowed disabled:opacity-60",
           invalid ? "border-danger" : "border-control",
         )}

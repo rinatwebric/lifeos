@@ -19,7 +19,7 @@ function DayRow({ time, title, meta, accent = false }: DayRowProps) {
       <span
         className={cn(
           "pt-0.5 text-caption tabular-nums",
-          accent ? "text-accent-content/70" : "text-muted",
+          accent ? "text-accent-content" : "text-muted",
         )}
       >
         {time}
@@ -29,7 +29,7 @@ function DayRow({ time, title, meta, accent = false }: DayRowProps) {
         <p
           className={cn(
             "mt-1 text-caption leading-snug",
-            accent ? "text-accent-content/70" : "text-muted",
+            accent ? "text-accent-content" : "text-muted",
           )}
         >
           {meta}

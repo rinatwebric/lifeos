@@ -60,23 +60,23 @@ export function HabitRow({ habit, stats, onLog, onEdit, onTogglePause, onDelete 
   return (
     <li
       className={cn(
-        "grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-x-3 gap-y-3 px-5 py-4 transition-colors duration-fast hover:bg-surface-raised/40 sm:px-6 lg:grid-cols-[auto_minmax(0,1fr)_minmax(0,0.85fr)_auto] lg:items-center",
+        "grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 gap-y-3 px-5 py-4 transition-colors duration-fast hover:bg-surface-raised/40 sm:px-6 lg:grid-cols-[auto_minmax(0,1fr)_minmax(0,0.85fr)_auto] lg:items-center",
         archived && "opacity-70",
       )}
     >
       <Button
         variant="ghost"
         size="sm"
-        className="size-11 shrink-0 justify-center bg-surface-muted p-0 text-content hover:bg-surface-raised lg:min-h-9 lg:w-auto lg:justify-start lg:gap-2 lg:px-3"
+        className="col-span-2 col-start-1 row-start-3 min-h-11 w-full justify-center gap-2 bg-surface-muted px-3 text-content hover:bg-surface-raised lg:col-span-1 lg:col-start-1 lg:row-start-1 lg:min-h-9 lg:w-auto lg:justify-start"
         aria-label={tmpl(t.logAria, { title: habit.title })}
         title={t.log}
         onClick={() => onLog(habit)}
       >
         <Check className="size-4" aria-hidden="true" />
-        <span className="hidden lg:inline">{t.log}</span>
+        {t.log}
       </Button>
 
-      <div className="min-w-0 space-y-1.5">
+      <div className="col-start-1 row-start-1 min-w-0 space-y-1.5 lg:col-start-2">
         <p title={habit.title} className="truncate text-ui font-medium text-content">
           {habit.title}
         </p>
@@ -91,7 +91,7 @@ export function HabitRow({ habit, stats, onLog, onEdit, onTogglePause, onDelete 
         </div>
       </div>
 
-      <div className="col-start-2 flex flex-wrap gap-x-5 gap-y-1 text-caption lg:col-start-auto lg:shrink-0">
+      <div className="col-span-2 col-start-1 row-start-2 flex flex-wrap gap-x-5 gap-y-1 text-caption lg:col-span-1 lg:col-start-3 lg:row-start-1 lg:shrink-0">
         <span
           className={cn("tabular-nums", stats.currentStreak > 0 ? "text-accent" : "text-muted")}
         >
@@ -106,7 +106,7 @@ export function HabitRow({ habit, stats, onLog, onEdit, onTogglePause, onDelete 
         )}
       </div>
 
-      <div className="col-start-3 row-start-1 lg:col-start-auto lg:row-start-auto">
+      <div className="col-start-2 row-start-1 lg:col-start-4 lg:row-start-1">
         <HabitActionsMenu
           habit={habit}
           onEdit={onEdit}

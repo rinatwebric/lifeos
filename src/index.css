@@ -56,11 +56,11 @@
   --raw-control: #8f8f85;
   --raw-content: #171715;
   --raw-muted: #5f5f57;
-  --raw-accent: #b45309;
+  --raw-accent: #2563eb;
   --raw-accent-content: #ffffff;
-  --raw-accent-subtle: #fbf3df;
-  --raw-accent-border: #e8d5a8;
-  --raw-focus: #b45309;
+  --raw-accent-subtle: #eff6ff;
+  --raw-accent-border: #bfdbfe;
+  --raw-focus: #171715;
   --raw-scrim: rgb(20 20 17 / 0.45);
 
   --raw-danger: #b42318;
@@ -71,10 +71,10 @@
   --raw-success-content: #ffffff;
   --raw-success-subtle: #ecfdf3;
   --raw-success-border: #abefc6;
-  --raw-warning: #92400e;
+  --raw-warning: #a16207;
   --raw-warning-content: #ffffff;
-  --raw-warning-subtle: #fffaeb;
-  --raw-warning-border: #fedf89;
+  --raw-warning-subtle: #fefce8;
+  --raw-warning-border: #fef08a;
 }
 
 .dark {
@@ -90,11 +90,11 @@
   --raw-control: #6a645a;
   --raw-content: #f7f7f7;
   --raw-muted: #b8b5ae;
-  --raw-accent: #eab25c;
-  --raw-accent-content: #141210;
-  --raw-accent-subtle: #2a2113;
-  --raw-accent-border: #5c471f;
-  --raw-focus: #eab25c;
+  --raw-accent: #93c5fd;
+  --raw-accent-content: #0b1220;
+  --raw-accent-subtle: #101f33;
+  --raw-accent-border: #24466e;
+  --raw-focus: #f7f7f7;
   --raw-scrim: rgb(0 0 0 / 0.72);
 
   --raw-danger: #e56a72;
@@ -105,10 +105,10 @@
   --raw-success-content: #0b2413;
   --raw-success-subtle: #14251a;
   --raw-success-border: #2f6b3c;
-  --raw-warning: #f0b35c;
-  --raw-warning-content: #241a06;
-  --raw-warning-subtle: #2b2414;
-  --raw-warning-border: #6b5120;
+  --raw-warning: #fde047;
+  --raw-warning-content: #1a1605;
+  --raw-warning-subtle: #26220c;
+  --raw-warning-border: #5f551c;
 }
 
 /* ---------------------------------------------------------------------------
@@ -231,7 +231,7 @@
   }
 
   ::selection {
-    background-color: color-mix(in oklab, var(--raw-focus) 25%, transparent);
+    background-color: color-mix(in oklab, var(--raw-accent) 28%, transparent);
   }
 
   /* Native Windows scrollbars (with arrow buttons) break the neutral surface

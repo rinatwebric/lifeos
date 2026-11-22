@@ -23,7 +23,7 @@ export function AuthField({ id, label, error, className, ...inputProps }: AuthFi
         aria-describedby={error ? errorId : undefined}
         className={cn(
           "h-12 w-full rounded-control border bg-surface px-3.5 text-base text-content",
-          "placeholder:text-muted focus:border-focus disabled:cursor-not-allowed disabled:opacity-60",
+          "placeholder:text-muted disabled:cursor-not-allowed disabled:opacity-60",
           "transition-[border-color] duration-fast ease-standard sm:text-ui",
           error ? "border-danger" : "border-control",
           className,
