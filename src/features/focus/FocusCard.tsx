@@ -1,5 +1,6 @@
 import { Pause, Play, Square, Timer } from "lucide-react";
 import { useState } from "react";
+import { Link } from "react-router-dom";
 
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -164,10 +165,6 @@ export function FocusCard({ nextTask }: FocusCardProps) {
     );
   }
 
-  if (!active && !nextTask && completedSeconds === null) {
-    return null;
-  }
-
   if (!active) {
     return (
       <Card className="p-5 sm:p-6">
@@ -248,6 +245,13 @@ export function FocusCard({ nextTask }: FocusCardProps) {
                     })}
               </Button>
             </div>
+          ) : nextTask === null && completedSeconds === null ? (
+            <Link
+              to="/tasks"
+              className="inline-flex h-9 shrink-0 items-center justify-center rounded-pill border border-line px-4 text-ui font-medium text-content transition-colors duration-fast ease-standard hover:bg-surface-muted"
+            >
+              {t.chooseTask}
+            </Link>
           ) : null}
         </div>
       </Card>

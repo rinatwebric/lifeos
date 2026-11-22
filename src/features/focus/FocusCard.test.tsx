@@ -1,6 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { MemoryRouter } from "react-router-dom";
 
 import { FocusCard } from "./FocusCard";
 import {
@@ -122,6 +123,17 @@ beforeEach(() => {
 });
 
 describe("FocusCard", () => {
+  it("shows where focus lives when there is no next task", () => {
+    render(
+      <MemoryRouter>
+        <FocusCard nextTask={null} />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText("No task to focus on today")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Choose a task" })).toHaveAttribute("href", "/tasks");
+  });
+
   it("starts the selected focus length on the next task", async () => {
     const user = userEvent.setup();
     const { start } = stubMutations();

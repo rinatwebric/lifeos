@@ -18,7 +18,8 @@ describe("AuthLayout", () => {
 
     expect(screen.getAllByRole("link", { name: "LifeOS home" })).toHaveLength(2);
     expect(screen.getAllByText(AUTH_LAYOUT_COPY.headline).length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText(AUTH_LAYOUT_COPY.stepGoals)).toBeInTheDocument();
+    expect(screen.getAllByText(AUTH_LAYOUT_COPY.subtitle).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText(AUTH_LAYOUT_COPY.dayFocus)).toBeInTheDocument();
     expect(screen.getAllByText(AUTH_LAYOUT_COPY.assistantNote).length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("Sign-in form")).toBeInTheDocument();
     // App shell navigation must not leak into auth screens.

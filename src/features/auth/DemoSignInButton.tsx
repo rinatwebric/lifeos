@@ -67,7 +67,7 @@ export function DemoSignInButton({ onError }: DemoSignInButtonProps) {
       >
         {pending ? m.auth.demo.signingIn : m.auth.demo.title}
       </Button>
-      <p className="text-micro text-muted">{m.auth.demo.hint}</p>
+      <p className="text-caption text-muted">{m.auth.demo.hint}</p>
     </div>
   );
 }

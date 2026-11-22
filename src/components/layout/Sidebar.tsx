@@ -5,6 +5,7 @@ import { usePrimaryNav, useSecondaryNav, type NavEntry } from "@/app/navigation"
 import { Brand } from "@/components/layout/Brand";
 import { DisplayControls } from "@/components/layout/DisplayControls";
 import { cn } from "@/lib/cn";
+import { commandKeyLabel, isApplePlatform } from "@/lib/platform";
 import { useMessages } from "@/lib/i18n/I18nContext";
 
 function SidebarLink({ entry }: { entry: NavEntry }) {
@@ -40,6 +41,7 @@ export function Sidebar({ onOpenSearch }: { onOpenSearch?: () => void }) {
   const m = useMessages();
   const primary = usePrimaryNav();
   const secondary = useSecondaryNav();
+  const searchShortcut = commandKeyLabel(isApplePlatform());
 
   return (
     <aside className="sticky top-0 hidden h-dvh w-[232px] shrink-0 flex-col bg-canvas px-4 py-5 lg:flex">
@@ -55,7 +57,7 @@ export function Sidebar({ onOpenSearch }: { onOpenSearch?: () => void }) {
           <Search className="size-4 shrink-0" aria-hidden="true" />
           <span className="flex-1 truncate">{m.commandPalette.open}</span>
           <kbd className="rounded-[5px] border border-line px-1.5 py-0.5 font-sans text-[10px] text-muted">
-            ⌘K
+            {searchShortcut}
           </kbd>
         </button>
       ) : null}
