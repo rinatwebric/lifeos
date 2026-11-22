@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -24,6 +25,11 @@ vi.mock("./hooks", () => ({
 
 vi.mock("@/features/tasks/hooks", () => ({
   useSetTaskStatus: vi.fn(),
+}));
+
+const mockListTasks = vi.hoisted(() => vi.fn());
+vi.mock("@/features/tasks/api", () => ({
+  listTasks: mockListTasks,
 }));
 
 const mockedActive = vi.mocked(useActiveFocusSession);
@@ -72,6 +78,17 @@ function makeSession(overrides: Record<string, unknown> = {}) {
     updatedAt: new Date(NOW - 65_000).toISOString(),
     ...overrides,
   };
+}
+
+function renderCard(nextTask: Task | null) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(
+    <QueryClientProvider client={client}>
+      <MemoryRouter>
+        <FocusCard nextTask={nextTask} />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
 }
 
 function stubMutations() {
@@ -123,21 +140,25 @@ beforeEach(() => {
 });
 
 describe("FocusCard", () => {
-  it("shows where focus lives when there is no next task", () => {
-    render(
-      <MemoryRouter>
-        <FocusCard nextTask={null} />
-      </MemoryRouter>,
-    );
+  it("shows the task picker when nothing is selected", async () => {
+    const user = userEvent.setup();
+    mockListTasks.mockResolvedValue([makeTask({ id: "task-2", title: "Walk", dueDate: null })]);
+    renderCard(null);
 
-    expect(screen.getByText("No task to focus on today")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Choose a task" })).toHaveAttribute("href", "/tasks");
+    expect(screen.getByText("No task selected for focus")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Choose a task" }));
+
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    await user.click(await screen.findByRole("button", { name: /Walk/ }));
+
+    expect(screen.getByText("Walk")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Start 25 min" })).toBeInTheDocument();
   });
 
   it("starts the selected focus length on the next task", async () => {
     const user = userEvent.setup();
     const { start } = stubMutations();
-    render(<FocusCard nextTask={makeTask()} />);
+    renderCard(makeTask());
 
     expect(screen.getByText("Write the outline")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "50 min" }));
@@ -157,7 +178,7 @@ describe("FocusCard", () => {
       refetch: vi.fn(),
     } as unknown as ReturnType<typeof useActiveFocusSession>);
     const { pause, complete } = stubMutations();
-    render(<FocusCard nextTask={makeTask()} />);
+    renderCard(makeTask());
 
     expect(screen.getByText("Focus running")).toBeInTheDocument();
     expect(screen.getByText("Write the outline")).toBeInTheDocument();
@@ -181,7 +202,7 @@ describe("FocusCard", () => {
       refetch: vi.fn(),
     } as unknown as ReturnType<typeof useActiveFocusSession>);
     const { resume } = stubMutations();
-    render(<FocusCard nextTask={makeTask()} />);
+    renderCard(makeTask());
 
     expect(screen.getByText("Paused")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Resume" }));
