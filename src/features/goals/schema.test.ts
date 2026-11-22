@@ -42,12 +42,8 @@ describe("goal schemas", () => {
   });
 
   it("rejects unknown category/priority/status values", () => {
-    expect(
-      createGoalSchema.safeParse({ ...validGoal, category: "nope" }).success,
-    ).toBe(false);
-    expect(createGoalSchema.safeParse({ ...validGoal, priority: "urgent" }).success).toBe(
-      false,
-    );
+    expect(createGoalSchema.safeParse({ ...validGoal, category: "nope" }).success).toBe(false);
+    expect(createGoalSchema.safeParse({ ...validGoal, priority: "urgent" }).success).toBe(false);
     expect(createGoalSchema.safeParse({ ...validGoal, status: "done" }).success).toBe(false);
   });
 

@@ -107,9 +107,9 @@ export function CheckEmailPage({ cooldownSeconds = RESEND_COOLDOWN_SECONDS }: Ch
 
   return (
     <div className="space-y-6">
-      <div className="space-y-1">
-        <h1 className="text-heading font-semibold tracking-tight text-content">{t.title}</h1>
-        <p className="text-ui text-muted">
+      <div className="space-y-1.5">
+        <h1 className="text-[24px] leading-tight font-semibold tracking-[-0.02em] text-content">{t.title}</h1>
+        <p className="text-caption text-muted text-pretty">
           {t.sentTo} <span className="font-medium text-content">{email}</span>
         </p>
       </div>
@@ -122,7 +122,7 @@ export function CheckEmailPage({ cooldownSeconds = RESEND_COOLDOWN_SECONDS }: Ch
         type="button"
         onClick={() => void onResend()}
         disabled={resendDisabled}
-        className="h-11 w-full rounded-control bg-accent px-4 py-2 text-ui font-medium text-accent-content transition-[opacity] duration-fast ease-standard hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+        className="h-11 w-full rounded-pill bg-content px-4 text-ui font-medium text-canvas transition-[opacity,scale] duration-fast ease-standard hover:opacity-90 motion-safe:enabled:active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50"
       >
         {sending ? t.resending : cooldown > 0 ? tmpl(t.cooldown, { seconds: cooldown }) : t.resend}
       </button>

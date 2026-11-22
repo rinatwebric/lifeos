@@ -11,8 +11,8 @@ interface BadgeProps {
 }
 
 const TONE_CLASSES: Record<BadgeTone, string> = {
-  neutral: "bg-surface-muted text-content",
-  accent: "bg-accent text-accent-content",
+  neutral: "bg-surface-raised text-muted",
+  accent: "border border-accent-border bg-accent-subtle text-accent",
   outline: "border border-line text-muted",
   danger: "border border-danger-border bg-danger-subtle text-danger",
 };

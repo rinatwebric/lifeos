@@ -81,7 +81,11 @@ describe("applyPlan schemas i18n", () => {
 
     const tooMany = ruApply.safeParse({
       ...VALID_PLAN,
-      slots: Array.from({ length: 101 }, (_, i) => ({ ...VALID_SLOT, taskId: UUID, title: `T${i}` })),
+      slots: Array.from({ length: 101 }, (_, i) => ({
+        ...VALID_SLOT,
+        taskId: UUID,
+        title: `T${i}`,
+      })),
     });
     expect(tooMany.success).toBe(false);
     if (!tooMany.success) {

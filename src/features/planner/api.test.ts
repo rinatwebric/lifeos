@@ -76,13 +76,24 @@ function mockBuilder(thenResult: unknown, singleResult?: unknown): BuilderMocks 
   single.mockResolvedValue(singleResult ?? thenResult);
 
   const withThen = Object.assign(builder, {
-    then: (
-      onFulfilled: (value: unknown) => unknown,
-      onRejected?: (reason: unknown) => unknown,
-    ) => Promise.resolve(thenResult).then(onFulfilled, onRejected),
+    then: (onFulfilled: (value: unknown) => unknown, onRejected?: (reason: unknown) => unknown) =>
+      Promise.resolve(thenResult).then(onFulfilled, onRejected),
   });
 
-  return { eq, gt, lt, neq, limit, order, select, insert, update, delete: deleteFn, single, builder: withThen };
+  return {
+    eq,
+    gt,
+    lt,
+    neq,
+    limit,
+    order,
+    select,
+    insert,
+    update,
+    delete: deleteFn,
+    single,
+    builder: withThen,
+  };
 }
 
 function stubClient(authUserId: string | null, fromEntry: ReturnType<typeof vi.fn>) {
@@ -144,7 +155,9 @@ describe("planner api", () => {
   it("creates a task block with the JWT user_id and trims the title", async () => {
     const owned = mockBuilder({ data: null, error: null }, { data: { id: "t1" }, error: null });
     const blocks = mockBuilder({ data: null, error: null }, { data: BLOCK_ROW, error: null });
-    const fromEntry = vi.fn((table: string) => (table === "tasks" ? owned.builder : blocks.builder));
+    const fromEntry = vi.fn((table: string) =>
+      table === "tasks" ? owned.builder : blocks.builder,
+    );
     stubClient("jwt-user-7", fromEntry);
 
     await createBlock({
@@ -170,7 +183,10 @@ describe("planner api", () => {
 
   it("creates a break block with a null task link and no tasks read", async () => {
     const row = blockRow({ id: "b2", task_id: null, block_type: "break" });
-    const { builder, insert } = mockBuilder({ data: null, error: null }, { data: row, error: null });
+    const { builder, insert } = mockBuilder(
+      { data: null, error: null },
+      { data: row, error: null },
+    );
     const fromEntry = vi.fn().mockReturnValue(builder);
     stubClient("u1", fromEntry);
 
@@ -389,7 +405,9 @@ describe("planner api", () => {
       .mockResolvedValueOnce({ data: current, error: null })
       .mockResolvedValueOnce({ data: updated, error: null });
     const tasks = mockBuilder({ data: null, error: null }, { data: { id: "t2" }, error: null });
-    const fromEntry = vi.fn((table: string) => (table === "tasks" ? tasks.builder : blocks.builder));
+    const fromEntry = vi.fn((table: string) =>
+      table === "tasks" ? tasks.builder : blocks.builder,
+    );
     stubClient("u1", fromEntry);
 
     await updateBlock("b1", { taskId: "t2" });
@@ -410,7 +428,9 @@ describe("planner api", () => {
       .mockResolvedValueOnce({ data: current, error: null })
       .mockResolvedValueOnce({ data: updated, error: null });
     const mirror = mockBuilder({ data: null, error: null });
-    const fromEntry = vi.fn((table: string) => (table === "tasks" ? mirror.builder : blocks.builder));
+    const fromEntry = vi.fn((table: string) =>
+      table === "tasks" ? mirror.builder : blocks.builder,
+    );
     stubClient("u1", fromEntry);
 
     await updateBlock("b1", { blockType: "break", taskId: null, title: "Lunch" });
@@ -421,10 +441,7 @@ describe("planner api", () => {
   });
 
   it("deleteBlock clears the task mirror and deletes the block in one call", async () => {
-    const blocks = mockBuilder(
-      { data: [], error: null },
-      { data: { task_id: "t1" }, error: null },
-    );
+    const blocks = mockBuilder({ data: [], error: null }, { data: { task_id: "t1" }, error: null });
     const mirror = mockBuilder({ data: null, error: null });
     const fromEntry = vi.fn((table: string) =>
       table === "tasks" ? mirror.builder : blocks.builder,
@@ -442,7 +459,10 @@ describe("planner api", () => {
   });
 
   it("deleteBlock on a break block skips the tasks write", async () => {
-    const blocks = mockBuilder({ data: null, error: null }, { data: { task_id: null }, error: null });
+    const blocks = mockBuilder(
+      { data: null, error: null },
+      { data: { task_id: null }, error: null },
+    );
     const fromEntry = vi.fn().mockReturnValue(blocks.builder);
     stubClient("u1", fromEntry);
 
@@ -454,10 +474,7 @@ describe("planner api", () => {
   });
 
   it("does not delete the block when clearing the mirror fails", async () => {
-    const blocks = mockBuilder(
-      { data: [], error: null },
-      { data: { task_id: "t1" }, error: null },
-    );
+    const blocks = mockBuilder({ data: [], error: null }, { data: { task_id: "t1" }, error: null });
     const mirror = mockBuilder({ data: null, error: { code: "42501", message: "denied" } });
     const fromEntry = vi.fn((table: string) =>
       table === "tasks" ? mirror.builder : blocks.builder,
@@ -478,10 +495,7 @@ describe("planner api", () => {
       start_time: nextStart,
       end_time: nextEnd,
     });
-    const blocks = mockBuilder(
-      { data: null, error: null },
-      { data: updated, error: null },
-    );
+    const blocks = mockBuilder({ data: null, error: null }, { data: updated, error: null });
     const mirror = mockBuilder({ data: null, error: null });
     const fromEntry = vi.fn((table: string) =>
       table === "tasks" ? mirror.builder : blocks.builder,
@@ -525,10 +539,7 @@ describe("planner api", () => {
       start_time: nextStart,
       end_time: nextEnd,
     });
-    const { builder } = mockBuilder(
-      { data: null, error: null },
-      { data: updated, error: null },
-    );
+    const { builder } = mockBuilder({ data: null, error: null }, { data: updated, error: null });
     const fromEntry = vi.fn().mockReturnValue(builder);
     stubClient("u1", fromEntry);
 
@@ -548,10 +559,7 @@ describe("planner api", () => {
       start_time: nextStart,
       end_time: nextEnd,
     });
-    const blocks = mockBuilder(
-      { data: null, error: null },
-      { data: updated, error: null },
-    );
+    const blocks = mockBuilder({ data: null, error: null }, { data: updated, error: null });
     const mirror = mockBuilder({ data: null, error: { code: "42501", message: "denied" } });
     const fromEntry = vi.fn((table: string) =>
       table === "tasks" ? mirror.builder : blocks.builder,
@@ -597,10 +605,7 @@ describe("planner api", () => {
   });
 
   it("deleteBlock with the last block clears the mirror to null", async () => {
-    const blocks = mockBuilder(
-      { data: [], error: null },
-      { data: { task_id: "t1" }, error: null },
-    );
+    const blocks = mockBuilder({ data: [], error: null }, { data: { task_id: "t1" }, error: null });
     const mirror = mockBuilder({ data: null, error: null });
     const fromEntry = vi.fn((table: string) =>
       table === "tasks" ? mirror.builder : blocks.builder,

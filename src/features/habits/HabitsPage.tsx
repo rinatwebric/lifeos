@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Plus, Repeat2 } from "lucide-react";
 import { useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -26,12 +27,13 @@ const HISTORY_SINCE = "2020-01-01";
 
 function HabitRowSkeleton() {
   return (
-    <li className="px-4 py-3" aria-hidden="true">
-      <div className="motion-safe:animate-pulse space-y-2">
-        <div className="h-4 w-2/3 rounded bg-surface-muted" />
-        <div className="flex gap-2">
-          <div className="h-5 w-24 rounded-full bg-surface-muted" />
-          <div className="h-4 w-20 rounded bg-surface-muted" />
+    <li className="px-5 py-4" aria-hidden="true">
+      <div className="space-y-3">
+        <div className="h-4 w-2/3 max-w-56 rounded bg-surface-muted" />
+        <div className="h-3 w-40 rounded bg-surface-muted" />
+        <div className="flex gap-5 pt-1">
+          <div className="h-3 w-28 rounded bg-surface-muted" />
+          <div className="h-3 w-24 rounded bg-surface-muted" />
         </div>
       </div>
     </li>
@@ -42,7 +44,18 @@ export function HabitsPage() {
   const locale = useLocale();
   const m = useMessages();
   const t = m.habits;
+  const [searchParams, setSearchParams] = useSearchParams();
   const [creating, setCreating] = useState(false);
+  const isCreating = creating || searchParams.get("new") === "1";
+
+  const closeCreate = (): void => {
+    setCreating(false);
+    if (searchParams.has("new")) {
+      const next = new URLSearchParams(searchParams);
+      next.delete("new");
+      setSearchParams(next, { replace: true });
+    }
+  };
   const [editing, setEditing] = useState<Habit | null>(null);
   const [logging, setLogging] = useState<Habit | null>(null);
   const [deleting, setDeleting] = useState<Habit | null>(null);
@@ -99,14 +112,14 @@ export function HabitsPage() {
         title={t.title}
         description={t.description}
         actions={
-          <Button onClick={() => setCreating(true)}>
+          <Button size="lg" className="min-h-11" onClick={() => setCreating(true)}>
             <Plus className="size-4" aria-hidden="true" />
             {t.newHabit}
           </Button>
         }
       />
 
-      <p className="text-ui text-muted tabular-nums" aria-live="polite">
+      <p className="text-caption text-muted tabular-nums" aria-live="polite">
         {loading ? t.loadingText : countLabel}
       </p>
 
@@ -122,10 +135,10 @@ export function HabitsPage() {
           </Card>
         </div>
       ) : loadError ? (
-        <div role="alert" className="rounded-card border border-line bg-surface p-4">
+        <div role="alert" className="rounded-card border border-line bg-surface p-5">
           <p className="text-ui text-content">{t.errorText}</p>
           <div className="mt-3">
-            <Button variant="secondary" size="sm" onClick={refetchAll}>
+            <Button variant="secondary" size="sm" className="min-h-11" onClick={refetchAll}>
               {m.common.retry}
             </Button>
           </div>
@@ -136,7 +149,12 @@ export function HabitsPage() {
           title={t.emptyTitle}
           description={t.emptyDescription}
           action={
-            <Button onClick={() => setCreating(true)}>
+            <Button
+              variant="secondary"
+              size="lg"
+              className="min-h-11"
+              onClick={() => setCreating(true)}
+            >
               <Plus className="size-4" aria-hidden="true" />
               {t.createFirst}
             </Button>
@@ -161,12 +179,12 @@ export function HabitsPage() {
       )}
 
       {setStatus.isError ? (
-        <p role="alert" className="text-micro text-danger">
+        <p role="alert" className="text-caption text-danger">
           {t.statusError}
         </p>
       ) : null}
 
-      <HabitFormDialog open={creating} onClose={() => setCreating(false)} habit={null} />
+      <HabitFormDialog open={isCreating} onClose={closeCreate} habit={null} />
       <HabitFormDialog open={editing !== null} onClose={() => setEditing(null)} habit={editing} />
       <LogHabitDialog
         open={logging !== null}

@@ -127,14 +127,16 @@ export function createGoalFormSchemas(v: GoalValidationMessages) {
       values.targetDate >= values.startDate,
     { message: v.targetAfterStart, path: ["targetDate"] },
   );
-  const updateGoalSchema = base.partial().refine(
-    (values) =>
-      values.targetDate === null ||
-      values.targetDate === undefined ||
-      values.startDate === undefined ||
-      values.targetDate >= values.startDate,
-    { message: v.targetAfterStart, path: ["targetDate"] },
-  );
+  const updateGoalSchema = base
+    .partial()
+    .refine(
+      (values) =>
+        values.targetDate === null ||
+        values.targetDate === undefined ||
+        values.startDate === undefined ||
+        values.targetDate >= values.startDate,
+      { message: v.targetAfterStart, path: ["targetDate"] },
+    );
   return { createGoalSchema, updateGoalSchema };
 }
 

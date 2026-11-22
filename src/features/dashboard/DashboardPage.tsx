@@ -1,365 +1,689 @@
-import { ListChecks, Target } from "lucide-react";
+import { ArrowRight, CalendarDays, ListChecks, Target } from "lucide-react";
+import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 
-import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { EmptyState } from "@/components/ui/EmptyState";
-import { PageHeader } from "@/components/ui/PageHeader";
+import { Card } from "@/components/ui/Card";
+import { CheckCircle } from "@/components/ui/CheckCircle";
 import { ProgressBar } from "@/components/ui/ProgressBar";
 import { useDashboardData } from "@/features/dashboard/useDashboardData";
-import { ScheduleBody } from "@/features/dashboard/ScheduleCard";
+import { useDashboardSchedule } from "@/features/dashboard/useDashboardSchedule";
+import { FocusCard } from "@/features/focus/FocusCard";
 import { useSetTaskStatus } from "@/features/tasks/hooks";
-import { formatLongDate } from "@/lib/dates";
+import { formatDurationMinutes } from "@/features/planner/usePlannerDay";
+import { cn } from "@/lib/cn";
 import { pluralCategory, tmpl } from "@/lib/i18n/format";
 import { useIntlLocale, useLocale, useMessages } from "@/lib/i18n/I18nContext";
-import { en } from "@/lib/i18n/dictionaries/en";
-import { cn } from "@/lib/cn";
 import type { Task } from "@/types/domain";
 
-const PRIMARY_ACTION_CLASS =
-  "inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-control bg-accent px-5 text-ui font-medium text-accent-content transition-opacity duration-fast ease-standard hover:opacity-90";
+const PRIMARY_LINK_CLASS =
+  "inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-pill bg-content px-4 text-ui font-medium text-canvas transition-[opacity,scale] duration-fast ease-standard hover:opacity-90 motion-safe:active:scale-[0.97]";
 
-const SECTION_LINK_CLASS =
-  "inline-flex min-h-11 items-center text-ui font-medium text-content underline-offset-4 hover:underline";
+const QUIET_LINK_CLASS =
+  "inline-flex items-center gap-1 rounded-full text-micro font-medium text-muted transition-colors duration-fast ease-standard hover:text-content";
 
-const PANEL_LIST_CLASS = "divide-y divide-line overflow-hidden rounded-card border border-line bg-surface";
-
-export const DASHBOARD_COPY = {
-  emptyInsights: en.dashboard.emptyInsights,
-} as const;
-
-function BlockSkeleton({ label }: { label: string }) {
-  return (
-    <div role="status" aria-label={label}>
-      <span className="sr-only">{label}…</span>
-      <div className="space-y-3 motion-safe:animate-pulse" aria-hidden="true">
-        <div className="h-5 w-2/3 rounded bg-surface-muted" />
-        <div className="h-2 w-full rounded-full bg-surface-muted" />
-        <div className="h-4 w-1/3 rounded bg-surface-muted" />
-      </div>
-    </div>
-  );
+function formatDateLabel(now: Date, timeZone: string, intl: string): string {
+  return new Intl.DateTimeFormat(intl, {
+    timeZone,
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  }).format(now);
 }
 
-function BlockError({ message, onRetry }: { message: string; onRetry: () => void }) {
-  const m = useMessages();
-
-  return (
-    <div role="alert" className="rounded-control border border-line bg-surface p-4">
-      <p className="text-ui text-content">{message}</p>
-      <div className="mt-3">
-        <Button variant="secondary" size="sm" onClick={onRetry}>
-          {m.common.retry}
-        </Button>
-      </div>
-    </div>
-  );
+function formatShortDate(value: string, timeZone: string, intl: string): string {
+  const date = new Date(`${value}T12:00:00Z`);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat(intl, { timeZone, day: "numeric", month: "short" }).format(date);
 }
 
-function formatTaskTime(task: Task, timeZone: string, intl: string): string | null {
+function formatTimeOfDay(now: Date, timeZone: string): string {
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone,
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).format(now);
+}
+
+function minutesFromLabel(label: string): number {
+  const [hours, minutes] = label.split(":").map(Number);
+  return (hours || 0) * 60 + (minutes || 0);
+}
+
+function minutesToLabel(minutes: number): string {
+  const rounded = Math.max(0, Math.min(24 * 60 - 1, Math.round(minutes)));
+  return `${String(Math.floor(rounded / 60)).padStart(2, "0")}:${String(rounded % 60).padStart(2, "0")}`; // taste-skill-ignore numbering — clock labels
+}
+
+function taskSortTime(task: Task): number {
   if (task.scheduledStart) {
-    const date = new Date(task.scheduledStart);
-    if (!Number.isNaN(date.getTime())) {
-      return new Intl.DateTimeFormat(intl, {
-        timeZone,
-        hour: "2-digit",
-        minute: "2-digit",
-      }).format(date);
-    }
+    const parsed = Date.parse(task.scheduledStart);
+    if (!Number.isNaN(parsed)) return parsed;
   }
-  return task.dueDate;
+  return Number.MAX_SAFE_INTEGER;
 }
 
-function DashboardTaskRow({
-  task,
-  timeZone,
-  goalTitle,
-}: {
-  task: Task;
-  timeZone: string;
-  goalTitle: string | null;
-}) {
-  const m = useMessages();
-  const t = m.dashboard;
-  const intl = useIntlLocale();
-  const setStatus = useSetTaskStatus();
-  const completed = task.status === "completed";
-  const showPriorityBadge = task.priority === "high" || task.priority === "critical";
+function taskTimeLabel(task: Task, timeZone: string, intl: string, todayLabel: string): string {
+  if (!task.scheduledStart) return todayLabel;
+  const date = new Date(task.scheduledStart);
+  if (Number.isNaN(date.getTime())) return todayLabel;
+  return new Intl.DateTimeFormat(intl, {
+    timeZone,
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
 
-  const handleToggle = (): void => {
-    if (setStatus.isPending) return;
-    setStatus.mutate({ id: task.id, status: completed ? "todo" : "completed" });
-  };
-
+function Figure({ value, label, detail }: { value: string; label: string; detail: ReactNode }) {
   return (
-    <li className={cn("flex items-start gap-3 px-4 py-3", completed && "opacity-70")}>
-      <label
-        htmlFor={`dashboard-task-${task.id}`}
-        className="-m-3.5 inline-flex shrink-0 cursor-pointer p-3.5"
-      >
-        <input
-          id={`dashboard-task-${task.id}`}
-          type="checkbox"
-          checked={completed}
-          onChange={handleToggle}
-          aria-label={
-            completed
-              ? tmpl(t.markIncomplete, { title: task.title })
-              : tmpl(t.markComplete, { title: task.title })
-          }
-          className="mt-0.5 size-4 shrink-0 accent-current"
-        />
-      </label>
-      <div className="min-w-0 flex-1 space-y-1.5">
-        <p
-          className={
-            completed
-              ? "truncate text-ui text-muted line-through"
-              : "truncate text-ui font-medium text-content"
-          }
-        >
-          {task.title}
-        </p>
-        <div className="flex flex-wrap items-center gap-1.5">
-          {showPriorityBadge ? (
-            <Badge tone="outline">
-              {tmpl(t.priorityBadge, { priority: m.enums.priority[task.priority] })}
-            </Badge>
-          ) : null}
-          {formatTaskTime(task, timeZone, intl) ? (
-            <span className="text-micro text-muted tabular-nums">
-              {formatTaskTime(task, timeZone, intl)}
-            </span>
-          ) : null}
-          <span className="text-micro text-muted">{m.enums.status[task.status]}</span>
-          {task.goalId && goalTitle ? (
-            <Link
-              to={`/goals/${task.goalId}`}
-              className="text-micro font-medium text-accent hover:underline"
-            >
-              {goalTitle}
-            </Link>
-          ) : null}
-        </div>
-        {setStatus.isError ? (
-          <p role="alert" className="text-micro text-danger">
-            {t.updateStatusError}
-          </p>
-        ) : null}
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
+      <div className="flex items-baseline gap-1 tabular-nums">
+        <span className="text-[40px] leading-none font-semibold tracking-[-0.04em] text-content">
+          {value}
+        </span>
+        <span className="text-[15px] font-medium text-muted">%</span>
       </div>
-    </li>
+      <div className="sm:text-right">
+        <p className="text-micro font-medium text-content tabular-nums">{label}</p>
+        <p className="mt-1 text-caption leading-snug text-muted">{detail}</p>
+      </div>
+    </div>
+  );
+}
+
+function SkeletonLine({ className }: { className?: string }) {
+  return <div className={cn("h-3 rounded-full bg-surface-muted", className)} />;
+}
+
+function InlineError({ message, onRetry }: { message: string; onRetry: () => void }) {
+  const m = useMessages();
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 py-4 text-caption text-muted">
+      <span>{message}</span>
+      <Button variant="secondary" size="sm" onClick={onRetry}>
+        {m.common.retry}
+      </Button>
+    </div>
   );
 }
 
 export function DashboardPage() {
+  const now = new Date();
   const m = useMessages();
   const t = m.dashboard;
   const locale = useLocale();
   const intl = useIntlLocale();
-  const data = useDashboardData();
   const {
-    now,
     timeZone,
-    displayName,
-    todayQuery,
-    overdueQuery,
-    goalsQuery,
-    milestonesQuery,
     todayTasks,
     completedToday,
     totalToday,
     dailyProgress,
+    overdueTasks,
     activeGoals,
-    insights,
+    todayQuery,
+    goalsQuery,
+    milestonesQuery,
     goalTitleById,
-  } = data;
+    profileQuery,
+  } = useDashboardData(now);
+  const {
+    schedule,
+    isLoading: scheduleLoading,
+    isError: scheduleError,
+    retry: retrySchedule,
+  } = useDashboardSchedule({ now });
+  const { mutate: setTaskStatus, isError: taskStatusError } = useSetTaskStatus();
 
-  const welcome = displayName ? tmpl(t.welcomeWithName, { name: displayName }) : t.welcomeBack;
+  const profileReady = profileQuery.isSuccess;
+  const nowMs = now.getTime();
+  const nowMinutes = minutesFromLabel(formatTimeOfDay(now, timeZone));
+  const todayDate = formatDateLabel(now, timeZone, intl);
+
+  const overdueCount = overdueTasks.length;
+  const overdueCategory = pluralCategory(locale, overdueCount);
+  const overdueText =
+    overdueCount > 0
+      ? tmpl(
+          overdueCategory === "one"
+            ? t.overdueOne
+            : overdueCategory === "few"
+              ? t.overdueFew
+              : t.overdueMany,
+          { count: overdueCount },
+        )
+      : null;
+
+  const focusLeftMinutes = schedule.dayBlocks
+    .filter((block) => block.blockType === "task" && Date.parse(block.end) > nowMs)
+    .reduce(
+      (total, block) => total + Math.max(0, Math.round((Date.parse(block.end) - nowMs) / 60_000)),
+      0,
+    );
+  const focusText = scheduleLoading
+    ? null
+    : focusLeftMinutes > 0
+      ? tmpl(t.focusLeft, { duration: formatDurationMinutes(focusLeftMinutes, locale) })
+      : t.noFocusLeft;
+
+  const nextBlock = schedule.dayBlocks.find((block) => Date.parse(block.start) > nowMs);
+  const blocksDone = schedule.dayBlocks.filter((block) => Date.parse(block.end) <= nowMs).length;
+  const scheduleCaption = nextBlock
+    ? tmpl(t.nextAt, { title: nextBlock.title, time: nextBlock.startLabel })
+    : schedule.dayBlocks.length === 0
+      ? t.nothingScheduled
+      : t.blocksDone;
+
+  const pendingTasks = todayTasks
+    .filter((task) => task.status === "todo" || task.status === "in_progress")
+    .sort((a, b) => taskSortTime(a) - taskSortTime(b));
+  const nextActions = pendingTasks.slice(0, 3);
+
   const goalsLoading = goalsQuery.isLoading || milestonesQuery.isLoading;
   const goalsError = goalsQuery.isError || milestonesQuery.isError;
-  const insightsLoading =
-    todayQuery.isLoading || overdueQuery.isLoading || goalsQuery.isLoading || milestonesQuery.isLoading;
+  const goals = activeGoals.slice(0, 3);
 
-  const retryGoals = (): void => {
-    if (goalsQuery.isError) void goalsQuery.refetch();
-    if (milestonesQuery.isError) void milestonesQuery.refetch();
-  };
+  const allStarts = schedule.dayBlocks.map((block) => minutesFromLabel(block.startLabel));
+  const allEnds = schedule.dayBlocks.map((block) => minutesFromLabel(block.endLabel));
+  const dayStart = Math.min(8 * 60, ...allStarts);
+  const dayEnd = Math.max(18 * 60, ...allEnds);
+  const daySpan = Math.max(60, dayEnd - dayStart);
+  const railTicks = [dayStart, dayStart + 4 * 60, dayStart + 8 * 60, dayEnd].filter(
+    (tick, index, all) => tick >= dayStart && tick <= dayEnd && all.indexOf(tick) === index,
+  );
+  const nowPercent = Math.min(100, Math.max(0, ((nowMinutes - dayStart) / daySpan) * 100));
 
-  const milestonesText = (remaining: number, total: number): string => {
-    const cat = pluralCategory(locale, remaining);
-    const tpl =
-      cat === "one"
-        ? t.milestonesRemainingOne
-        : cat === "few"
-          ? t.milestonesRemainingFew
-          : t.milestonesRemainingMany;
-    return tmpl(tpl, { remaining, total });
+  const completeTask = (task: Task): void => {
+    setTaskStatus({ id: task.id, status: "completed" });
   };
 
   return (
-    <div className="space-y-8">
-      <PageHeader
-        eyebrow={formatLongDate(now, timeZone, intl)}
-        title={welcome}
-        titleClassName="font-display text-3xl font-medium sm:text-4xl"
-        description={tmpl(t.timesShownIn, { timeZone })}
-        actions={
-          <Link to="/planner" className={PRIMARY_ACTION_CLASS}>
-            {t.planToday}
-          </Link>
-        }
-      />
+    <div className="space-y-6">
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0 space-y-1.5">
+          <h1 className="text-[26px] leading-tight font-semibold tracking-[-0.03em] text-content text-balance sm:text-[28px]">
+            {t.today}
+          </h1>
+          <p className="max-w-2xl text-caption leading-relaxed text-muted text-pretty">
+            {profileQuery.isError
+              ? m.dbErrors.network
+              : profileReady
+                ? todayDate
+                : m.common.loading}
+            {profileReady && overdueText ? (
+              <>
+                <span aria-hidden="true"> · </span>
+                <span className="font-medium text-danger">{overdueText}</span>
+              </>
+            ) : null}
+            {profileReady && focusText ? (
+              <>
+                <span aria-hidden="true"> · </span>
+                <span>{focusText}</span>
+              </>
+            ) : null}
+            {profileReady && overdueCount > 0 ? (
+              <>
+                <span aria-hidden="true"> · </span>
+                <Link
+                  to="/tasks"
+                  className={cn(
+                    QUIET_LINK_CLASS,
+                    "inline text-content underline decoration-line underline-offset-2",
+                  )}
+                >
+                  {t.reschedule}
+                </Link>
+              </>
+            ) : null}
+          </p>
+        </div>
+        <Link to="/planner" className={PRIMARY_LINK_CLASS}>
+          {t.planToday}
+          <ArrowRight className="size-4" aria-hidden="true" />
+        </Link>
+      </header>
 
-      <section
-        aria-label={t.todayGlance}
-        className="grid gap-6 rounded-card border border-line bg-surface p-5 sm:p-6 md:grid-cols-3 md:divide-x md:divide-line md:[&>*:not(:first-child)]:pl-6"
-      >
-        <div className="space-y-3">
-          <h2 className="text-ui font-medium text-content">{t.overviewProgress}</h2>
-          {todayQuery.isLoading ? (
-            <BlockSkeleton label={t.loadingTodayProgress} />
+      <FocusCard nextTask={nextActions[0] ?? null} />
+
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+        <Card className="flex flex-col p-6">
+          <div className="flex items-center justify-between gap-4">
+            <h2 className="text-[15px] font-medium text-content">{t.overviewProgress}</h2>
+          </div>
+
+          {profileQuery.isError ? (
+            <InlineError message={t.profileLoadError} onRetry={() => void profileQuery.refetch()} />
+          ) : !profileReady || scheduleLoading ? (
+            <div className="mt-6 space-y-3">
+              <SkeletonLine className="h-8 w-24" />
+              <SkeletonLine className="w-2/3" />
+              <SkeletonLine className="w-1/2" />
+            </div>
+          ) : todayQuery.isLoading ? (
+            <div className="mt-6 space-y-3">
+              <SkeletonLine className="h-8 w-24" />
+              <SkeletonLine className="w-2/3" />
+            </div>
           ) : todayQuery.isError ? (
-            <BlockError message={t.loadTodayError} onRetry={() => void todayQuery.refetch()} />
+            <InlineError message={t.loadTodayError} onRetry={() => void todayQuery.refetch()} />
           ) : dailyProgress === null ? (
-            <div className="space-y-3">
-              <p className="text-ui text-muted">{t.emptyToday}</p>
-              <Link to="/tasks" className={SECTION_LINK_CLASS}>
-                {t.openTasks}
+            <p className="mt-6 text-ui text-muted">{t.emptyToday}</p>
+          ) : (
+            <>
+              <div className="mt-6">
+                <Figure
+                  value={String(dailyProgress)}
+                  label={tmpl(t.tasksDoneOf, { completed: completedToday, total: totalToday })}
+                  detail={scheduleCaption}
+                />
+              </div>
+
+              <div
+                role="progressbar"
+                aria-valuenow={dailyProgress}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-label={t.todayProgress}
+                className="mt-5 h-1 overflow-hidden rounded-full bg-surface-muted"
+              >
+                <div
+                  className="h-full rounded-full bg-accent transition-[width] duration-slow ease-standard motion-reduce:transition-none"
+                  style={{ width: `${dailyProgress}%` }}
+                />
+              </div>
+
+              <div className="mt-4 flex items-center gap-4 text-micro text-muted">
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="h-1.5 w-4 rounded-full bg-muted/30" aria-hidden="true" />
+                  {t.legendDone}
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="h-1.5 w-4 rounded-full bg-accent" aria-hidden="true" />
+                  {m.common.now}
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <span
+                    className="h-1.5 w-4 rounded-full border border-control bg-surface"
+                    aria-hidden="true"
+                  />
+                  {t.legendNext}
+                </span>
+              </div>
+
+              <div className="mt-auto pt-4">
+                <div className="flex items-center justify-between text-micro text-muted tabular-nums">
+                  <span>{minutesToLabel(dayStart)}</span>
+                  <span>{minutesToLabel(dayEnd)}</span>
+                </div>
+                <div
+                  className="relative mt-2 h-12"
+                  role="img"
+                  aria-label={`${t.todayBlocks}: ${schedule.dayBlocks.map((block) => `${block.startLabel} ${block.title}`).join(", ") || t.nothingScheduled}`}
+                >
+                  <div className="absolute inset-x-0 top-4 h-0.5 rounded-full bg-surface-muted" />
+                  {schedule.dayBlocks.map((block) => {
+                    const start = minutesFromLabel(block.startLabel);
+                    const end = minutesFromLabel(block.endLabel);
+                    const left = ((start - dayStart) / daySpan) * 100;
+                    const width = Math.max(1.5, ((end - start) / daySpan) * 100);
+                    const isCurrent = start <= nowMinutes && nowMinutes < end;
+                    const isPast = end <= nowMinutes;
+
+                    return (
+                      <div
+                        key={block.id}
+                        title={`${block.startLabel}–${block.endLabel} ${block.title}`}
+                        className={cn(
+                          "absolute top-2 h-5 rounded-[4px] border transition-colors duration-fast",
+                          isCurrent
+                            ? "border-accent bg-accent"
+                            : isPast
+                              ? "border-transparent bg-muted/30"
+                              : "border-control bg-surface",
+                        )}
+                        style={{ left: `${left}%`, width: `${width}%` }}
+                      />
+                    );
+                  })}
+                  {nowMinutes >= dayStart && nowMinutes <= dayEnd ? (
+                    <div
+                      className="absolute top-0 bottom-0 w-px bg-accent"
+                      style={{ left: `${nowPercent}%` }}
+                      aria-hidden="true"
+                    >
+                      <span
+                        className={cn(
+                          "absolute -top-5 text-micro font-medium whitespace-nowrap text-accent tabular-nums",
+                          nowPercent > 78 ? "right-1.5 text-right" : "left-1.5",
+                        )}
+                      >
+                        {m.common.now} {formatTimeOfDay(now, timeZone)}
+                      </span>
+                    </div>
+                  ) : null}
+                </div>
+                <div className="mt-1 flex justify-between text-micro text-muted tabular-nums">
+                  {railTicks.map((tick, index) => (
+                    <span
+                      key={tick}
+                      className={
+                        index === 0
+                          ? "text-left"
+                          : index === railTicks.length - 1
+                            ? "text-right"
+                            : "text-center"
+                      }
+                    >
+                      {minutesToLabel(tick)}
+                    </span>
+                  ))}
+                </div>
+                {scheduleError ? (
+                  <InlineError message={t.loadScheduleError} onRetry={retrySchedule} />
+                ) : (
+                  <p className="mt-4 text-caption text-muted tabular-nums">
+                    {schedule.dayBlocks.length === 0
+                      ? t.nothingScheduled
+                      : `${tmpl(t.blocksDoneOf, { done: blocksDone, total: schedule.dayBlocks.length })} · ${tmpl(t.blocksCount, { count: schedule.dayBlocks.length })}`}
+                  </p>
+                )}
+              </div>
+            </>
+          )}
+        </Card>
+
+        <Card className="flex flex-col p-0">
+          <div className="flex items-start justify-between gap-3 px-6 pt-5">
+            <div>
+              <h2 className="text-[15px] font-medium text-content">{t.nextActions}</h2>
+              <p className="mt-0.5 text-micro text-muted tabular-nums">
+                {tmpl(t.tasksLeft, { count: pendingTasks.length })}
+              </p>
+            </div>
+            <ListChecks className="mt-0.5 size-4 text-muted" aria-hidden="true" />
+          </div>
+
+          {profileQuery.isError ? (
+            <div className="px-6">
+              <InlineError
+                message={t.profileLoadError}
+                onRetry={() => void profileQuery.refetch()}
+              />
+            </div>
+          ) : !profileReady || todayQuery.isLoading ? (
+            <div className="space-y-3 px-6 py-6">
+              <SkeletonLine className="w-4/5" />
+              <SkeletonLine className="w-2/3" />
+              <SkeletonLine className="w-3/5" />
+            </div>
+          ) : todayQuery.isError ? (
+            <div className="px-6">
+              <InlineError message={t.loadTodayError} onRetry={() => void todayQuery.refetch()} />
+            </div>
+          ) : nextActions.length === 0 ? (
+            <div className="flex flex-1 flex-col items-start justify-center gap-2 px-6 py-8">
+              <p className="text-ui font-medium text-content">
+                {totalToday === 0 ? t.noTasksToday : t.noTasksLeft}
+              </p>
+              <Link to="/tasks" className={QUIET_LINK_CLASS}>
+                {t.addTask}
+                <ArrowRight className="size-3.5" aria-hidden="true" />
               </Link>
             </div>
           ) : (
-            <div className="space-y-2">
-              <p className="font-display text-4xl text-content tabular-nums">
-                {dailyProgress}
-                <span className="text-xl text-muted">%</span>
-              </p>
-              <ProgressBar value={dailyProgress} label={t.todayProgress} />
-              <p className="text-ui text-muted tabular-nums">
-                {tmpl(t.completedOf, { completed: completedToday, total: totalToday })}
-              </p>
-            </div>
-          )}
-        </div>
+            <ul className="mt-4 flex flex-1 flex-col">
+              {nextActions.map((task, index) => {
+                const goalTitle = task.goalId ? goalTitleById.get(task.goalId) : undefined;
+                const priority =
+                  task.priority === "critical" || task.priority === "high"
+                    ? tmpl(t.priorityBadge, { priority: m.enums.priority[task.priority] })
+                    : null;
 
-        <div className="space-y-3 border-t border-line pt-6 md:border-t-0 md:pt-0">
-          <h2 className="text-ui font-medium text-content">{t.schedule}</h2>
-          <ScheduleBody now={now} />
-        </div>
-
-        <div className="space-y-3 border-t border-line pt-6 md:border-t-0 md:pt-0">
-          <h2 className="text-ui font-medium text-content">{t.insights}</h2>
-          {insightsLoading ? (
-            <BlockSkeleton label={t.loadingInsights} />
-          ) : insights.length > 0 ? (
-            <ul className="list-disc space-y-1.5 pl-5 text-ui text-muted">
-              {insights.map((line) => (
-                <li key={line}>{line}</li>
-              ))}
+                return (
+                  <li
+                    key={task.id}
+                    className={cn(
+                      "flex flex-1 items-center gap-3.5 px-6 py-3",
+                      index !== nextActions.length - 1 && "border-b border-line",
+                    )}
+                  >
+                    <CheckCircle
+                      checked={false}
+                      onChange={() => completeTask(task)}
+                      ariaLabel={tmpl(t.markComplete, { title: task.title })}
+                      className="mt-0.5 size-[18px]"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p
+                        className={cn(
+                          "truncate text-ui leading-snug",
+                          index === 0 ? "font-medium text-content" : "text-content/90",
+                        )}
+                      >
+                        {task.title}
+                      </p>
+                      {goalTitle || priority ? (
+                        <p className="mt-0.5 truncate text-micro text-muted">
+                          {goalTitle}
+                          {goalTitle && priority ? " · " : null}
+                          {priority}
+                        </p>
+                      ) : null}
+                    </div>
+                    <span
+                      className={cn(
+                        "shrink-0 text-micro tabular-nums",
+                        index === 0 ? "text-content" : "text-muted",
+                      )}
+                    >
+                      {task.status === "in_progress"
+                        ? m.common.now
+                        : taskTimeLabel(task, timeZone, intl, m.common.today)}
+                    </span>
+                  </li>
+                );
+              })}
             </ul>
-          ) : (
-            <p className="text-ui text-muted">{t.emptyInsights}</p>
           )}
-        </div>
-      </section>
 
-      <div className="grid items-start gap-8 lg:grid-cols-2">
-        <section aria-labelledby="dashboard-goals-heading" className="min-w-0 space-y-3">
-          <div className="flex min-h-11 items-center justify-between gap-2">
-            <h2 id="dashboard-goals-heading" className="text-ui font-medium text-content">
-              {t.activeGoals}
-            </h2>
-            <Link
-              to="/goals"
-              className="inline-flex min-h-11 items-center text-ui font-medium text-content underline-offset-4 hover:underline"
-            >
+          {taskStatusError ? (
+            <p role="alert" className="px-6 pb-2 text-micro text-danger">
+              {t.updateStatusError}
+            </p>
+          ) : null}
+
+          {nextActions.length > 0 ? (
+            <div className="mt-auto flex items-center justify-between border-t border-line px-6 py-3">
+              <Link to="/tasks" className={QUIET_LINK_CLASS}>
+                {t.openAllTasks}
+                <ArrowRight className="size-3.5" aria-hidden="true" />
+              </Link>
+              <Link to="/tasks" className={cn(QUIET_LINK_CLASS, "text-content")}>
+                {t.addTask}
+              </Link>
+            </div>
+          ) : null}
+        </Card>
+      </div>
+
+      <div className="grid items-stretch gap-4 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
+        <Card className="flex flex-col p-0">
+          <div className="flex items-center justify-between gap-3 px-6 pt-5">
+            <h2 className="text-[15px] font-medium text-content">{t.todayBlocks}</h2>
+            <span className="text-micro text-muted tabular-nums">
+              {tmpl(t.blocksCount, { count: schedule.dayBlocks.length })}
+            </span>
+          </div>
+
+          {profileQuery.isError ? (
+            <div className="px-6">
+              <InlineError
+                message={t.profileLoadError}
+                onRetry={() => void profileQuery.refetch()}
+              />
+            </div>
+          ) : scheduleLoading ? (
+            <div className="space-y-3 px-6 py-6">
+              <SkeletonLine className="w-3/4" />
+              <SkeletonLine className="w-2/3" />
+              <SkeletonLine className="w-1/2" />
+            </div>
+          ) : scheduleError ? (
+            <div className="px-6">
+              <InlineError message={t.loadScheduleError} onRetry={retrySchedule} />
+            </div>
+          ) : schedule.dayBlocks.length === 0 ? (
+            <div className="flex flex-1 flex-col items-start justify-center gap-2 px-6 py-8">
+              <p className="text-ui font-medium text-content">{t.nothingScheduled}</p>
+              <p className="max-w-sm text-caption text-muted">{t.nothingScheduledHint}</p>
+              <Link to="/planner" className={cn(QUIET_LINK_CLASS, "mt-1 text-content")}>
+                {t.openPlanner}
+                <ArrowRight className="size-3.5" aria-hidden="true" />
+              </Link>
+            </div>
+          ) : (
+            <ol className="mt-2 divide-y divide-line">
+              {schedule.dayBlocks.map((block) => {
+                const isPast = Date.parse(block.end) <= nowMs;
+                const isCurrent = Date.parse(block.start) <= nowMs && nowMs < Date.parse(block.end);
+
+                return (
+                  <li
+                    key={block.id}
+                    className="grid grid-cols-[52px_minmax(0,1fr)_auto] items-center gap-2.5 px-6 py-3.5"
+                  >
+                    <span className="text-micro text-muted tabular-nums">{block.startLabel}</span>
+                    <span
+                      title={block.title}
+                      className={cn(
+                        "min-w-0 text-ui leading-snug",
+                        isPast ? "text-muted" : "text-content",
+                        isCurrent && "font-medium",
+                      )}
+                    >
+                      {isCurrent ? (
+                        <span
+                          className="mr-1.5 inline-block size-1.5 rounded-full bg-accent align-middle"
+                          aria-hidden="true"
+                        />
+                      ) : null}
+                      {block.title}
+                    </span>
+                    <span className="text-micro text-muted tabular-nums">
+                      {formatDurationMinutes(block.durationMinutes, locale)}
+                    </span>
+                  </li>
+                );
+              })}
+            </ol>
+          )}
+
+          {schedule.dayBlocks.length > 0 ? (
+            <div className="mt-auto flex items-center justify-between border-t border-line px-6 py-3">
+              <Link to="/planner" className={QUIET_LINK_CLASS}>
+                {t.openPlanner}
+                <ArrowRight className="size-3.5" aria-hidden="true" />
+              </Link>
+              <CalendarDays className="size-4 text-muted" aria-hidden="true" />
+            </div>
+          ) : null}
+        </Card>
+
+        <Card className="flex flex-col p-0">
+          <div className="flex items-center justify-between gap-3 px-6 pt-5">
+            <h2 className="text-[15px] font-medium text-content">{t.activeGoals}</h2>
+            <Link to="/goals" className={QUIET_LINK_CLASS}>
               {t.viewAll}
+              <ArrowRight className="size-3.5" aria-hidden="true" />
             </Link>
           </div>
+
           {goalsLoading ? (
-            <BlockSkeleton label={t.loadingGoals} />
+            <div className="space-y-3 px-6 py-6">
+              <SkeletonLine className="w-2/3" />
+              <SkeletonLine className="w-1/2" />
+              <SkeletonLine className="w-3/5" />
+            </div>
           ) : goalsError ? (
-            <BlockError message={t.loadGoalsError} onRetry={retryGoals} />
-          ) : activeGoals.length === 0 ? (
-            <EmptyState
-              icon={Target}
-              title={t.noActiveGoals}
-              description={t.noActiveGoalsHint}
-              action={
-                <Link to="/goals" className={SECTION_LINK_CLASS}>
-                  {t.goToGoals}
-                </Link>
-              }
-            />
+            <div className="px-6">
+              <InlineError
+                message={t.loadGoalsError}
+                onRetry={() => {
+                  if (goalsQuery.isError) void goalsQuery.refetch();
+                  if (milestonesQuery.isError) void milestonesQuery.refetch();
+                }}
+              />
+            </div>
+          ) : goals.length === 0 ? (
+            <div className="flex flex-1 flex-col items-start justify-center gap-2 px-6 py-8">
+              <p className="text-ui font-medium text-content">{t.noActiveGoals}</p>
+              <p className="max-w-sm text-caption text-muted">{t.noActiveGoalsHint}</p>
+              <Link to="/goals" className={cn(QUIET_LINK_CLASS, "mt-1 text-content")}>
+                {t.goToGoals}
+                <ArrowRight className="size-3.5" aria-hidden="true" />
+              </Link>
+            </div>
           ) : (
-            <ul className={PANEL_LIST_CLASS}>
-              {activeGoals.map((item) => (
-                <li key={item.goal.id} className="space-y-2 px-4 py-3.5">
-                  <div className="flex items-start justify-between gap-2">
+            <ul className="mt-4 flex flex-1 flex-col">
+              {goals.map((item) => (
+                <li key={item.goal.id} className="flex flex-1 flex-col justify-center px-6 py-4">
+                  <div className="flex items-start justify-between gap-4">
                     <Link
                       to={`/goals/${item.goal.id}`}
-                      className="min-w-0 truncate text-ui font-medium text-content hover:underline"
+                      className="min-w-0 truncate text-ui font-medium text-content transition-colors duration-fast hover:text-accent"
                     >
                       {item.goal.title}
                     </Link>
-                    <Badge>{m.enums.category[item.goal.category]}</Badge>
+                    <span className="shrink-0 text-micro font-medium text-content tabular-nums">
+                      {item.progress}%
+                    </span>
                   </div>
-                  <ProgressBar
-                    value={item.progress}
-                    label={tmpl(t.goalProgressLabel, { title: item.goal.title })}
-                  />
-                  <p className="text-micro text-muted tabular-nums">
-                    {tmpl(t.percentComplete, { percent: item.progress })} ·{" "}
-                    {item.goal.targetDate ? tmpl(t.due, { date: item.goal.targetDate }) : t.noDeadline} ·{" "}
+                  <div className="mt-2.5">
+                    <ProgressBar
+                      value={item.progress}
+                      label={tmpl(t.goalProgressLabel, { title: item.goal.title })}
+                      tone="neutral"
+                    />
+                  </div>
+                  <p className="mt-1.5 text-micro text-muted">
                     {item.totalMilestones === 0
                       ? t.noMilestones
-                      : milestonesText(item.remainingMilestones, item.totalMilestones)}
+                      : tmpl(
+                          item.remainingMilestones > 0
+                            ? pluralCategory(locale, item.remainingMilestones) === "one"
+                              ? t.milestonesRemainingOne
+                              : pluralCategory(locale, item.remainingMilestones) === "few"
+                                ? t.milestonesRemainingFew
+                                : t.milestonesRemainingMany
+                            : t.milestonesAllComplete,
+                          { remaining: item.remainingMilestones, total: item.totalMilestones },
+                        )}
+                    {item.goal.targetDate ? (
+                      <>
+                        <span aria-hidden="true"> · </span>
+                        {tmpl(t.due, {
+                          date: formatShortDate(item.goal.targetDate, timeZone, intl),
+                        })}
+                      </>
+                    ) : null}
                   </p>
                 </li>
               ))}
             </ul>
           )}
-        </section>
 
-        <section aria-labelledby="dashboard-tasks-heading" className="min-w-0 space-y-3">
-          <div className="flex min-h-11 items-center justify-between gap-2">
-            <h2 id="dashboard-tasks-heading" className="text-ui font-medium text-content">
-              {t.todayTasks}
-            </h2>
-            <Link
-              to="/tasks"
-              className="inline-flex min-h-11 items-center text-ui font-medium text-content underline-offset-4 hover:underline"
-            >
-              {t.viewAll}
-            </Link>
-          </div>
-          {todayQuery.isLoading ? (
-            <BlockSkeleton label={t.loadingTodayTasks} />
-          ) : todayQuery.isError ? (
-            <BlockError message={t.loadTodayError} onRetry={() => void todayQuery.refetch()} />
-          ) : todayTasks.length === 0 ? (
-            <EmptyState
-              icon={ListChecks}
-              title={t.noTasksToday}
-              description={t.noTasksTodayHint}
-              action={
-                <Link to="/tasks" className={SECTION_LINK_CLASS}>
-                  {t.openTasks}
-                </Link>
-              }
-            />
-          ) : (
-            <ul className={PANEL_LIST_CLASS}>
-              {todayTasks.map((task) => (
-                <DashboardTaskRow
-                  key={task.id}
-                  task={task}
-                  timeZone={timeZone}
-                  goalTitle={task.goalId ? (goalTitleById.get(task.goalId) ?? null) : null}
-                />
-              ))}
-            </ul>
-          )}
-        </section>
+          {goals.length > 0 ? (
+            <div className="mt-auto flex items-center justify-between border-t border-line px-6 py-3">
+              <Link to="/goals" className={QUIET_LINK_CLASS}>
+                {t.goToGoals}
+                <ArrowRight className="size-3.5" aria-hidden="true" />
+              </Link>
+              <Target className="size-4 text-muted" aria-hidden="true" />
+            </div>
+          ) : null}
+        </Card>
       </div>
     </div>
   );

@@ -5,10 +5,12 @@ interface ProgressBarProps {
   /** 0–100, or `null` when there is nothing to measure yet. */
   value: number | null;
   label?: string;
+  /** `neutral` keeps the accent for the screen's one lead figure. */
+  tone?: "accent" | "neutral";
   className?: string;
 }
 
-export function ProgressBar({ value, label, className }: ProgressBarProps) {
+export function ProgressBar({ value, label, tone = "accent", className }: ProgressBarProps) {
   const m = useMessages();
 
   if (value === null) {
@@ -25,9 +27,15 @@ export function ProgressBar({ value, label, className }: ProgressBarProps) {
         aria-valuemin={0}
         aria-valuemax={100}
         aria-label={label ?? m.common.progress}
-        className="h-2 w-full overflow-hidden rounded-full bg-surface-muted"
+        className="h-1 w-full overflow-hidden rounded-full bg-surface-muted"
       >
-        <div className="h-full rounded-full bg-accent transition-[width] duration-slow ease-standard motion-reduce:transition-none" style={{ width: `${clamped}%` }} />
+        <div
+          className={cn(
+            "h-full rounded-full transition-[width] duration-slow ease-standard motion-reduce:transition-none",
+            tone === "neutral" ? "bg-muted/60" : "bg-accent",
+          )}
+          style={{ width: `${clamped}%` }}
+        />
       </div>
     </div>
   );

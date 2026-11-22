@@ -1,9 +1,4 @@
-import {
-  useMutation,
-  useQuery,
-  useQueryClient,
-  type QueryClient,
-} from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 
 import { goals } from "@/features/goals/queryKeys";
 import type { Task, TaskStatus } from "@/types/domain";
@@ -111,8 +106,7 @@ export function useSetTaskStatus() {
 
       const previousDetail = queryClient.getQueryData<Task>(tasks.detail(variables.id));
       const previousLists = queryClient.getQueriesData<Task[]>({ queryKey: tasks.lists });
-      const nextCompletedAt =
-        variables.status === "completed" ? new Date().toISOString() : null;
+      const nextCompletedAt = variables.status === "completed" ? new Date().toISOString() : null;
 
       if (previousDetail) {
         queryClient.setQueryData<Task>(tasks.detail(variables.id), {
@@ -146,7 +140,11 @@ export function useSetTaskStatus() {
         queryClient.setQueryData(key, data);
       }
     },
-    onSettled: (_task: Task | undefined, _error: Error | null, variables: SetTaskStatusVariables) => {
+    onSettled: (
+      _task: Task | undefined,
+      _error: Error | null,
+      variables: SetTaskStatusVariables,
+    ) => {
       // A status flip never changes the goal link, so the goal's task-count
       // is untouched — only the detail and the lists refresh.
       void queryClient.invalidateQueries({ queryKey: tasks.detail(variables.id) });

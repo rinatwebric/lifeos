@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -13,6 +13,7 @@ import {
   type EditableTimeBlock,
   type TimeBlockDialogProps,
 } from "./TimeBlockDialog";
+import { chooseSelect } from "@/test/chooseSelect";
 
 vi.mock("./api", () => ({
   listBlocks: vi.fn(),
@@ -63,6 +64,17 @@ const EDIT_TARGET: EditableTimeBlock = {
   endTime: "2026-11-04T10:00:00.000Z",
 };
 
+async function setPickedTime(
+  user: ReturnType<typeof userEvent.setup>,
+  label: RegExp,
+  time: string,
+): Promise<void> {
+  await user.click(screen.getByLabelText(label));
+  await chooseSelect(user, screen.getByLabelText("Hours"), time.slice(0, 2));
+  await chooseSelect(user, screen.getByLabelText("Minutes"), time.slice(3, 5));
+  await user.click(screen.getByRole("button", { name: "Done" }));
+}
+
 function renderDialog(overrides: Partial<TimeBlockDialogProps> = {}) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const onClose = vi.fn();
@@ -111,7 +123,7 @@ describe("TimeBlockDialog", () => {
     const user = userEvent.setup();
     const { onClose } = renderDialog();
 
-    await user.selectOptions(screen.getByLabelText(/^Block type/), "break");
+    await chooseSelect(user, screen.getByLabelText(/^Block type/), "break");
     await user.type(screen.getByLabelText(/^Title/), "Lunch");
     await user.click(submitButton());
 
@@ -131,8 +143,7 @@ describe("TimeBlockDialog", () => {
     const user = userEvent.setup();
     renderDialog();
 
-    await screen.findByRole("option", { name: "Write the report" });
-    await user.selectOptions(screen.getByLabelText(/^Task/), TASK_ID);
+    await chooseSelect(user, screen.getByLabelText(/^Task/), TASK_ID);
     await user.click(submitButton());
 
     await waitFor(() => {
@@ -174,7 +185,7 @@ describe("TimeBlockDialog", () => {
       ),
     ).toBeInTheDocument();
 
-    await user.selectOptions(screen.getByLabelText(/^Block type/), "break");
+    await chooseSelect(user, screen.getByLabelText(/^Block type/), "break");
     await user.type(screen.getByLabelText(/^Title/), "Lunch");
 
     // First attempt: the conflict is known, consent is missing.
@@ -211,13 +222,13 @@ describe("TimeBlockDialog", () => {
     renderDialog();
 
     await screen.findByText(/shares its time with another block/);
-    await user.selectOptions(screen.getByLabelText(/^Block type/), "break");
+    await chooseSelect(user, screen.getByLabelText(/^Block type/), "break");
     await user.type(screen.getByLabelText(/^Title/), "Lunch");
     await user.click(screen.getByRole("checkbox", { name: "Keep this block at this time anyway" }));
 
     // Another interval overlaps another block: same warning kind, new decision.
-    fireEvent.change(screen.getByLabelText(/^Starts/), { target: { value: "2026-11-04T11:00" } });
-    fireEvent.change(screen.getByLabelText(/^Ends/), { target: { value: "2026-11-04T12:00" } });
+    await setPickedTime(user, /^Starts/, "11:00");
+    await setPickedTime(user, /^Ends/, "12:00");
 
     await user.click(submitButton());
 
@@ -231,9 +242,9 @@ describe("TimeBlockDialog", () => {
     const user = userEvent.setup();
     renderDialog();
 
-    await user.selectOptions(screen.getByLabelText(/^Block type/), "break");
+    await chooseSelect(user, screen.getByLabelText(/^Block type/), "break");
     await user.type(screen.getByLabelText(/^Title/), "Lunch");
-    fireEvent.change(screen.getByLabelText(/^Ends/), { target: { value: "2026-11-04T08:00" } });
+    await setPickedTime(user, /^Ends/, "08:00");
     await user.click(submitButton());
 
     expect(await screen.findByText("End must be after start.")).toBeInTheDocument();
@@ -251,9 +262,9 @@ describe("TimeBlockDialog", () => {
     renderDialog({ block: EDIT_TARGET });
 
     expect(screen.getByRole("dialog", { name: "Edit block" })).toBeInTheDocument();
-    expect(screen.getByLabelText(/^Task/)).toHaveValue(TASK_ID);
+    expect(screen.getByLabelText(/^Task/)).toHaveAttribute("data-value", TASK_ID);
 
-    await user.selectOptions(screen.getByLabelText(/^Block type/), "break");
+    await chooseSelect(user, screen.getByLabelText(/^Block type/), "break");
     expect(screen.getByLabelText(/^Title/)).toHaveValue("Report block");
 
     await user.click(submitButton());

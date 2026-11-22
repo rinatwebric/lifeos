@@ -60,7 +60,7 @@ export function DemoSignInButton({ onError }: DemoSignInButtonProps) {
     <div className="space-y-1.5 text-center">
       <Button
         variant="secondary"
-        className="w-full"
+        className="min-h-12 w-full"
         disabled={pending}
         loading={pending}
         onClick={() => void handleClick()}

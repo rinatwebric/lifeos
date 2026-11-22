@@ -11,11 +11,7 @@ import { describeBlockError } from "./blockMessages";
 import { useApplyPlan } from "./hooks";
 import { planner } from "./queryKeys";
 import { PlanPreview } from "./PlanPreview";
-import {
-  collectPlanSlotWarnings,
-  PlanSlotEditor,
-  type EditablePlanSlot,
-} from "./PlanSlotEditor";
+import { collectPlanSlotWarnings, PlanSlotEditor, type EditablePlanSlot } from "./PlanSlotEditor";
 import { parseWeeklyAvailability, plannerDayBounds, readWallTime } from "./usePlannerDay";
 import { usePlanPreview, type PlanPreview as PlanPreviewModel } from "./usePlanPreview";
 
@@ -50,7 +46,6 @@ export interface PlanAcceptPanelProps {
  * plan. `status`, not `alert`: this is information, not an error — the
  * schedule is exactly as the user left it.
  */
-
 
 function toEditableSlots(preview: PlanPreviewModel): EditablePlanSlot[] {
   return preview.slots.map((slot) => ({

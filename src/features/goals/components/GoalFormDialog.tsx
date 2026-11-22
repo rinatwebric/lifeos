@@ -3,25 +3,18 @@ import { useEffect, useMemo, useState } from "react";
 import { useForm, type Resolver } from "react-hook-form";
 
 import { Button } from "@/components/ui/Button";
+import { DateTimePicker } from "@/components/ui/DateTimePicker";
 import { Dialog } from "@/components/ui/Dialog";
 import { Field } from "@/components/ui/Field";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Textarea } from "@/components/ui/Textarea";
 import { useCreateGoal, useUpdateGoal } from "@/features/goals/hooks";
-import {
-  createGoalFormSchemas,
-  type CreateGoalInput,
-} from "@/features/goals/schema";
+import { createGoalFormSchemas, type CreateGoalInput } from "@/features/goals/schema";
 import { tmpl } from "@/lib/i18n/format";
 import { useMessages } from "@/lib/i18n/I18nContext";
 import { useRevalidateOnLocaleChange } from "@/lib/i18n/useRevalidate";
-import {
-  GOAL_CATEGORIES,
-  GOAL_STATUSES,
-  PRIORITIES,
-  type Goal,
-} from "@/types/domain";
+import { GOAL_CATEGORIES, GOAL_STATUSES, PRIORITIES, type Goal } from "@/types/domain";
 
 interface GoalFormDialogProps {
   open: boolean;
@@ -64,8 +57,7 @@ function defaultValuesFor(goal: Goal | null): GoalFormValues {
   };
 }
 
-const nullIfEmpty = (value: unknown): string | null | unknown =>
-  value === "" ? null : value;
+const nullIfEmpty = (value: unknown): string | null | unknown => (value === "" ? null : value);
 
 export function GoalFormDialog({ open, onClose, goal }: GoalFormDialogProps) {
   const m = useMessages();
@@ -116,6 +108,8 @@ export function GoalFormDialog({ open, onClose, goal }: GoalFormDialogProps) {
   }, [open, goal, reset]);
 
   const progressMode = watch("progressMode");
+  const startDate = watch("startDate") ?? "";
+  const targetDate = watch("targetDate") ?? "";
   const saving = createGoal.isPending || updateGoal.isPending;
 
   const onSubmit = async (values: GoalFormValues): Promise<void> => {
@@ -140,7 +134,11 @@ export function GoalFormDialog({ open, onClose, goal }: GoalFormDialogProps) {
       description={goal ? t.formEditDescription : t.formNewDescription}
       wide
     >
-      <form onSubmit={(event) => void handleSubmit(onSubmit)(event)} noValidate className="space-y-4">
+      <form
+        onSubmit={(event) => void handleSubmit(onSubmit)(event)}
+        noValidate
+        className="space-y-4"
+      >
         <Field id="goal-title" label={t.fieldTitle} required error={errors.title?.message}>
           <Input data-autofocus placeholder={t.titlePlaceholder} {...register("title")} />
         </Field>
@@ -153,7 +151,12 @@ export function GoalFormDialog({ open, onClose, goal }: GoalFormDialogProps) {
         </Field>
 
         <div className="grid gap-4 sm:grid-cols-3">
-          <Field id="goal-category" label={t.fieldCategory} required error={errors.category?.message}>
+          <Field
+            id="goal-category"
+            label={t.fieldCategory}
+            required
+            error={errors.category?.message}
+          >
             <Select {...register("category")}>
               {GOAL_CATEGORIES.map((category) => (
                 <option key={category} value={category}>
@@ -163,7 +166,12 @@ export function GoalFormDialog({ open, onClose, goal }: GoalFormDialogProps) {
             </Select>
           </Field>
 
-          <Field id="goal-priority" label={t.fieldPriority} required error={errors.priority?.message}>
+          <Field
+            id="goal-priority"
+            label={t.fieldPriority}
+            required
+            error={errors.priority?.message}
+          >
             <Select {...register("priority")}>
               {PRIORITIES.map((priority) => (
                 <option key={priority} value={priority}>
@@ -185,8 +193,19 @@ export function GoalFormDialog({ open, onClose, goal }: GoalFormDialogProps) {
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field id="goal-startDate" label={t.fieldStartDate} required error={errors.startDate?.message}>
-            <Input type="date" {...register("startDate")} />
+          <Field
+            id="goal-startDate"
+            label={t.fieldStartDate}
+            required
+            error={errors.startDate?.message}
+          >
+            <DateTimePicker
+              mode="date"
+              value={startDate}
+              onChange={(next) =>
+                setValue("startDate", next, { shouldValidate: true, shouldDirty: true })
+              }
+            />
           </Field>
 
           <Field
@@ -195,7 +214,17 @@ export function GoalFormDialog({ open, onClose, goal }: GoalFormDialogProps) {
             hint={t.targetHint}
             error={errors.targetDate?.message}
           >
-            <Input type="date" {...register("targetDate", { setValueAs: nullIfEmpty })} />
+            <DateTimePicker
+              mode="date"
+              clearable
+              value={targetDate}
+              onChange={(next) =>
+                setValue("targetDate", next === "" ? null : next, {
+                  shouldValidate: true,
+                  shouldDirty: true,
+                })
+              }
+            />
           </Field>
         </div>
 
@@ -216,9 +245,7 @@ export function GoalFormDialog({ open, onClose, goal }: GoalFormDialogProps) {
               {t.progressFromMilestones}
             </label>
           </div>
-          <p className="text-micro text-muted">
-            {t.progressFromMilestonesHint}
-          </p>
+          <p className="text-micro text-muted">{t.progressFromMilestonesHint}</p>
         </div>
 
         {progressMode === "manual" ? (

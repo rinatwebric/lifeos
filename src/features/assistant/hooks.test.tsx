@@ -3,8 +3,20 @@ import { renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { approveProposal, listConversations, listMessages, rejectProposal, sendMessage } from "./api";
-import { useApproveProposal, useConversations, useMessages, useRejectProposal, useSendMessage } from "./hooks";
+import {
+  approveProposal,
+  listConversations,
+  listMessages,
+  rejectProposal,
+  sendMessage,
+} from "./api";
+import {
+  useApproveProposal,
+  useConversations,
+  useMessages,
+  useRejectProposal,
+  useSendMessage,
+} from "./hooks";
 import { assistant } from "./queryKeys";
 
 vi.mock("./api", () => ({
@@ -113,6 +125,25 @@ describe("assistant hooks", () => {
       expect(key[0]).not.toBe("goals");
       expect(key[0]).not.toBe("tasks");
     }
+  });
+
+  it("can leave messages cached while ChatPanel renders the turn itself", async () => {
+    const client = createClient();
+    vi.mocked(sendMessage).mockResolvedValue(TURN as never);
+    const invalidateSpy = vi.spyOn(client, "invalidateQueries");
+
+    const { result } = renderHook(() => useSendMessage({ invalidateMessages: false }), {
+      wrapper: wrapper(client),
+    });
+
+    result.current.mutate({ message: "Break down my goal", conversationId: null });
+
+    await waitFor(() => {
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: assistant.conversations });
+    });
+    expect(invalidateSpy).not.toHaveBeenCalledWith({
+      queryKey: assistant.messages(CONVERSATION_ID),
+    });
   });
 
   it("surfaces the coded service error to the caller", async () => {

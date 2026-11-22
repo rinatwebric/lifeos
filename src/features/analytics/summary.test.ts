@@ -7,6 +7,7 @@ import {
   buildWeeklyReview,
   countCompletionsPerBucket,
   getPeriodRange,
+  getPreviousPeriodRange,
   groupTasksByGoalCategory,
   type AnalyticsPeriod,
 } from "./summary";
@@ -50,6 +51,21 @@ describe("getPeriodRange", () => {
   it("starts the week on Monday (a Sunday belongs to the week behind it)", () => {
     expect(getPeriodRange("week", "2026-11-08").from).toBe("2026-11-02");
   });
+});
+
+describe("getPreviousPeriodRange", () => {
+  it.each([
+    ["day", { from: "2026-11-05", to: "2026-11-05" }, "2026-11-04", "2026-11-04"],
+    ["week", { from: "2026-11-02", to: "2026-11-08" }, "2026-10-26", "2026-11-01"],
+    ["month", { from: "2026-01-01", to: "2026-01-31" }, "2025-12-01", "2025-12-31"],
+    ["month", { from: "2026-03-01", to: "2026-03-31" }, "2026-02-01", "2026-02-28"],
+    ["year", { from: "2026-01-01", to: "2026-12-31" }, "2025-01-01", "2025-12-31"],
+  ] satisfies Array<[AnalyticsPeriod, { from: string; to: string }, string, string]>)(
+    "moves %s back one calendar period",
+    (period, range, from, to) => {
+      expect(getPreviousPeriodRange(period, range)).toStrictEqual({ from, to });
+    },
+  );
 });
 
 describe("bucketize", () => {
@@ -126,7 +142,12 @@ describe("buildWeeklyReview", () => {
 
   it("summarizes the week from real counts with explicit denominators", () => {
     const tasks = [
-      task({ id: "done", status: "completed", completedAt: "2026-11-03T10:00:00.000Z", dueDate: "2026-11-03" }),
+      task({
+        id: "done",
+        status: "completed",
+        completedAt: "2026-11-03T10:00:00.000Z",
+        dueDate: "2026-11-03",
+      }),
       task({ id: "open", status: "todo", dueDate: "2026-11-06" }),
       task({ id: "late", status: "todo", dueDate: "2026-10-30" }),
     ];
@@ -137,7 +158,14 @@ describe("buildWeeklyReview", () => {
       habitRows: [
         {
           habit: habit("h1"),
-          stats: { planned: 3, completed: 2, missed: 1, completionRate: 67, currentStreak: 1, bestStreak: 2 },
+          stats: {
+            planned: 3,
+            completed: 2,
+            missed: 1,
+            completionRate: 67,
+            currentStreak: 1,
+            bestStreak: 2,
+          },
         },
       ],
       weekFrom: "2026-11-02",

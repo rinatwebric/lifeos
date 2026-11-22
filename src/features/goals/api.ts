@@ -292,8 +292,7 @@ export async function createMilestone(input: CreateMilestoneInput): Promise<Mile
     const userId = await requireUserId();
     const client = getSupabaseClient();
 
-    const position =
-      input.position ?? (await nextMilestonePosition(input.goalId, userId));
+    const position = input.position ?? (await nextMilestonePosition(input.goalId, userId));
     const status = input.status ?? "pending";
 
     const payload: Omit<MilestonesRow, "id" | "created_at" | "updated_at"> = {
@@ -319,10 +318,7 @@ export async function createMilestone(input: CreateMilestoneInput): Promise<Mile
   }
 }
 
-export async function updateMilestone(
-  id: string,
-  patch: UpdateMilestoneInput,
-): Promise<Milestone> {
+export async function updateMilestone(id: string, patch: UpdateMilestoneInput): Promise<Milestone> {
   try {
     const userId = await requireUserId();
     const client = getSupabaseClient();
@@ -462,14 +458,14 @@ export async function listAllMilestones(): Promise<MilestoneProgressSlice[]> {
       throw toGoalError(error);
     }
 
-    return ((data ?? []) as Array<{ id: string; goal_id: string; title: string; status: MilestoneStatus }>).map(
-      (row) => ({
-        id: row.id,
-        goalId: row.goal_id,
-        title: row.title,
-        status: row.status,
-      }),
-    );
+    return (
+      (data ?? []) as Array<{ id: string; goal_id: string; title: string; status: MilestoneStatus }>
+    ).map((row) => ({
+      id: row.id,
+      goalId: row.goal_id,
+      title: row.title,
+      status: row.status,
+    }));
   } catch (error) {
     throw toGoalError(error);
   }

@@ -76,7 +76,19 @@ function mockBuilder(thenResult: unknown, singleResult?: unknown): BuilderMocks 
   const deleteFn = vi.fn();
   const single = vi.fn();
 
-  Object.assign(builder, { eq, in: inFn, ilike, gte, lte, order, limit, select, insert, update, single });
+  Object.assign(builder, {
+    eq,
+    in: inFn,
+    ilike,
+    gte,
+    lte,
+    order,
+    limit,
+    select,
+    insert,
+    update,
+    single,
+  });
   builder["delete"] = deleteFn;
 
   eq.mockReturnValue(builder);
@@ -93,10 +105,8 @@ function mockBuilder(thenResult: unknown, singleResult?: unknown): BuilderMocks 
   single.mockResolvedValue(singleResult ?? thenResult);
 
   const withThen = Object.assign(builder, {
-    then: (
-      onFulfilled: (value: unknown) => unknown,
-      onRejected?: (reason: unknown) => unknown,
-    ) => Promise.resolve(thenResult).then(onFulfilled, onRejected),
+    then: (onFulfilled: (value: unknown) => unknown, onRejected?: (reason: unknown) => unknown) =>
+      Promise.resolve(thenResult).then(onFulfilled, onRejected),
   });
 
   return {
@@ -339,10 +349,7 @@ describe("tasks api", () => {
   });
 
   it("gets a single task and surfaces PGRST116 as not_found", async () => {
-    const ok = mockBuilder(
-      { data: null, error: null },
-      { data: TASK_ROW, error: null },
-    );
+    const ok = mockBuilder({ data: null, error: null }, { data: TASK_ROW, error: null });
     stubClient("u1", vi.fn().mockReturnValue(ok.builder));
     await expect(getTask("t1")).resolves.toMatchObject({ id: "t1" });
 
@@ -430,10 +437,7 @@ describe("tasks api", () => {
       { data: null, error: null },
       { data: { goal_id: "other-goal" }, error: null },
     );
-    const task = mockBuilder(
-      { data: null, error: null },
-      { data: TASK_ROW, error: null },
-    );
+    const task = mockBuilder({ data: null, error: null }, { data: TASK_ROW, error: null });
     const fromEntry = vi.fn((table: string) =>
       table === "milestones" ? milestone.builder : task.builder,
     );
@@ -570,10 +574,7 @@ describe("tasks api", () => {
       { data: null, error: null },
       { data: { goal_id: "g1" }, error: null },
     );
-    const task = mockBuilder(
-      { data: null, error: null },
-      { data: current, error: null },
-    );
+    const task = mockBuilder({ data: null, error: null }, { data: current, error: null });
     task.single.mockResolvedValueOnce({ data: current, error: null });
     const fromEntry = vi.fn((table: string) =>
       table === "milestones" ? milestone.builder : task.builder,

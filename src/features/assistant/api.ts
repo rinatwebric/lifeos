@@ -65,6 +65,30 @@ export async function listConversations(): Promise<AiConversation[]> {
 }
 
 /**
+ * Delete one dialog. `ai_messages` and the dialog's proposals cascade at the
+ * database level; RLS allows only the owner's row. The caller drops the
+ * cached messages after this resolves.
+ */
+export async function deleteConversation(conversationId: string): Promise<void> {
+  try {
+    const userId = await requireUserId();
+    const client = getSupabaseClient();
+
+    const { error } = await client
+      .from("ai_conversations")
+      .delete()
+      .eq("id", conversationId)
+      .eq("user_id", userId);
+
+    if (error) {
+      throw toAssistantError(error);
+    }
+  } catch (error) {
+    throw toAssistantError(error);
+  }
+}
+
+/**
  * One message list read per dialog: RLS-scoped (`user_id`) and narrowed to
  * the dialog, chronological (`created_at` ascending) so the chat renders in
  * order. The caller passes only the dialog id — ownership is enforced by
@@ -271,10 +295,7 @@ function readDecideResult(
     typeof data["applied"] !== "number" ||
     typeof data["total"] !== "number"
   ) {
-    throw new AssistantServiceError(
-      "invalid_response",
-      ASSISTANT_ERROR_MESSAGES.invalid_response,
-    );
+    throw new AssistantServiceError("invalid_response", ASSISTANT_ERROR_MESSAGES.invalid_response);
   }
 
   return {

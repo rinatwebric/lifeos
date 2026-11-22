@@ -140,9 +140,7 @@ export function useUpdateMilestone() {
 
       const nextStatus = variables.patch.status;
       await queryClient.cancelQueries({ queryKey: goals.milestones(variables.goalId) });
-      const previous = queryClient.getQueryData<Milestone[]>(
-        goals.milestones(variables.goalId),
-      );
+      const previous = queryClient.getQueryData<Milestone[]>(goals.milestones(variables.goalId));
 
       if (previous) {
         queryClient.setQueryData<Milestone[]>(goals.milestones(variables.goalId), (current) =>

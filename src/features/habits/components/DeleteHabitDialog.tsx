@@ -55,16 +55,29 @@ export function DeleteHabitDialog({ open, onClose, habit, loggedDays }: DeleteHa
       description={description}
     >
       {serverError ? (
-        <p role="alert" className="text-micro text-danger">
+        <p role="alert" className="text-caption text-danger">
           {serverError}
         </p>
       ) : null}
 
-      <div className="flex justify-end gap-2">
-        <Button variant="secondary" size="lg" data-autofocus onClick={onClose} disabled={deleteHabit.isPending}>
+      <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+        <Button
+          variant="secondary"
+          size="lg"
+          className="min-h-11 w-full sm:w-auto"
+          data-autofocus
+          onClick={onClose}
+          disabled={deleteHabit.isPending}
+        >
           {t.cancel}
         </Button>
-        <Button variant="danger" size="lg" onClick={() => void handleConfirm()} loading={deleteHabit.isPending}>
+        <Button
+          variant="danger"
+          size="lg"
+          className="min-h-11 w-full sm:w-auto"
+          onClick={() => void handleConfirm()}
+          loading={deleteHabit.isPending}
+        >
           {t.deleteAction}
         </Button>
       </div>

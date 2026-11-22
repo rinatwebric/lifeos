@@ -25,13 +25,10 @@ export const recurrenceRuleSchema = z
     endDate: optionalDateKeyField,
     isActive: z.boolean().default(true),
   })
-  .refine(
-    (values) => values.frequency !== "weekdays" || values.weekdays.length > 0,
-    {
-      message: "Choose at least one weekday.",
-      path: ["weekdays"],
-    },
-  )
+  .refine((values) => values.frequency !== "weekdays" || values.weekdays.length > 0, {
+    message: "Choose at least one weekday.",
+    path: ["weekdays"],
+  })
   .refine(
     (values) => {
       if (values.endDate == null) {

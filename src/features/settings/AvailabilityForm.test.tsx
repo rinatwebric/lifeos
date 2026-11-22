@@ -1,11 +1,12 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getPreferences, updatePreferences } from "./api";
 import { AVAILABILITY_COPY, AvailabilityForm } from "./AvailabilityForm";
 import { AVAILABILITY_MESSAGES } from "./schemas";
+import { chooseSelect } from "@/test/chooseSelect";
 import type { UserPreferences } from "@/types/domain";
 
 vi.mock("./api", () => ({
@@ -55,6 +56,17 @@ function endField(day: string, position: number): HTMLElement {
   return screen.getByLabelText(`${day}, window ${position} end time`);
 }
 
+async function setTime(
+  user: ReturnType<typeof userEvent.setup>,
+  field: HTMLElement,
+  value: string,
+): Promise<void> {
+  await user.click(field);
+  await chooseSelect(user, screen.getByLabelText("Hours"), value.slice(0, 2));
+  await chooseSelect(user, screen.getByLabelText("Minutes"), value.slice(3, 5));
+  await user.click(screen.getByRole("button", { name: "Done" }));
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   mockedUpdatePreferences.mockImplementation(async () => makePreferences());
@@ -73,10 +85,13 @@ describe("AvailabilityForm", () => {
 
     renderForm();
 
-    expect(await screen.findByLabelText("Monday, window 1 start time")).toHaveValue("09:00");
-    expect(endField("Monday", 1)).toHaveValue("12:00");
-    expect(startField("Thursday", 1)).toHaveValue("18:00");
-    expect(endField("Thursday", 1)).toHaveValue("20:00");
+    expect(await screen.findByLabelText("Monday, window 1 start time")).toHaveAttribute(
+      "data-value",
+      "09:00",
+    );
+    expect(endField("Monday", 1)).toHaveAttribute("data-value", "12:00");
+    expect(startField("Thursday", 1)).toHaveAttribute("data-value", "18:00");
+    expect(endField("Thursday", 1)).toHaveAttribute("data-value", "20:00");
     // Five days stay unset and read as "Not set".
     expect(screen.getAllByText(AVAILABILITY_COPY.emptyDay)).toHaveLength(5);
   });
@@ -100,16 +115,16 @@ describe("AvailabilityForm", () => {
     const monday = within(await screen.findByRole("group", { name: "Monday" }));
     await user.click(monday.getByRole("button", { name: AVAILABILITY_COPY.addWindow }));
 
-    expect(startField("Monday", 2)).toHaveValue("09:00");
-    expect(endField("Monday", 2)).toHaveValue("10:00");
+    expect(startField("Monday", 2)).toHaveAttribute("data-value", "09:00");
+    expect(endField("Monday", 2)).toHaveAttribute("data-value", "10:00");
 
     await user.click(
       screen.getByRole("button", { name: `Remove window: Monday, window 1 start time` }),
     );
 
     await waitFor(() => expect(screen.queryByLabelText("Monday, window 2 start time")).toBeNull());
-    expect(startField("Monday", 1)).toHaveValue("09:00");
-    expect(endField("Monday", 1)).toHaveValue("10:00");
+    expect(startField("Monday", 1)).toHaveAttribute("data-value", "09:00");
+    expect(endField("Monday", 1)).toHaveAttribute("data-value", "10:00");
   });
 
   it("saves only the days that have windows and reports success", async () => {
@@ -121,7 +136,7 @@ describe("AvailabilityForm", () => {
     renderForm();
 
     await screen.findByLabelText("Monday, window 1 start time");
-    fireEvent.change(endField("Monday", 1), { target: { value: "13:00" } });
+    await setTime(user, endField("Monday", 1), "13:00");
     await user.click(screen.getByRole("button", { name: AVAILABILITY_COPY.submit }));
 
     await waitFor(() =>
@@ -141,7 +156,7 @@ describe("AvailabilityForm", () => {
     renderForm();
 
     await screen.findByLabelText("Monday, window 1 start time");
-    fireEvent.change(endField("Monday", 1), { target: { value: "08:00" } });
+    await setTime(user, endField("Monday", 1), "08:00");
     await user.click(screen.getByRole("button", { name: AVAILABILITY_COPY.submit }));
 
     expect(await screen.findByText(AVAILABILITY_MESSAGES.endAfterStart)).toBeInTheDocument();
@@ -161,7 +176,10 @@ describe("AvailabilityForm", () => {
 
     await user.click(screen.getByRole("button", { name: AVAILABILITY_COPY.retry }));
 
-    expect(await screen.findByLabelText("Tuesday, window 1 start time")).toHaveValue("10:00");
+    expect(await screen.findByLabelText("Tuesday, window 1 start time")).toHaveAttribute(
+      "data-value",
+      "10:00",
+    );
     expect(screen.queryByText(AVAILABILITY_COPY.loadError)).toBeNull();
   });
 
@@ -180,7 +198,7 @@ describe("AvailabilityForm", () => {
     expect(await screen.findByText(/row is locked/)).toHaveTextContent(
       AVAILABILITY_COPY.saveErrorPrefix,
     );
-    expect(startField("Monday", 1)).toHaveValue("09:00");
+    expect(startField("Monday", 1)).toHaveAttribute("data-value", "09:00");
     expect(screen.queryByText(AVAILABILITY_COPY.saved)).toBeNull();
   });
 
@@ -196,7 +214,10 @@ describe("AvailabilityForm", () => {
     );
     await client.refetchQueries({ queryKey: ["preferences"] });
 
-    expect(await screen.findByLabelText("Friday, window 1 start time")).toHaveValue("15:00");
-    expect(endField("Friday", 1)).toHaveValue("17:00");
+    expect(await screen.findByLabelText("Friday, window 1 start time")).toHaveAttribute(
+      "data-value",
+      "15:00",
+    );
+    expect(endField("Friday", 1)).toHaveAttribute("data-value", "17:00");
   });
 });

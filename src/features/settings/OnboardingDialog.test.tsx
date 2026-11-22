@@ -120,8 +120,8 @@ describe("OnboardingDialog", () => {
 
     expect(await screen.findByText(ONBOARDING_COPY.title)).toBeInTheDocument();
     expect(await screen.findByLabelText("Time zone")).toHaveValue("Asia/Bishkek");
-    expect(screen.getByLabelText("Wake-up time")).toHaveValue("07:00");
-    expect(screen.getByLabelText("Sleep time")).toHaveValue("23:00");
+    expect(screen.getByLabelText("Wake-up time")).toHaveAttribute("data-value", "07:00");
+    expect(screen.getByLabelText("Sleep time")).toHaveAttribute("data-value", "23:00");
   });
 
   it("Skip writes onboarded_at and dismisses the dialog", async () => {

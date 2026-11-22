@@ -3,12 +3,7 @@
  * same contract as goals/errors.ts and tasks/errors.ts (UI matches on
  * `code`, never on text).
  */
-import {
-  DbServiceError,
-  DB_ERROR_MESSAGES,
-  toDbError,
-  type DbErrorCode,
-} from "@/lib/dbErrors";
+import { DbServiceError, DB_ERROR_MESSAGES, toDbError, type DbErrorCode } from "@/lib/dbErrors";
 
 export type RecurrenceErrorCode = DbErrorCode;
 
@@ -20,8 +15,7 @@ export class RecurrenceServiceError extends DbServiceError {
 }
 
 /** English fallback copy; the single source for future localization. */
-export const RECURRENCE_ERROR_MESSAGES: Record<RecurrenceErrorCode, string> =
-  DB_ERROR_MESSAGES;
+export const RECURRENCE_ERROR_MESSAGES: Record<RecurrenceErrorCode, string> = DB_ERROR_MESSAGES;
 
 /**
  * Converts any Supabase/PostgREST failure into a `RecurrenceServiceError`.

@@ -8,7 +8,7 @@
       name="description"
       content="LifeOS — a personal operating system for goals, tasks, planning and progress."
     />
-    <meta name="theme-color" content="#0b0f14" />
+    <meta name="theme-color" content="#0c0b0a" />
     <title>LifeOS</title>
   </head>
   <body class="h-full">
@@ -21,8 +21,7 @@
           var parsedT = JSON.parse(rawT);
           if (parsedT && typeof parsedT.value === "string") t = parsedT.value;
         } catch (e) {}
-        if (t === "dark" || (!t && matchMedia("(prefers-color-scheme: dark)").matches))
-          document.documentElement.classList.add("dark");
+        if (t !== "light") document.documentElement.classList.add("dark");
       } catch (e) {}
       try {
         var rawL = localStorage.getItem("lifeos-language");

@@ -47,11 +47,24 @@ export function DeleteTaskDialog({ open, onClose, task }: DeleteTaskDialogProps)
         </p>
       ) : null}
 
-      <div className="flex justify-end gap-2">
-        <Button variant="secondary" size="lg" data-autofocus onClick={onClose} disabled={deleteTask.isPending}>
+      <div className="flex flex-col-reverse gap-2 border-t border-line pt-4 sm:flex-row sm:justify-end">
+        <Button
+          variant="secondary"
+          size="lg"
+          className="min-h-11 w-full sm:w-auto"
+          data-autofocus
+          onClick={onClose}
+          disabled={deleteTask.isPending}
+        >
           {t.cancel}
         </Button>
-        <Button variant="danger" size="lg" onClick={() => void handleConfirm()} loading={deleteTask.isPending}>
+        <Button
+          variant="danger"
+          size="lg"
+          className="min-h-11 w-full sm:w-auto"
+          onClick={() => void handleConfirm()}
+          loading={deleteTask.isPending}
+        >
           {t.delete}
         </Button>
       </div>

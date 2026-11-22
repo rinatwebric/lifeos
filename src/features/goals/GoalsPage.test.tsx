@@ -14,6 +14,7 @@ import {
   useTaskCountForGoal,
   useUpdateGoal,
 } from "./hooks";
+import { chooseSelect } from "@/test/chooseSelect";
 
 vi.mock("./hooks", () => ({
   useGoals: vi.fn(),
@@ -132,9 +133,10 @@ describe("GoalsPage", () => {
     renderGoalsPage();
 
     expect(screen.getByRole("heading", { name: "Learn piano" })).toBeInTheDocument();
-    expect(
-      screen.getByRole("progressbar", { name: "Progress for Learn piano" }),
-    ).toHaveAttribute("aria-valuenow", "20");
+    expect(screen.getByRole("progressbar", { name: "Progress for Learn piano" })).toHaveAttribute(
+      "aria-valuenow",
+      "20",
+    );
     expect(screen.getByText("20% complete", { exact: false })).toBeInTheDocument();
   });
 
@@ -148,9 +150,10 @@ describe("GoalsPage", () => {
     } as unknown as ReturnType<typeof useAllMilestones>);
     renderGoalsPage();
 
-    expect(
-      screen.getByRole("progressbar", { name: "Progress for Learn piano" }),
-    ).toHaveAttribute("aria-valuenow", "50");
+    expect(screen.getByRole("progressbar", { name: "Progress for Learn piano" })).toHaveAttribute(
+      "aria-valuenow",
+      "50",
+    );
     expect(screen.getByText("50% complete", { exact: false })).toBeInTheDocument();
   });
 
@@ -171,12 +174,14 @@ describe("GoalsPage", () => {
     await user.click(screen.getByRole("button", { name: "New goal" }));
     await user.type(screen.getByLabelText("Title", { exact: false }), "Run a marathon");
 
-    const startDate = screen.getByLabelText("Start date", { exact: false });
-    const targetDate = screen.getByLabelText("Target date", { exact: false });
-    await user.clear(startDate);
-    await user.type(startDate, "2026-12-01");
-    await user.clear(targetDate);
-    await user.type(targetDate, "2026-11-01");
+    await user.click(screen.getByLabelText("Target date", { exact: false }));
+    const calendar = screen.getByRole("dialog", { name: "Calendar" });
+    await user.click(within(calendar).getByRole("button", { name: "Previous month" }));
+    const dayOne = within(calendar)
+      .getAllByRole("button")
+      .find((button) => button.textContent === "1");
+    if (!dayOne) throw new Error("Day 1 not found");
+    await user.click(dayOne);
 
     await user.click(screen.getByRole("button", { name: "Create goal" }));
 
@@ -248,9 +253,7 @@ describe("GoalsPage", () => {
 
     await user.click(screen.getByRole("button", { name: "Delete Learn piano" }));
     expect(
-      screen.getByText(
-        "1 task will stay but lose the link to this goal. This cannot be undone.",
-      ),
+      screen.getByText("1 task will stay but lose the link to this goal. This cannot be undone."),
     ).toBeInTheDocument();
 
     const dialog = screen.getByRole("dialog");
@@ -274,11 +277,9 @@ describe("GoalsPage", () => {
     const user = userEvent.setup();
     renderGoalsPage();
 
-    await user.selectOptions(screen.getByLabelText("Status"), "active");
+    await chooseSelect(user, screen.getByLabelText("Status"), "active");
 
-    expect(vi.mocked(useGoals)).toHaveBeenCalledWith(
-      expect.objectContaining({ status: "active" }),
-    );
+    expect(vi.mocked(useGoals)).toHaveBeenCalledWith(expect.objectContaining({ status: "active" }));
   });
 
   it("shows an inline error with Retry that refetches", async () => {
@@ -328,7 +329,7 @@ describe("GoalsPage", () => {
     const user = userEvent.setup();
     renderGoalsPage();
 
-    await user.selectOptions(screen.getByLabelText("Status"), "completed");
+    await chooseSelect(user, screen.getByLabelText("Status"), "completed");
 
     expect(await screen.findByText("No goals match these filters")).toBeInTheDocument();
 
@@ -356,13 +357,13 @@ describe("GoalsPage", () => {
     await user.click(screen.getByRole("button", { name: "Edit" }));
 
     const dialog = await screen.findByRole("dialog");
-    expect(within(dialog).getByLabelText("Title", { exact: false })).toHaveValue(
-      "Learn piano",
-    );
-    expect(within(dialog).getByLabelText("Start date", { exact: false })).toHaveValue(
+    expect(within(dialog).getByLabelText("Title", { exact: false })).toHaveValue("Learn piano");
+    expect(within(dialog).getByLabelText("Start date", { exact: false })).toHaveAttribute(
+      "data-value",
       "2026-11-01",
     );
-    expect(within(dialog).getByLabelText("Target date", { exact: false })).toHaveValue(
+    expect(within(dialog).getByLabelText("Target date", { exact: false })).toHaveAttribute(
+      "data-value",
       "2026-12-01",
     );
     expect(within(dialog).getByLabelText("Progress (%)", { exact: false })).toHaveValue(20);

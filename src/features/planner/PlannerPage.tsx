@@ -50,7 +50,7 @@ function ViewSwitch({ view, dateKey }: { view: PlannerView; dateKey: string }) {
   return (
     <nav
       aria-label={m.planner.viewLabel}
-      className="flex items-center gap-1 rounded-control bg-surface-muted p-1"
+      className="grid w-full grid-cols-2 items-center gap-1 rounded-control bg-surface-muted p-1 sm:flex sm:w-auto"
     >
       {VIEW_OPTIONS.map((option) => {
         const isActive = option.value === view;
@@ -64,7 +64,7 @@ function ViewSwitch({ view, dateKey }: { view: PlannerView; dateKey: string }) {
               "inline-flex min-h-11 min-w-16 items-center justify-center rounded-control px-3 text-ui",
               "transition-[color,background-color] duration-fast ease-standard",
               isActive
-                ? "bg-accent font-semibold text-accent-content"
+                ? "bg-surface font-medium text-content"
                 : "font-medium text-muted hover:bg-surface hover:text-content",
             )}
           >
@@ -156,8 +156,19 @@ export function PlannerPage() {
   const intl = useIntlLocale();
   const [searchParams, setSearchParams] = useSearchParams();
   const [blockDialog, setBlockDialog] = useState<BlockDialogState>(null);
+  const isCreatingBlock = searchParams.get("new") === "1";
+  const activeBlockDialog = blockDialog ?? (isCreatingBlock ? { mode: "create" } : null);
   const [deleteTarget, setDeleteTarget] = useState<DeleteBlockTarget | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
+
+  const closeBlockDialog = (): void => {
+    setBlockDialog(null);
+    if (searchParams.has("new")) {
+      const next = new URLSearchParams(searchParams);
+      next.delete("new");
+      setSearchParams(next, { replace: true });
+    }
+  };
   // Same query key as both planner hooks: one profile read, shared by all.
   const profileQuery = useQuery({
     queryKey: profileQueryKey,
@@ -184,7 +195,9 @@ export function PlannerPage() {
   // Noon probe: the calendar date rendered in `timeZone`, never shifted by DST.
   const selectedDate = new Date(localDateTimeToIso(`${dateKey}T12:00`, timeZone));
   const title =
-    view === "week" ? plannerWeekLabel(dateKey, timeZone, intl) : formatLongDate(selectedDate, timeZone, intl);
+    view === "week"
+      ? plannerWeekLabel(dateKey, timeZone, intl)
+      : formatLongDate(selectedDate, timeZone, intl);
   const description = view === "week" ? t.weekDescription : t.dayDescription;
 
   const prevLabel = view === "week" ? t.prevWeek : t.prevDay;
@@ -196,44 +209,59 @@ export function PlannerPage() {
         title={title}
         description={description}
         actions={
-          <div className="flex flex-wrap items-center gap-2">
-            <Button size="lg" onClick={() => setBlockDialog({ mode: "create" })}>
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+            <Button
+              size="lg"
+              className="min-h-11 w-full sm:w-auto"
+              onClick={() => setBlockDialog({ mode: "create" })}
+            >
               <Plus className="size-4" aria-hidden="true" />
               {t.addBlock}
             </Button>
-            <Button size="lg" variant="secondary" onClick={() => setPreviewOpen(true)}>
+            <Button
+              size="lg"
+              variant="secondary"
+              className="min-h-11 w-full sm:w-auto"
+              onClick={() => setPreviewOpen(true)}
+            >
               {t.generatePlan}
             </Button>
-            <ViewSwitch view={view} dateKey={dateKey} />
-            <div className="flex flex-wrap items-center gap-2">
-              <Button
-                variant="secondary"
-                size="lg"
-                aria-label={prevLabel}
-                onClick={() => goTo(view, shiftDateKey(dateKey, -stepDays))}
-              >
-                <ChevronLeft className="size-4" aria-hidden="true" />
-              </Button>
-              <Button
-                variant="secondary"
-                size="lg"
-                aria-label={nextLabel}
-                onClick={() => goTo(view, shiftDateKey(dateKey, stepDays))}
-              >
-                <ChevronRight className="size-4" aria-hidden="true" />
-              </Button>
-              <Button
-                variant="secondary"
-                size="lg"
-                disabled={isToday}
-                onClick={() => goTo(view, todayKey)}
-              >
-                {t.today}
-              </Button>
-            </div>
           </div>
         }
       />
+
+      <div className="flex flex-col gap-3 border-b border-line pb-4 sm:flex-row sm:items-center sm:justify-between">
+        <ViewSwitch view={view} dateKey={dateKey} />
+        <div className="flex items-center justify-between gap-2 sm:justify-end">
+          <Button
+            variant="secondary"
+            size="lg"
+            className="min-h-11 min-w-11 px-3"
+            aria-label={prevLabel}
+            onClick={() => goTo(view, shiftDateKey(dateKey, -stepDays))}
+          >
+            <ChevronLeft className="size-4" aria-hidden="true" />
+          </Button>
+          <Button
+            variant="secondary"
+            size="lg"
+            className="min-h-11 flex-1 sm:flex-none"
+            disabled={isToday}
+            onClick={() => goTo(view, todayKey)}
+          >
+            {t.today}
+          </Button>
+          <Button
+            variant="secondary"
+            size="lg"
+            className="min-h-11 min-w-11 px-3"
+            aria-label={nextLabel}
+            onClick={() => goTo(view, shiftDateKey(dateKey, stepDays))}
+          >
+            <ChevronRight className="size-4" aria-hidden="true" />
+          </Button>
+        </div>
+      </div>
 
       {view === "week" ? (
         <PlannerWeekSection dateKey={dateKey} now={now} />
@@ -255,11 +283,11 @@ export function PlannerPage() {
       ) : null}
 
       <TimeBlockDialog
-        open={blockDialog !== null}
-        onClose={() => setBlockDialog(null)}
+        open={activeBlockDialog !== null}
+        onClose={closeBlockDialog}
         timeZone={timeZone}
         dateKey={dateKey}
-        block={blockDialog?.mode === "edit" ? blockDialog.block : null}
+        block={activeBlockDialog?.mode === "edit" ? activeBlockDialog.block : null}
         now={now}
         onRequestDelete={(block) => {
           // Close the editor first: one modal at a time, and the confirmation

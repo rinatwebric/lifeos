@@ -3,7 +3,7 @@ import { cloneElement, isValidElement, type ReactElement, type ReactNode } from 
 interface FieldProps {
   id: string;
   label: string;
-  hint?: string;
+  hint?: ReactNode;
   error?: string;
   required?: boolean;
   children: ReactNode;

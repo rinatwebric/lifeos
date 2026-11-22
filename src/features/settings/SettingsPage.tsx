@@ -12,20 +12,21 @@ import {
   updateProfile,
 } from "./api";
 import { profileFormSchema, type ProfileFormValues } from "./schemas";
-import { useTheme } from "@/app/theme";
 import { useAuth } from "@/features/auth/useAuth";
 import { signOut } from "@/features/auth/api";
+import { listGoals } from "@/features/goals/api";
+import { listHabits } from "@/features/habits/api";
+import { listAllTasksForExport } from "@/features/tasks/api";
 import { zodResolver } from "@/features/auth/resolver";
 import { Card } from "@/components/ui/Card";
 import { Field } from "@/components/ui/Field";
 import { Input } from "@/components/ui/Input";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { Select } from "@/components/ui/Select";
 import { Button } from "@/components/ui/Button";
 import { isSupabaseConfigured } from "@/lib/env";
+import { cn } from "@/lib/cn";
 import { toWallTime } from "@/lib/dates";
-import { useLanguageSync, useMessages } from "@/lib/i18n/I18nContext";
-import type { ProfileLanguage, ProfileTheme } from "@/types/domain";
+import { useLocale, useMessages } from "@/lib/i18n/I18nContext";
 
 export const SETTINGS_COPY = {
   title: "Settings",
@@ -51,20 +52,58 @@ export const SETTINGS_COPY = {
   signOutFailed: "Could not sign out. Please try again.",
 } as const;
 
-const LANGUAGE_OPTIONS: ReadonlyArray<{ value: ProfileLanguage; labelKey: "en" | "ru" | "soon"; disabled?: boolean }> = [
-  { value: "en", labelKey: "en" },
-  { value: "ru", labelKey: "ru" },
-  { value: "ky", labelKey: "soon", disabled: true },
-];
+/**
+ * Section headings plus the two grouping hints the dictionaries do not own.
+ * Every field label, field hint, status and action still comes from i18n.
+ */
+const SECTION_COPY = {
+  en: {
+    profile: "Profile",
+    profileHint: "Your name and sign-in email.",
+    daySetup: "Day setup",
+    daySetupHint: "Time zone, wake-up and sleep.",
+  },
+  ru: {
+    profile: "Профиль",
+    profileHint: "Имя и email для входа.",
+    daySetup: "Распорядок дня",
+    daySetupHint: "Часовой пояс, подъём и сон.",
+  },
+} as const;
 
-const THEME_OPTIONS: ReadonlyArray<{ value: ProfileTheme; labelKey: "light" | "dark" }> = [
-  { value: "light", labelKey: "light" },
-  { value: "dark", labelKey: "dark" },
-];
+function SectionHeading({ title, hint }: { title: string; hint: string }) {
+  return (
+    <div className="space-y-1.5">
+      <h2 className="text-[15px] leading-snug font-medium text-content">{title}</h2>
+      <p className="max-w-2xl text-caption leading-relaxed text-muted text-pretty">{hint}</p>
+    </div>
+  );
+}
+
+function SkeletonLine({ className }: { className?: string }) {
+  return <div aria-hidden="true" className={cn("h-3 rounded-full bg-surface-muted", className)} />;
+}
+
+function SettingsSkeleton({ label }: { label: string }) {
+  return (
+    <Card className="space-y-5 p-6">
+      <p role="status" className="text-caption text-muted">
+        {label}
+      </p>
+      <div className="space-y-4">
+        <SkeletonLine className="h-10 w-full" />
+        <SkeletonLine className="h-10 w-4/5" />
+        <SkeletonLine className="w-2/3" />
+      </div>
+    </Card>
+  );
+}
 
 export function SettingsPage() {
   const m = useMessages();
   const t = m.settings;
+  const locale = useLocale();
+  const sections = SECTION_COPY[locale];
   const { status, user } = useAuth();
   const queryClient = useQueryClient();
 
@@ -87,9 +126,11 @@ export function SettingsPage() {
     return (
       <div className="space-y-6">
         <PageHeader title={t.title} description={t.description} />
-        <p role="status" className="text-ui text-muted">
-          {t.notConfigured}
-        </p>
+        <Card className="p-6">
+          <p role="status" className="text-caption text-muted">
+            {t.notConfigured}
+          </p>
+        </Card>
       </div>
     );
   }
@@ -98,9 +139,7 @@ export function SettingsPage() {
     return (
       <div className="space-y-6">
         <PageHeader title={t.title} description={t.description} />
-        <p role="status" className="text-ui text-muted">
-          {t.loading}
-        </p>
+        <SettingsSkeleton label={t.loading} />
       </div>
     );
   }
@@ -114,20 +153,22 @@ export function SettingsPage() {
     return (
       <div className="space-y-6">
         <PageHeader title={t.title} description={t.description} />
-        <p role="alert" className="text-ui text-danger">
-          {t.loadError}
-        </p>
-        <Button
-          variant="secondary"
-          className="w-full"
-          type="button"
-          onClick={() => {
-            void profileQuery.refetch();
-            void preferencesQuery.refetch();
-          }}
-        >
-          {m.common.retry}
-        </Button>
+        <Card className="flex flex-col items-start gap-4 p-6">
+          <p role="alert" className="text-caption text-danger">
+            {t.loadError}
+          </p>
+          <Button
+            variant="secondary"
+            className="min-h-11"
+            type="button"
+            onClick={() => {
+              void profileQuery.refetch();
+              void preferencesQuery.refetch();
+            }}
+          >
+            {m.common.retry}
+          </Button>
+        </Card>
       </div>
     );
   }
@@ -141,37 +182,34 @@ export function SettingsPage() {
   const sleepTime = toWallTime(preferences.sleepTime) ?? "23:00";
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 sm:space-y-7">
       <PageHeader title={t.title} description={t.description} />
 
-      <Card className="space-y-4">
-        <div className="space-y-1.5">
-          <label htmlFor="settings-email" className="block text-ui font-medium text-content">
-            {t.emailLabel}
-          </label>
-          <input
-            id="settings-email"
-            type="email"
-            readOnly
-            disabled
-            value={user?.email ?? ""}
-            className="h-10 w-full rounded-control border border-line bg-surface-muted px-3 py-2 text-base text-muted sm:text-ui"
+      <Card className="space-y-5 p-6">
+        <SectionHeading title={sections.profile} hint={sections.profileHint} />
+
+        <div className="space-y-4">
+          <Field id="settings-email" label={t.emailLabel} hint={t.emailHint}>
+            <Input
+              type="email"
+              readOnly
+              value={user?.email ?? ""}
+              className="min-h-11 bg-surface-muted text-muted"
+            />
+          </Field>
+
+          {/* Stable key: account only. Language/theme changes must never remount
+              the name field (draft wipe + focus loss). */}
+          <ProfileNameForm
+            key={`profile-name-${profile.id}`}
+            defaultValues={{ fullName: profile.fullName ?? "" }}
+            invalidate={() => queryClient.invalidateQueries({ queryKey: profileQueryKey })}
           />
-          <p className="text-micro text-muted">{t.emailHint}</p>
         </div>
-
-        {/* Stable key: account only. Language/theme changes must never remount
-            the name field (draft wipe + focus loss). */}
-        <ProfileNameForm
-          key={`profile-name-${profile.id}`}
-          defaultValues={{ fullName: profile.fullName ?? "" }}
-          invalidate={() => queryClient.invalidateQueries({ queryKey: profileQueryKey })}
-        />
-
-        <InstantPreferences />
       </Card>
 
-      <Card className="space-y-4">
+      <Card className="space-y-5 p-6">
+        <SectionHeading title={sections.daySetup} hint={sections.daySetupHint} />
         <PreferencesForm
           key={`prefs-${profile.id}-${profile.timezone}-${wakeUpTime}-${sleepTime}`}
           defaultValues={{
@@ -183,162 +221,139 @@ export function SettingsPage() {
         />
       </Card>
 
-      <Card className="space-y-4">
+      <Card className="p-6">
         <AvailabilityForm />
       </Card>
+
+      <ExportDataCard />
 
       <SignOutCard />
     </div>
   );
 }
 
-/**
- * Instant language/theme controls. No submit: choosing applies immediately
- * to the UI + device storage and syncs in the background (single-field
- * PATCH). Never touches the name/day forms, never steals focus.
- */
-function InstantPreferences() {
-  const m = useMessages();
-  const t = m.settings;
-  const {
-    locale,
-    setLocale,
-    syncStatus: langStatus,
-    syncError: langError,
-    retrySync: retryLang,
-    isKyFallback,
-  } = useLanguageSync();
-  const { theme, setTheme, syncStatus: themeStatus, syncError: themeError, retrySync: retryTheme } =
-    useTheme();
-
-  const languageLabel = (value: ProfileLanguage): string => {
-    if (value === "en") return "English";
-    if (value === "ru") return "Русский";
-    return t.kySoon;
-  };
-
-  const themeLabel = (value: ProfileTheme): string =>
-    value === "light" ? t.themeLight : t.themeDark;
-
-  return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-3">
-        <Field id="settings-language" label={t.languageLabel} hint={t.languageHint}>
-          <Select
-            id="settings-language"
-            value={isKyFallback ? "ky" : locale}
-            onChange={(event) => {
-              const next = event.target.value as ProfileLanguage;
-              if (next === "en" || next === "ru") {
-                setLocale(next);
-              }
-            }}
-            aria-describedby={isKyFallback ? "settings-language-ky-note" : undefined}
-          >
-            {LANGUAGE_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value} disabled={option.disabled}>
-                {languageLabel(option.value)}
-              </option>
-            ))}
-          </Select>
-        </Field>
-
-        <Field id="settings-theme" label={t.themeLabel}>
-          <Select
-            id="settings-theme"
-            value={theme}
-            onChange={(event) => setTheme(event.target.value as ProfileTheme)}
-          >
-            {THEME_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {themeLabel(option.value)}
-              </option>
-            ))}
-          </Select>
-        </Field>
-      </div>
-
-      {isKyFallback ? (
-        <p id="settings-language-ky-note" role="note" className="text-micro text-muted">
-          {t.languageUnavailable}
-        </p>
-      ) : null}
-
-      <PreferenceSyncNotice
-        status={langStatus}
-        error={langError}
-        onRetry={retryLang}
-        savedText={t.syncSaved}
-        savingText={t.syncSaving}
-        errorText={m.common.notSavedInAccount}
-        retryText={m.common.retrySync}
-        testId="language-sync"
-      />
-      <PreferenceSyncNotice
-        status={themeStatus}
-        error={themeError}
-        onRetry={retryTheme}
-        savedText={t.syncSaved}
-        savingText={t.syncSaving}
-        errorText={m.common.notSavedInAccount}
-        retryText={m.common.retrySync}
-        testId="theme-sync"
-      />
-    </div>
-  );
+function csvCell(value: string | number | null | undefined): string {
+  const raw = value === null || value === undefined ? "" : String(value);
+  // Excel treats a leading =, +, - or @ as a formula. Prefixing an apostrophe
+  // keeps the text inert without changing what the user reads.
+  const text = /^[=+\-@]/.test(raw) ? `'${raw}` : raw;
+  return /[",\n\r]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
 }
 
-function PreferenceSyncNotice({
-  status,
-  error,
-  onRetry,
-  savedText,
-  savingText,
-  errorText,
-  retryText,
-  testId,
-}: {
-  status: "idle" | "saving" | "saved" | "error";
-  error: string | null;
-  onRetry: () => void;
-  savedText: string;
-  savingText: string;
-  errorText: string;
-  retryText: string;
-  testId: string;
-}) {
-  if (status === "saving") {
-    return (
-      <p role="status" data-testid={`${testId}-saving`} className="text-micro text-muted">
-        {savingText}
-      </p>
-    );
-  }
+/**
+ * One portable snapshot: tasks, goals and habits share a header plus a
+ * `record_type` column, so the file needs no custom parser downstream.
+ */
+function ExportDataCard() {
+  const t = useMessages().settings;
+  const [state, setState] = useState<"idle" | "loading" | "done" | "error">("idle");
 
-  if (status === "error") {
-    return (
-      <p role="alert" data-testid={`${testId}-error`} className="text-micro text-danger">
-        {errorText} {error ? `(${error})` : null}{" "}
-        <button
-          type="button"
-          onClick={onRetry}
-          className="font-medium underline underline-offset-4"
-        >
-          {retryText}
-        </button>
-      </p>
-    );
-  }
+  const exportCsv = async (): Promise<void> => {
+    if (state === "loading") return;
+    setState("loading");
+    try {
+      const [tasks, goals, habits] = await Promise.all([
+        listAllTasksForExport(),
+        listGoals(),
+        listHabits(),
+      ]);
+      const header = [
+        "record_type",
+        "title",
+        "status",
+        "priority",
+        "category",
+        "due_date",
+        "start_date",
+        "target_date",
+        "frequency",
+        "target_count",
+        "reminder_time",
+      ];
+      const rows: (string | null)[][] = [
+        ...tasks.map((task) => [
+          "task",
+          task.title,
+          task.status,
+          task.priority,
+          "",
+          task.dueDate,
+          task.scheduledStart ?? "",
+          "",
+          "",
+          "",
+          "",
+        ]),
+        ...goals.map((goal) => [
+          "goal",
+          goal.title,
+          goal.status,
+          goal.priority,
+          goal.category,
+          "",
+          goal.startDate,
+          goal.targetDate,
+          "",
+          "",
+          "",
+        ]),
+        ...habits.map((habit) => [
+          "habit",
+          habit.title,
+          habit.status,
+          "",
+          "",
+          "",
+          habit.startDate,
+          "",
+          habit.frequency,
+          String(habit.targetCount),
+          habit.reminderTime ?? "",
+        ]),
+      ];
+      const csv = [header, ...rows].map((row) => row.map(csvCell).join(",")).join("\r\n");
+      const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `lifeos-${new Date().toISOString().slice(0, 10)}.csv`;
+      link.click();
+      URL.revokeObjectURL(url);
+      setState("done");
+    } catch {
+      setState("error");
+    }
+  };
 
-  if (status === "saved") {
-    return (
-      <p role="status" data-testid={`${testId}-saved`} className="text-micro text-success">
-        {savedText}
-      </p>
-    );
-  }
-
-  return null;
+  return (
+    <Card className="space-y-4 p-6">
+      <div className="space-y-1.5">
+        <h2 className="text-[15px] leading-snug font-medium text-content">{t.dataTitle}</h2>
+        <p className="max-w-2xl text-caption leading-relaxed text-muted text-pretty">
+          {t.dataHint}
+        </p>
+      </div>
+      {state === "error" ? (
+        <p role="alert" className="text-caption text-danger">
+          {t.exportError}
+        </p>
+      ) : state === "done" ? (
+        <p role="status" className="text-caption text-success">
+          {t.exportDone}
+        </p>
+      ) : null}
+      <Button
+        type="button"
+        variant="secondary"
+        className="min-h-11 self-start"
+        onClick={() => void exportCsv()}
+        disabled={state === "loading"}
+        loading={state === "loading"}
+      >
+        {state === "loading" ? t.exporting : t.exportButton}
+      </Button>
+    </Card>
+  );
 }
 
 /**
@@ -370,27 +385,29 @@ function SignOutCard() {
   };
 
   return (
-    <Card className="space-y-3">
-      <div className="space-y-1">
-        <h2 className="text-ui font-medium text-content">{t.signOutTitle}</h2>
-        <p className="text-micro text-muted">{t.signOutHint}</p>
+    <Card className="space-y-4 p-6">
+      <div className="space-y-1.5">
+        <h2 className="text-[15px] leading-snug font-medium text-content">{t.signOutTitle}</h2>
+        <p className="max-w-2xl text-caption leading-relaxed text-muted text-pretty">
+          {t.signOutHint}
+        </p>
       </div>
 
       {signOutError ? (
-        <p role="alert" className="text-micro text-danger">
+        <p role="alert" className="text-caption text-danger">
           {signOutError}
         </p>
       ) : null}
 
       <Button
         type="button"
-        variant="danger"
-        className="w-full"
+        variant="ghost"
+        className="min-h-11 self-start px-2 hover:bg-surface-muted"
         onClick={() => void onSignOut()}
         disabled={signingOut}
         loading={signingOut}
       >
-        {signingOut ? t.signingOut : t.signOut}
+        <span className="text-danger">{signingOut ? t.signingOut : t.signOut}</span>
       </Button>
     </Card>
   );
@@ -433,29 +450,40 @@ function ProfileNameForm({
   };
 
   return (
-    <form noValidate onSubmit={(event) => void handleSubmit(onSubmit)(event)} className="space-y-4">
+    <form
+      noValidate
+      aria-busy={isSubmitting || undefined}
+      onSubmit={(event) => void handleSubmit(onSubmit)(event)}
+      className="space-y-4"
+    >
       <Field id="settings-name" label={t.nameLabel} error={errors.fullName?.message}>
         <Input
           type="text"
           autoComplete="name"
           placeholder={t.namePlaceholder}
           disabled={isSubmitting}
+          className="min-h-11"
           {...register("fullName", { onChange: () => setSaved(false) })}
         />
       </Field>
 
       {serverError ? (
-        <p role="alert" className="text-micro text-danger">
+        <p role="alert" className="text-caption text-danger">
           {serverError}
         </p>
       ) : null}
       {saved ? (
-        <p role="status" className="text-micro text-success">
+        <p role="status" className="text-caption text-success">
           {t.nameSaved}
         </p>
       ) : null}
 
-      <Button type="submit" className="w-full" disabled={isSubmitting} loading={isSubmitting}>
+      <Button
+        type="submit"
+        className="min-h-11 w-full sm:w-auto"
+        disabled={isSubmitting}
+        loading={isSubmitting}
+      >
         {isSubmitting ? t.nameSaving : t.nameSubmit}
       </Button>
     </form>

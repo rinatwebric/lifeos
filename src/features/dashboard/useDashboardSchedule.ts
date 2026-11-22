@@ -58,6 +58,8 @@ export interface DashboardScheduleTotals {
 export interface DashboardSchedule {
   /** Upcoming blocks, ordered by start, at most `limit` of them. */
   blocks: DashboardScheduleBlock[];
+  /** Every block of the day, ordered by start, including finished ones. */
+  dayBlocks: DashboardScheduleBlock[];
   totals: DashboardScheduleTotals;
   /** Every block of the day, including the ones that already finished. */
   dayBlockCount: number;
@@ -100,6 +102,7 @@ export function buildDashboardSchedule({
   const nowMs = now.getTime();
 
   const totals: DashboardScheduleTotals = { task: 0, break: 0, personal: 0, scheduled: 0 };
+  const all: (DashboardScheduleBlock & { startMs: number; endMs: number })[] = [];
   const upcoming: { block: TimeBlock; startMs: number; endMs: number }[] = [];
   let dayBlockCount = 0;
 
@@ -124,6 +127,21 @@ export function buildDashboardSchedule({
     dayBlockCount += 1;
     totals[block.blockType] += minutes;
     totals.scheduled += minutes;
+
+    const linkedTitle = block.taskId ? taskTitleById?.get(block.taskId) : undefined;
+    all.push({
+      id: block.id,
+      blockType: block.blockType,
+      title: linkedTitle ?? block.title,
+      taskId: block.taskId,
+      start: new Date(startMs).toISOString(),
+      end: new Date(endMs).toISOString(),
+      startLabel: timeLabel(startMs, timeZone),
+      endLabel: timeLabel(endMs, timeZone),
+      durationMinutes: Math.round((endMs - startMs) / MS_PER_MINUTE),
+      startMs,
+      endMs,
+    });
 
     if (endMs >= nowMs) {
       upcoming.push({ block, startMs, endMs });
@@ -150,8 +168,21 @@ export function buildDashboardSchedule({
     } satisfies DashboardScheduleBlock;
   });
 
+  all.sort((a, b) => a.startMs - b.startMs || a.endMs - b.endMs || a.id.localeCompare(b.id));
+
   return {
     blocks: visible,
+    dayBlocks: all.map((block) => ({
+      id: block.id,
+      blockType: block.blockType,
+      title: block.title,
+      taskId: block.taskId,
+      start: block.start,
+      end: block.end,
+      startLabel: block.startLabel,
+      endLabel: block.endLabel,
+      durationMinutes: block.durationMinutes,
+    })),
     totals,
     dayBlockCount,
     isEmpty: dayBlockCount === 0,

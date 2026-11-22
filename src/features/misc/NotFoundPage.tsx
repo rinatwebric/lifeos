@@ -1,7 +1,6 @@
 import { ArrowLeft, Compass } from "lucide-react";
 import { Link } from "react-router-dom";
 
-import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { useMessages } from "@/lib/i18n/I18nContext";
@@ -13,7 +12,7 @@ export function NotFoundPage() {
     <div className="space-y-6">
       <PageHeader title={m.notFound.title} description={m.notFound.description} />
 
-      <Card>
+      <div className="max-w-lg">
         <EmptyState
           icon={Compass}
           title={m.notFound.code}
@@ -21,14 +20,14 @@ export function NotFoundPage() {
           action={
             <Link
               to="/"
-              className="inline-flex items-center gap-1.5 rounded-control bg-accent px-3 py-1.5 text-ui font-medium text-accent-content"
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-pill bg-content px-5 text-ui font-medium text-canvas transition-[opacity,scale] duration-fast ease-standard hover:opacity-90 motion-safe:active:scale-[0.96]"
             >
-              <ArrowLeft className="size-3.5" aria-hidden="true" />
+              <ArrowLeft className="size-4" aria-hidden="true" />
               {m.notFound.back}
             </Link>
           }
         />
-      </Card>
+      </div>
     </div>
   );
 }

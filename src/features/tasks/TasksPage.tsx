@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { ListChecks, Plus } from "lucide-react";
 import { useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -26,14 +27,17 @@ function hasActiveFilters(filters: TaskFilters): boolean {
 
 function TaskRowSkeleton() {
   return (
-    <li className="px-4 py-3" aria-hidden="true">
-      <div className="space-y-2 motion-safe:animate-pulse">
-        <div className="h-4 w-2/3 rounded bg-surface-muted" />
-        <div className="flex gap-2">
-          <div className="h-5 w-20 rounded-full bg-surface-muted" />
-          <div className="h-4 w-24 rounded bg-surface-muted" />
-        </div>
+    <li
+      className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-3 px-5 py-4 sm:px-6 lg:grid-cols-[auto_minmax(0,1fr)_auto_auto] lg:items-center"
+      aria-hidden="true"
+    >
+      <div className="size-[18px] rounded-[5px] bg-surface-muted" />
+      <div className="space-y-2">
+        <div className="h-4 w-2/3 rounded-control bg-surface-muted" />
+        <div className="h-3 w-1/3 rounded-control bg-surface-muted" />
       </div>
+      <div className="col-start-2 h-3 w-24 rounded-control bg-surface-muted lg:col-start-auto lg:justify-self-end" />
+      <div className="col-start-2 h-8 w-40 rounded-pill bg-surface-muted lg:col-start-auto" />
     </li>
   );
 }
@@ -42,13 +46,40 @@ export function TasksPage() {
   const m = useMessages();
   const t = m.tasks;
   const locale = useLocale();
-  const [filters, setFilters] = useState<TaskFilters>({});
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialSearch = searchParams.get("search") ?? "";
+  const urlSearch = searchParams.get("search");
+  const [filters, setFilters] = useState<TaskFilters>(
+    initialSearch ? { search: initialSearch } : {},
+  );
   const [creating, setCreating] = useState(false);
+  const effectiveFilters =
+    urlSearch !== null && urlSearch !== filters.search
+      ? { ...filters, search: urlSearch }
+      : filters;
+  const isCreating = creating || searchParams.get("new") === "1";
+
+  const updateFilters = (next: TaskFilters): void => {
+    setFilters(next);
+    const params = new URLSearchParams(searchParams);
+    if (next.search) params.set("search", next.search);
+    else params.delete("search");
+    setSearchParams(params, { replace: true });
+  };
+
+  const closeCreate = (): void => {
+    setCreating(false);
+    if (searchParams.has("new")) {
+      const next = new URLSearchParams(searchParams);
+      next.delete("new");
+      setSearchParams(next, { replace: true });
+    }
+  };
   const [editing, setEditing] = useState<Task | null>(null);
   const [rescheduling, setRescheduling] = useState<Task | null>(null);
   const [deleting, setDeleting] = useState<Task | null>(null);
 
-  const tasksQuery = useTasks(filters);
+  const tasksQuery = useTasks(effectiveFilters);
   const goalsQuery = useGoals();
   // One milestones fetch for every row (grouped by id on the client):
   // task rows never fire per-goal `useMilestones` (no N+1).
@@ -79,12 +110,13 @@ export function TasksPage() {
   }, [allMilestonesQuery.data]);
 
   const tasks = tasksQuery.data ?? [];
-  const filtering = hasActiveFilters(filters);
+  const filtering = hasActiveFilters(effectiveFilters);
   const atLimit = tasks.length === TASK_LIST_LIMIT;
 
   const taskCountLabel = (count: number): string => {
     const cat = pluralCategory(locale, count);
-    const tpl = cat === "one" ? t.tasksCountOne : cat === "few" ? t.tasksCountFew : t.tasksCountMany;
+    const tpl =
+      cat === "one" ? t.tasksCountOne : cat === "few" ? t.tasksCountFew : t.tasksCountMany;
     return tmpl(tpl, { count });
   };
 
@@ -94,14 +126,18 @@ export function TasksPage() {
         title={t.title}
         description={t.description}
         actions={
-          <Button onClick={() => setCreating(true)}>
+          <Button size="lg" className="min-h-11 w-full sm:w-auto" onClick={() => setCreating(true)}>
             <Plus className="size-4" aria-hidden="true" />
             {t.newTask}
           </Button>
         }
       />
 
-      <TasksFilters filters={filters} goals={goalsQuery.data ?? []} onChange={setFilters} />
+      <TasksFilters
+        filters={effectiveFilters}
+        goals={goalsQuery.data ?? []}
+        onChange={updateFilters}
+      />
 
       <p className="text-ui text-muted tabular-nums" aria-live="polite">
         {tasksQuery.isLoading
@@ -135,7 +171,12 @@ export function TasksPage() {
           title={t.emptyTitle}
           description={t.emptyDescription}
           action={
-            <Button onClick={() => setCreating(true)}>
+            <Button
+              variant="secondary"
+              size="lg"
+              className="min-h-11"
+              onClick={() => setCreating(true)}
+            >
               <Plus className="size-4" aria-hidden="true" />
               {t.createFirst}
             </Button>
@@ -147,7 +188,7 @@ export function TasksPage() {
           title={t.noMatchTitle}
           description={t.noMatchDescription}
           action={
-            <Button variant="secondary" onClick={() => setFilters({})}>
+            <Button variant="secondary" onClick={() => updateFilters({})}>
               {t.clearFilters}
             </Button>
           }
@@ -173,12 +214,7 @@ export function TasksPage() {
         </Card>
       )}
 
-      <TaskFormDialog
-        open={creating}
-        onClose={() => setCreating(false)}
-        task={null}
-        timeZone={timeZone}
-      />
+      <TaskFormDialog open={isCreating} onClose={closeCreate} task={null} timeZone={timeZone} />
       <TaskFormDialog
         open={editing !== null}
         onClose={() => setEditing(null)}
@@ -190,7 +226,11 @@ export function TasksPage() {
         onClose={() => setRescheduling(null)}
         task={rescheduling}
       />
-      <DeleteTaskDialog open={deleting !== null} onClose={() => setDeleting(null)} task={deleting} />
+      <DeleteTaskDialog
+        open={deleting !== null}
+        onClose={() => setDeleting(null)}
+        task={deleting}
+      />
     </div>
   );
 }

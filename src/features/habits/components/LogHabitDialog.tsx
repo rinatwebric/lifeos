@@ -3,15 +3,13 @@ import { useEffect, useMemo, useState } from "react";
 import { useForm, type Resolver } from "react-hook-form";
 
 import { Button } from "@/components/ui/Button";
+import { DateTimePicker } from "@/components/ui/DateTimePicker";
 import { Dialog } from "@/components/ui/Dialog";
 import { Field } from "@/components/ui/Field";
 import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
 import { useLogHabit } from "@/features/habits/hooks";
-import {
-  MAX_SQL_INTEGER,
-  createHabitLogFormSchemas,
-} from "@/features/habits/schemas";
+import { MAX_SQL_INTEGER, createHabitLogFormSchemas } from "@/features/habits/schemas";
 import { tmpl } from "@/lib/i18n/format";
 import { useMessages } from "@/lib/i18n/I18nContext";
 import { useRevalidateOnLocaleChange } from "@/lib/i18n/useRevalidate";
@@ -60,11 +58,15 @@ export function LogHabitDialog({ open, onClose, habit, todayKey }: LogHabitDialo
   const {
     register,
     handleSubmit,
+    watch,
+    setValue,
     reset,
     trigger,
     formState: { errors },
   } = useForm<LogFormValues>({
-    resolver: zodResolver(schemas.createHabitLogSchema.omit({ habitId: true }) as never) as Resolver<LogFormValues>,
+    resolver: zodResolver(
+      schemas.createHabitLogSchema.omit({ habitId: true }) as never,
+    ) as Resolver<LogFormValues>,
     defaultValues: { logDate: todayKey, completedCount: 1, note: null },
   });
 
@@ -76,6 +78,7 @@ export function LogHabitDialog({ open, onClose, habit, todayKey }: LogHabitDialo
     }
   }, [open, habit, todayKey, reset]);
 
+  const logDate = watch("logDate") ?? "";
   const handleClose = (): void => {
     setServerError(null);
     onClose();
@@ -113,17 +116,24 @@ export function LogHabitDialog({ open, onClose, habit, todayKey }: LogHabitDialo
       }
     >
       <form onSubmit={(event) => void onSubmit(event)} className="space-y-4" noValidate>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid gap-4 sm:grid-cols-2">
           <Field id="habit-log-date" label={t.fieldDate} error={errors.logDate?.message}>
-            <Input
-              type="date"
-              {...register("logDate")}
+            <DateTimePicker
+              mode="date"
               data-autofocus
-              aria-invalid={Boolean(errors.logDate)}
+              value={logDate}
+              onChange={(next) =>
+                setValue("logDate", next, { shouldValidate: true, shouldDirty: true })
+              }
             />
           </Field>
 
-          <Field id="habit-log-count" label={t.fieldCount} error={errors.completedCount?.message} hint={t.overTargetHint}>
+          <Field
+            id="habit-log-count"
+            label={t.fieldCount}
+            error={errors.completedCount?.message}
+            hint={t.overTargetHint}
+          >
             <Input
               type="number"
               min={0}
@@ -139,16 +149,28 @@ export function LogHabitDialog({ open, onClose, habit, todayKey }: LogHabitDialo
         </Field>
 
         {serverError ? (
-          <p role="alert" className="text-micro text-danger">
+          <p role="alert" className="text-caption text-danger">
             {serverError}
           </p>
         ) : null}
 
-        <div className="flex justify-end gap-2">
-          <Button variant="secondary" size="lg" onClick={handleClose} disabled={logHabit.isPending} type="button">
+        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <Button
+            variant="secondary"
+            size="lg"
+            className="min-h-11 w-full sm:w-auto"
+            onClick={handleClose}
+            disabled={logHabit.isPending}
+            type="button"
+          >
             {t.cancel}
           </Button>
-          <Button size="lg" loading={logHabit.isPending} type="submit">
+          <Button
+            size="lg"
+            className="min-h-11 w-full sm:w-auto"
+            loading={logHabit.isPending}
+            type="submit"
+          >
             {t.logAction}
           </Button>
         </div>

@@ -8,6 +8,7 @@ import { zodResolver } from "@/features/auth/resolver";
 import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
 import { Input } from "@/components/ui/Input";
+import { TimePicker } from "@/components/ui/TimePicker";
 import { useMessages } from "@/lib/i18n/I18nContext";
 
 export const PREFERENCES_FORM_COPY = {
@@ -54,11 +55,16 @@ export function PreferencesForm({
   const {
     register,
     handleSubmit,
+    watch,
+    setValue,
     formState: { errors },
   } = useForm<PreferencesFormValues>({
     resolver: zodResolver(preferencesFormSchema),
     defaultValues,
   });
+
+  const wakeUpTime = watch("wakeUpTime") ?? "";
+  const sleepTime = watch("sleepTime") ?? "";
 
   const onSubmit = async (values: PreferencesFormValues): Promise<void> => {
     setProfileError(null);
@@ -78,7 +84,9 @@ export function PreferencesForm({
         await queryClient.invalidateQueries({ queryKey: profileQueryKey });
       } else {
         ok = false;
-        setProfileError(`${t.profileErrorPrefix} ${messageOf(profileResult.reason, t.fallbackError)}`);
+        setProfileError(
+          `${t.profileErrorPrefix} ${messageOf(profileResult.reason, t.fallbackError)}`,
+        );
       }
 
       if (preferencesResult.status === "fulfilled") {
@@ -99,16 +107,36 @@ export function PreferencesForm({
     }
   };
 
+  const browserZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
   const timezoneId = `${idPrefix}-timezone`;
   const wakeId = `${idPrefix}-wake`;
   const sleepId = `${idPrefix}-sleep`;
 
   return (
-    <form noValidate onSubmit={(event) => void handleSubmit(onSubmit)(event)} className="space-y-4">
+    <form
+      noValidate
+      aria-busy={isPending || undefined}
+      onSubmit={(event) => void handleSubmit(onSubmit)(event)}
+      className="space-y-5"
+    >
       <Field
         id={timezoneId}
         label={t.timezoneLabel}
-        hint={t.timezoneHint}
+        hint={
+          <>
+            {t.timezoneHint}{" "}
+            <button
+              type="button"
+              className="text-muted underline decoration-line underline-offset-2 transition-colors hover:text-content"
+              onClick={() => {
+                setSaved(false);
+                setValue("timezone", browserZone, { shouldValidate: true, shouldDirty: true });
+              }}
+            >
+              {t.timezoneAuto}
+            </button>
+          </>
+        }
         error={errors.timezone?.message}
       >
         <Input
@@ -116,49 +144,59 @@ export function PreferencesForm({
           autoComplete="off"
           placeholder={t.timezonePlaceholder}
           disabled={isPending}
+          className="min-h-11"
           {...register("timezone", { onChange: () => setSaved(false) })}
         />
       </Field>
 
       <div className="grid grid-cols-2 gap-3">
         <Field id={wakeId} label={t.wakeLabel} error={errors.wakeUpTime?.message}>
-          <Input
-            type="time"
+          <TimePicker
+            value={wakeUpTime}
             disabled={isPending}
-            {...register("wakeUpTime", { onChange: () => setSaved(false) })}
+            className="min-w-0"
+            onChange={(next) => {
+              setSaved(false);
+              setValue("wakeUpTime", next, { shouldValidate: true, shouldDirty: true });
+            }}
           />
         </Field>
 
-        <Field
-          id={sleepId}
-          label={t.sleepLabel}
-          error={errors.sleepTime?.message}
-        >
-          <Input
-            type="time"
+        <Field id={sleepId} label={t.sleepLabel} error={errors.sleepTime?.message}>
+          <TimePicker
+            value={sleepTime}
             disabled={isPending}
-            {...register("sleepTime", { onChange: () => setSaved(false) })}
+            className="min-w-0"
+            onChange={(next) => {
+              setSaved(false);
+              setValue("sleepTime", next, { shouldValidate: true, shouldDirty: true });
+            }}
           />
         </Field>
       </div>
 
       {profileError ? (
-        <p role="alert" className="text-micro text-danger">
+        <p role="alert" className="text-caption text-danger">
           {profileError}
         </p>
       ) : null}
       {preferencesError ? (
-        <p role="alert" className="text-micro text-danger">
+        <p role="alert" className="text-caption text-danger">
           {preferencesError}
         </p>
       ) : null}
       {saved ? (
-        <p role="status" className="text-micro text-success">
+        <p role="status" className="text-caption text-success">
           {t.saved}
         </p>
       ) : null}
 
-      <Button type="submit" className="w-full" disabled={isPending} loading={isPending}>
+      <Button
+        type="submit"
+        className="min-h-11 w-full sm:w-auto"
+        disabled={isPending}
+        loading={isPending}
+      >
         {isPending ? t.saving : (submitLabel ?? t.submit)}
       </Button>
     </form>

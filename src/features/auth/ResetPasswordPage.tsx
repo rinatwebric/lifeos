@@ -111,9 +111,9 @@ export function ResetPasswordPage({ initialMode = "request" }: ResetPasswordPage
   if (mode === "update") {
     return (
       <div className="space-y-6">
-        <div className="space-y-1">
-          <h1 className="text-heading font-semibold tracking-tight text-content">{t.chooseTitle}</h1>
-          <p className="text-ui text-muted">{t.chooseHint}</p>
+        <div className="space-y-1.5">
+          <h1 className="text-[24px] leading-tight font-semibold tracking-[-0.02em] text-content">{t.chooseTitle}</h1>
+          <p className="text-caption text-muted text-pretty">{t.chooseHint}</p>
         </div>
 
         {formErrorCode ? (
@@ -151,9 +151,9 @@ export function ResetPasswordPage({ initialMode = "request" }: ResetPasswordPage
 
   return (
     <div className="space-y-6">
-      <div className="space-y-1">
-        <h1 className="text-heading font-semibold tracking-tight text-content">{t.requestTitle}</h1>
-        <p className="text-ui text-muted">{t.requestDescription}</p>
+      <div className="space-y-1.5">
+        <h1 className="text-[24px] leading-tight font-semibold tracking-[-0.02em] text-content">{t.requestTitle}</h1>
+        <p className="text-caption text-muted text-pretty">{t.requestDescription}</p>
       </div>
 
       {expiredLink ? <AuthAlert tone="error">{t.invalidLink}</AuthAlert> : null}

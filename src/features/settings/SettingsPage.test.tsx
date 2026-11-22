@@ -8,6 +8,7 @@ import { signOut } from "@/features/auth/api";
 import type { Profile, UserPreferences } from "@/types/domain";
 import { SETTINGS_COPY, SettingsPage } from "./SettingsPage";
 import { ThemeProvider } from "@/app/theme";
+import { DisplayControls } from "@/components/layout/DisplayControls";
 import { LocaleProvider } from "@/lib/i18n/I18nContext";
 import { en } from "@/lib/i18n/dictionaries/en";
 import { ru } from "@/lib/i18n/dictionaries/ru";
@@ -77,6 +78,7 @@ function renderSettings() {
       <LocaleProvider>
         <ThemeProvider>
           <SettingsPage />
+          <DisplayControls variant="sidebar" />
         </ThemeProvider>
       </LocaleProvider>
     </QueryClientProvider>,
@@ -84,7 +86,6 @@ function renderSettings() {
 
   return { invalidateSpy, ...view };
 }
-
 beforeEach(() => {
   vi.clearAllMocks();
   window.localStorage.clear();
@@ -122,8 +123,8 @@ describe("SettingsPage", () => {
 
     expect(screen.getByLabelText(en.settings.nameLabel)).toHaveValue("Ada");
     expect(screen.getByLabelText(en.preferences.timezoneLabel)).toHaveValue("Asia/Bishkek");
-    expect(screen.getByLabelText(en.preferences.wakeLabel)).toHaveValue("07:00");
-    expect(screen.getByLabelText(en.preferences.sleepLabel)).toHaveValue("23:00");
+    expect(screen.getByLabelText(en.preferences.wakeLabel)).toHaveAttribute("data-value", "07:00");
+    expect(screen.getByLabelText(en.preferences.sleepLabel)).toHaveAttribute("data-value", "23:00");
   });
 
   it("saves only the name with its own button", async () => {
@@ -160,10 +161,10 @@ describe("SettingsPage", () => {
     // Draft is untouched before the language change.
     expect(mockedUpdateProfile).not.toHaveBeenCalled();
 
-    await user.selectOptions(screen.getByLabelText(en.settings.languageLabel), "ru");
+    await user.click(screen.getByRole("button", { name: en.settings.languageToRussian }));
 
     // Current screen + nav translate at once, no reload.
-    expect(await screen.findByText(en.settings.languageLabel === "Language" ? "Язык" : "Language")).toBeInTheDocument();
+    expect(await screen.findByText(ru.settings.title)).toBeInTheDocument();
     // Partial payload: only the changed field.
     await waitFor(() => expect(mockedUpdateProfile).toHaveBeenCalledWith({ language: "ru" }));
     expect(mockedUpdateProfile).not.toHaveBeenCalledWith(
@@ -180,7 +181,7 @@ describe("SettingsPage", () => {
     await screen.findByLabelText(en.settings.nameLabel);
     expect(document.documentElement.classList.contains("dark")).toBe(false);
 
-    await user.selectOptions(screen.getByLabelText(en.settings.themeLabel), "dark");
+    await user.click(screen.getByRole("button", { name: en.settings.themeToDark }));
 
     expect(document.documentElement.classList.contains("dark")).toBe(true);
     await waitFor(() => expect(mockedUpdateProfile).toHaveBeenCalledWith({ theme: "dark" }));
@@ -195,7 +196,7 @@ describe("SettingsPage", () => {
     await user.type(nameInput, "Draft");
     const nameNode = screen.getByLabelText(en.settings.nameLabel);
 
-    await user.selectOptions(screen.getByLabelText(en.settings.languageLabel), "ru");
+    await user.click(screen.getByRole("button", { name: en.settings.languageToRussian }));
 
     // No remount: the same input node keeps the draft, focus stays in the
     // form (on the select the user just touched), never dropped to <body>.
@@ -210,7 +211,7 @@ describe("SettingsPage", () => {
     renderSettings();
 
     await screen.findByLabelText(en.settings.nameLabel);
-    await user.selectOptions(screen.getByLabelText(en.settings.languageLabel), "ru");
+    await user.click(screen.getByRole("button", { name: en.settings.languageToRussian }));
 
     const alert = await screen.findByTestId("language-sync-error");
     // UI already switched to Russian, so the notice is Russian.
@@ -229,8 +230,7 @@ describe("SettingsPage", () => {
     renderSettings();
 
     expect(await screen.findByText(en.settings.languageUnavailable)).toBeInTheDocument();
-    const select = screen.getByLabelText(en.settings.languageLabel) as HTMLSelectElement;
-    expect(select.value).toBe("ky");
+    expect(screen.getByTestId("language-toggle")).toHaveTextContent("KY");
     // UI falls back to English.
     expect(screen.getByText(en.settings.title)).toBeInTheDocument();
   });
@@ -297,9 +297,7 @@ describe("SettingsPage", () => {
     await screen.findByLabelText(en.preferences.wakeLabel);
     await user.click(screen.getByRole("button", { name: en.preferences.submit }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      en.preferences.profileErrorPrefix,
-    );
+    expect(await screen.findByRole("alert")).toHaveTextContent(en.preferences.profileErrorPrefix);
     // The preferences write still landed and its key was invalidated.
     expect(mockedUpdatePreferences).toHaveBeenCalled();
   });

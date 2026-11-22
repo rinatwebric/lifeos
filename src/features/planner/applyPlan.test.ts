@@ -31,7 +31,12 @@ const SLOT_B = {
 /** The day being planned: applyPlan scopes the same-day check to it. */
 const DAY_INPUT = { dateKey: "2026-11-04", timeZone: "UTC" } as const;
 
-function blockRow(taskId: string, start: string, end: string, id = `block-${taskId}`): TimeBlocksRow {
+function blockRow(
+  taskId: string,
+  start: string,
+  end: string,
+  id = `block-${taskId}`,
+): TimeBlocksRow {
   return {
     id,
     user_id: "u1",
@@ -89,10 +94,8 @@ function chain(result: unknown): ChainMocks {
     update,
     in: inFn,
     builder: Object.assign(builder, {
-      then: (
-        onFulfilled: (value: unknown) => unknown,
-        onRejected?: (reason: unknown) => unknown,
-      ) => Promise.resolve(result).then(onFulfilled, onRejected),
+      then: (onFulfilled: (value: unknown) => unknown, onRejected?: (reason: unknown) => unknown) =>
+        Promise.resolve(result).then(onFulfilled, onRejected),
     }),
   };
 }
@@ -472,7 +475,10 @@ describe("applyPlan", () => {
         chain(ownedRows),
         chain({ data: [], error: null }),
         chain({
-          data: [blockRow(TASK_A, SLOT_A.start, SLOT_A.end), blockRow(TASK_B, SLOT_B.start, SLOT_B.end)],
+          data: [
+            blockRow(TASK_A, SLOT_A.start, SLOT_A.end),
+            blockRow(TASK_B, SLOT_B.start, SLOT_B.end),
+          ],
           error: null,
         }),
         chain({ data: null, error: null }),

@@ -71,10 +71,21 @@ export function DeleteGoalDialog({ open, onClose, goal, onDeleted }: DeleteGoalD
       ) : null}
 
       <div className="flex justify-end gap-2">
-        <Button variant="secondary" size="lg" data-autofocus onClick={onClose} disabled={deleteGoal.isPending}>
+        <Button
+          variant="secondary"
+          size="lg"
+          data-autofocus
+          onClick={onClose}
+          disabled={deleteGoal.isPending}
+        >
           {t.cancel}
         </Button>
-        <Button variant="danger" size="lg" onClick={() => void handleConfirm()} loading={deleteGoal.isPending}>
+        <Button
+          variant="danger"
+          size="lg"
+          onClick={() => void handleConfirm()}
+          loading={deleteGoal.isPending}
+        >
           {t.delete}
         </Button>
       </div>

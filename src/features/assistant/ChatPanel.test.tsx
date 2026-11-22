@@ -1,13 +1,22 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { AssistantServiceError, ASSISTANT_ERROR_MESSAGES } from "./errors";
-import { useApproveProposal, useConversations, useMessages, useRejectProposal, useSendMessage } from "./hooks";
+import {
+  useApproveProposal,
+  useConversations,
+  useDeleteConversation,
+  useMessages,
+  useRejectProposal,
+  useSendMessage,
+} from "./hooks";
 import { ChatPanel } from "./ChatPanel";
 
 vi.mock("./hooks", () => ({
   useConversations: vi.fn(),
+  useDeleteConversation: vi.fn(),
   useMessages: vi.fn(),
   useSendMessage: vi.fn(),
   useApproveProposal: vi.fn(),
@@ -19,6 +28,7 @@ const mockedMessages = vi.mocked(useMessages);
 const mockedSend = vi.mocked(useSendMessage);
 const mockedApprove = vi.mocked(useApproveProposal);
 const mockedReject = vi.mocked(useRejectProposal);
+const mockedDelete = vi.mocked(useDeleteConversation);
 
 function stubDecideMocks(): void {
   mockedApprove.mockReturnValue({
@@ -33,6 +43,12 @@ function stubDecideMocks(): void {
     error: null,
     reset: vi.fn(),
   } as unknown as ReturnType<typeof useRejectProposal>);
+  mockedDelete.mockReturnValue({
+    mutateAsync: vi.fn(),
+    isPending: false,
+    error: null,
+    reset: vi.fn(),
+  } as unknown as ReturnType<typeof useDeleteConversation>);
 }
 
 function stubQueries(options?: {
@@ -58,6 +74,17 @@ function stubQueries(options?: {
   stubDecideMocks();
 }
 
+function renderPanel() {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  return render(
+    <QueryClientProvider client={client}>
+      <ChatPanel />
+    </QueryClientProvider>,
+  );
+}
+
 describe("ChatPanel", () => {
   it("shows the honest empty state with examples", () => {
     stubQueries();
@@ -68,13 +95,15 @@ describe("ChatPanel", () => {
       reset: vi.fn(),
     } as unknown as ReturnType<typeof useSendMessage>);
 
-    render(<ChatPanel />);
+    renderPanel();
 
     expect(screen.getByText("Ask about your week, or ask for a plan.")).toBeInTheDocument();
     expect(
       screen.getAllByText(/Nothing changes until you review and confirm/)[0],
     ).toBeInTheDocument();
-    expect(screen.getByText("I want to become a frontend developer in 6 months.")).toBeInTheDocument();
+    expect(
+      screen.getByText("I want to become a frontend developer in 6 months."),
+    ).toBeInTheDocument();
   });
 
   it("sends a message and clears the composer", async () => {
@@ -99,7 +128,7 @@ describe("ChatPanel", () => {
       reset: vi.fn(),
     } as unknown as ReturnType<typeof useSendMessage>);
 
-    render(<ChatPanel />);
+    renderPanel();
 
     const composer = screen.getByLabelText("Message");
     await user.type(composer, "Plan my week");
@@ -116,6 +145,52 @@ describe("ChatPanel", () => {
     });
   });
 
+  it("shows the user's message and a thinking state before the answer arrives", async () => {
+    const user = userEvent.setup();
+    stubQueries();
+    const deferred: { resolve: (value: unknown) => void } = {
+      resolve: () => undefined,
+    };
+    const mutateAsync = vi.fn(
+      () =>
+        new Promise((resolve) => {
+          deferred.resolve = resolve;
+        }),
+    );
+    mockedSend.mockReturnValue({
+      mutateAsync,
+      isPending: false,
+      error: null,
+      reset: vi.fn(),
+    } as unknown as ReturnType<typeof useSendMessage>);
+
+    renderPanel();
+
+    await user.type(screen.getByLabelText("Message"), "Plan my week");
+    await user.click(screen.getByRole("button", { name: "Send" }));
+
+    expect(screen.getByText("Plan my week")).toBeInTheDocument();
+    expect(screen.getByText("Checking your goals and tasks…")).toBeInTheDocument();
+    expect(screen.getByLabelText("Message")).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Send" })).toBeDisabled();
+
+    deferred.resolve({
+      conversationId: "conv-1",
+      userMessageId: "u-1",
+      assistantMessageId: "a-1",
+      proposalId: "p-1",
+      proposal: {
+        proposalType: "task_creation",
+        summary: "Two starter tasks.",
+        reasoning: "Small steps first.",
+        actions: [],
+      },
+    });
+    await waitFor(() => {
+      expect(screen.getByText("Two starter tasks.")).toBeInTheDocument();
+    });
+  });
+
   it("disables Send on empty and overlong drafts with a counter", async () => {
     const user = userEvent.setup();
     stubQueries();
@@ -126,7 +201,7 @@ describe("ChatPanel", () => {
       reset: vi.fn(),
     } as unknown as ReturnType<typeof useSendMessage>);
 
-    render(<ChatPanel />);
+    renderPanel();
 
     const send = screen.getByRole("button", { name: "Send" });
     expect(send).toBeDisabled();
@@ -165,7 +240,7 @@ describe("ChatPanel", () => {
       reset: vi.fn(),
     } as unknown as ReturnType<typeof useSendMessage>);
 
-    render(<ChatPanel />);
+    renderPanel();
 
     await user.type(screen.getByLabelText("Message"), "что ты умеешь");
     await user.click(screen.getByRole("button", { name: "Send" }));
@@ -185,10 +260,14 @@ describe("ChatPanel", () => {
       reset: vi.fn(),
     } as unknown as ReturnType<typeof useSendMessage>);
 
-    render(<ChatPanel />);
+    renderPanel();
 
-    expect(screen.getByText("You have sent a lot of messages today. Your count resets tomorrow.")).toBeInTheDocument();
-    expect(screen.getByText("The daily limit is 50 messages. Your count resets tomorrow.")).toBeInTheDocument();
+    expect(
+      screen.getByText("You have sent a lot of messages today. Your count resets tomorrow."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("The daily limit is 50 messages. Your count resets tomorrow."),
+    ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
   });
 
@@ -201,7 +280,7 @@ describe("ChatPanel", () => {
       reset: vi.fn(),
     } as unknown as ReturnType<typeof useSendMessage>);
 
-    render(<ChatPanel />);
+    renderPanel();
 
     expect(screen.getByLabelText("Message")).toBeDisabled();
     expect(screen.getByRole("button", { name: "Send" })).toBeDisabled();
@@ -263,7 +342,7 @@ describe("ChatPanel", () => {
       reset: vi.fn(),
     } as unknown as ReturnType<typeof useApproveProposal>);
 
-    render(<ChatPanel />);
+    renderPanel();
 
     await user.type(screen.getByLabelText("Message"), "Plan my week");
     await user.click(screen.getByRole("button", { name: "Send" }));
@@ -331,7 +410,7 @@ describe("ChatPanel", () => {
       reset: vi.fn(),
     } as unknown as ReturnType<typeof useRejectProposal>);
 
-    render(<ChatPanel />);
+    renderPanel();
 
     await user.type(screen.getByLabelText("Message"), "Plan my week");
     await user.click(screen.getByRole("button", { name: "Send" }));
@@ -345,5 +424,29 @@ describe("ChatPanel", () => {
     await waitFor(() => {
       expect(screen.getByRole("status")).toHaveTextContent("Rejected. Nothing was changed.");
     });
+  });
+  it("deletes a conversation after explicit confirmation", async () => {
+    stubQueries({
+      conversations: [
+        { id: "c1", title: "Plan my week" },
+        { id: "c2", title: "Break down a goal" },
+      ],
+    });
+    const mutateAsync = vi.fn().mockResolvedValue(undefined);
+    mockedDelete.mockReturnValue({
+      mutateAsync,
+      isPending: false,
+      error: null,
+      reset: vi.fn(),
+    } as unknown as ReturnType<typeof useDeleteConversation>);
+    const user = userEvent.setup();
+
+    renderPanel();
+    await user.click(screen.getByRole("button", { name: "Delete conversation: Plan my week" }));
+
+    const dialog = screen.getByRole("dialog", { name: "Delete this conversation?" });
+    await user.click(within(dialog).getByRole("button", { name: "Delete conversation" }));
+
+    await waitFor(() => expect(mutateAsync).toHaveBeenCalledWith("c1"));
   });
 });

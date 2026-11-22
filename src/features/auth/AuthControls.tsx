@@ -13,7 +13,7 @@ export function AuthField({ id, label, error, className, ...inputProps }: AuthFi
   const errorId = `${id}-error`;
 
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-2">
       <label htmlFor={id} className="block text-ui font-medium text-content">
         {label}
       </label>
@@ -22,7 +22,7 @@ export function AuthField({ id, label, error, className, ...inputProps }: AuthFi
         aria-invalid={error ? true : undefined}
         aria-describedby={error ? errorId : undefined}
         className={cn(
-          "w-full rounded-control border bg-surface px-3 py-2 text-base text-content",
+          "h-12 w-full rounded-control border bg-surface px-3.5 text-base text-content",
           "placeholder:text-muted focus:border-focus disabled:cursor-not-allowed disabled:opacity-60",
           "transition-[border-color] duration-fast ease-standard sm:text-ui",
           error ? "border-danger" : "border-control",
@@ -51,7 +51,11 @@ export function AuthSubmit({ pending, pendingLabel, children }: AuthSubmitProps)
     <button
       type="submit"
       disabled={pending}
-      className="h-11 w-full rounded-control bg-accent px-4 py-2 text-ui font-medium text-accent-content transition-[opacity] duration-fast ease-standard hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+      className={cn(
+        "h-12 w-full rounded-pill bg-content px-4 text-ui font-medium text-canvas",
+        "transition-[opacity,scale] duration-fast ease-standard hover:opacity-90",
+        "motion-safe:enabled:active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50",
+      )}
     >
       {pending ? pendingLabel : children}
     </button>

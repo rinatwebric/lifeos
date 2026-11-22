@@ -3,10 +3,12 @@ import { useEffect, useMemo, useState } from "react";
 import { useForm, type Resolver } from "react-hook-form";
 
 import { Button } from "@/components/ui/Button";
+import { DateTimePicker } from "@/components/ui/DateTimePicker";
 import { Dialog } from "@/components/ui/Dialog";
 import { Field } from "@/components/ui/Field";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
+import { TimePicker } from "@/components/ui/TimePicker";
 import { Textarea } from "@/components/ui/Textarea";
 import { useCreateHabit, useUpdateHabit } from "@/features/habits/hooks";
 import {
@@ -113,6 +115,8 @@ export function HabitFormDialog({ open, onClose, habit }: HabitFormDialogProps) 
     }
   }, [open, habit, reset]);
 
+  const startDate = watch("startDate") ?? "";
+  const reminderTime = watch("reminderTime") ?? "";
   const handleClose = (): void => {
     setServerError(null);
     onClose();
@@ -123,7 +127,11 @@ export function HabitFormDialog({ open, onClose, habit }: HabitFormDialogProps) 
   const saving = createHabit.isPending || updateHabit.isPending;
 
   const frequencyLabel = (value: RecurrenceFrequency): string =>
-    value === "daily" ? t.frequencyDaily : value === "weekly" ? t.frequencyWeekly : t.frequencyWeekdays;
+    value === "daily"
+      ? t.frequencyDaily
+      : value === "weekly"
+        ? t.frequencyWeekly
+        : t.frequencyWeekdays;
 
   const weekdayLabel = (value: number): string =>
     m.enums.weekdayShort[WEEKDAY_KEYS[value] ?? "mon"];
@@ -157,16 +165,8 @@ export function HabitFormDialog({ open, onClose, habit }: HabitFormDialogProps) 
   });
 
   return (
-    <Dialog
-      open={open}
-      onClose={handleClose}
-      title={habit ? t.editTitle : t.createTitle}
-    >
-      <form
-        onSubmit={(event) => void onSubmit(event)}
-        className="space-y-4"
-        noValidate
-      >
+    <Dialog open={open} onClose={handleClose} title={habit ? t.editTitle : t.createTitle}>
+      <form onSubmit={(event) => void onSubmit(event)} className="space-y-4" noValidate>
         <Field id="habit-title" label={t.fieldTitle} error={errors.title?.message} required>
           <Input
             {...register("title")}
@@ -176,15 +176,20 @@ export function HabitFormDialog({ open, onClose, habit }: HabitFormDialogProps) 
           />
         </Field>
 
-        <Field id="habit-description" label={t.fieldDescription} error={errors.description?.message}>
-          <Textarea
-            {...register("description")}
-            placeholder={t.descriptionPlaceholder}
-            rows={2}
-          />
+        <Field
+          id="habit-description"
+          label={t.fieldDescription}
+          error={errors.description?.message}
+        >
+          <Textarea {...register("description")} placeholder={t.descriptionPlaceholder} rows={2} />
         </Field>
 
-        <Field id="habit-frequency" label={t.fieldFrequency} error={errors.frequency?.message} hint={t.frequencyHelp}>
+        <Field
+          id="habit-frequency"
+          label={t.fieldFrequency}
+          error={errors.frequency?.message}
+          hint={t.frequencyHelp}
+        >
           <Select {...register("frequency")} aria-invalid={Boolean(errors.frequency)}>
             {FREQUENCY_VALUES.map((value) => (
               <option key={value} value={value}>
@@ -218,14 +223,14 @@ export function HabitFormDialog({ open, onClose, habit }: HabitFormDialogProps) 
               })}
             </div>
             {errors.weekdays?.message ? (
-              <p role="alert" className="text-micro text-danger mt-1">
+              <p role="alert" className="mt-1 text-caption text-danger">
                 {errors.weekdays.message}
               </p>
             ) : null}
           </fieldset>
         ) : null}
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid gap-4 sm:grid-cols-2">
           <Field id="habit-target" label={t.fieldTarget} error={errors.targetCount?.message}>
             <Input
               type="number"
@@ -237,20 +242,32 @@ export function HabitFormDialog({ open, onClose, habit }: HabitFormDialogProps) 
           </Field>
 
           <Field id="habit-start" label={t.fieldStart} error={errors.startDate?.message}>
-            <Input
-              type="date"
-              {...register("startDate")}
-              aria-invalid={Boolean(errors.startDate)}
+            <DateTimePicker
+              mode="date"
+              value={startDate}
+              onChange={(next) =>
+                setValue("startDate", next, { shouldValidate: true, shouldDirty: true })
+              }
             />
           </Field>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
-          <Field id="habit-reminder" label={t.fieldReminder} error={errors.reminderTime?.message} hint={t.reminderHelp}>
-            <Input
-              type="time"
-              {...register("reminderTime")}
-              aria-invalid={Boolean(errors.reminderTime)}
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field
+            id="habit-reminder"
+            label={t.fieldReminder}
+            error={errors.reminderTime?.message}
+            hint={t.reminderHelp}
+          >
+            <TimePicker
+              clearable
+              value={reminderTime}
+              onChange={(next) =>
+                setValue("reminderTime", next === "" ? null : next, {
+                  shouldValidate: true,
+                  shouldDirty: true,
+                })
+              }
             />
           </Field>
 
@@ -266,16 +283,23 @@ export function HabitFormDialog({ open, onClose, habit }: HabitFormDialogProps) 
         </div>
 
         {serverError ? (
-          <p role="alert" className="text-micro text-danger">
+          <p role="alert" className="text-caption text-danger">
             {serverError}
           </p>
         ) : null}
 
-        <div className="flex justify-end gap-2">
-          <Button variant="secondary" size="lg" onClick={handleClose} disabled={saving} type="button">
+        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <Button
+            variant="secondary"
+            size="lg"
+            className="min-h-11 w-full sm:w-auto"
+            onClick={handleClose}
+            disabled={saving}
+            type="button"
+          >
             {t.cancel}
           </Button>
-          <Button size="lg" loading={saving} type="submit">
+          <Button size="lg" className="min-h-11 w-full sm:w-auto" loading={saving} type="submit">
             {habit ? t.saveAction : t.createAction}
           </Button>
         </div>

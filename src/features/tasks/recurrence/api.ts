@@ -6,12 +6,7 @@ import {
   type RecurrenceRulesRow,
   type TasksRow,
 } from "@/types/database";
-import type {
-  Priority,
-  RecurrenceFrequency,
-  RecurrenceRule,
-  TaskStatus,
-} from "@/types/domain";
+import type { Priority, RecurrenceFrequency, RecurrenceRule, TaskStatus } from "@/types/domain";
 
 import { assertMilestoneBelongsToGoal } from "../api";
 import { RECURRENCE_ERROR_MESSAGES, RecurrenceServiceError, toRecurrenceError } from "./errors";
@@ -95,9 +90,11 @@ async function requireUserId(): Promise<string> {
 
 const DAY_MS = 86_400_000;
 
-function resolveTopUp(
-  arg?: number | TopUpRecurrenceOptions,
-): { horizonDays: number; timeZone: string; now: Date } {
+function resolveTopUp(arg?: number | TopUpRecurrenceOptions): {
+  horizonDays: number;
+  timeZone: string;
+  now: Date;
+} {
   if (typeof arg === "number") {
     return { horizonDays: arg, timeZone: "UTC", now: new Date() };
   }
@@ -108,9 +105,11 @@ function resolveTopUp(
   };
 }
 
-function resolveTopUpAll(
-  arg?: number | TopUpAllOptions,
-): { horizonDays: number; timeZone: string; now: Date } {
+function resolveTopUpAll(arg?: number | TopUpAllOptions): {
+  horizonDays: number;
+  timeZone: string;
+  now: Date;
+} {
   return resolveTopUp(arg);
 }
 
@@ -208,10 +207,7 @@ async function insertTasksIgnoreConflicts(payloads: TaskInsertPayload[]): Promis
 
   let created = 0;
   for (const row of payloads) {
-    const { data: single, error: singleError } = await client
-      .from("tasks")
-      .insert(row)
-      .select();
+    const { data: single, error: singleError } = await client.from("tasks").insert(row).select();
 
     if (!singleError) {
       created += (single as TasksRow[] | null)?.length ?? 0;
@@ -326,10 +322,7 @@ export async function createRecurringTask(
       throw new RecurrenceServiceError("validation", "Title is required.");
     }
     if (title.length > 200) {
-      throw new RecurrenceServiceError(
-        "validation",
-        "Title must be 200 characters or fewer.",
-      );
+      throw new RecurrenceServiceError("validation", "Title must be 200 characters or fewer.");
     }
 
     if (input.task.goalId === null && input.task.milestoneId !== null) {
@@ -717,10 +710,10 @@ export async function topUpAllActiveRecurrenceInstances(
     }
 
     const existingByRule = new Map<string, Set<string | null>>();
-    for (const row of ((existingRows as Array<{
+    for (const row of (existingRows as Array<{
       due_date: string | null;
       recurrence_rule_id: string | null;
-    }> | null) ?? [])) {
+    }> | null) ?? []) {
       if (!row.recurrence_rule_id) {
         continue;
       }
@@ -744,7 +737,7 @@ export async function topUpAllActiveRecurrenceInstances(
     }
 
     const templateByRule = new Map<string, TasksRow>();
-    for (const row of ((templateRows as TasksRow[] | null) ?? [])) {
+    for (const row of (templateRows as TasksRow[] | null) ?? []) {
       const key = row.recurrence_rule_id;
       if (!key || templateByRule.has(key)) {
         continue;

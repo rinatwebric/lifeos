@@ -31,7 +31,7 @@ export function ProposalActionRow({
   const description = describeProposalAction(action, timeZone, m.assistant, intl);
 
   return (
-    <li className="flex items-start gap-3 rounded-control border border-line bg-surface-muted p-3">
+    <li className="flex min-h-11 items-start gap-3 rounded-control bg-surface-muted p-4">
       <input
         id={labelId}
         type="checkbox"
@@ -39,14 +39,16 @@ export function ProposalActionRow({
         disabled={disabled}
         onChange={(event) => onToggle(index, event.target.checked)}
         aria-label={tmpl(m.assistant.selectAction, { index: index + 1, description })}
-        className="mt-1 size-4 shrink-0 accent-current"
+        className="mt-0.5 size-5 shrink-0 accent-current"
       />
-      <div className="min-w-0 flex-1 space-y-1">
-        <p className="text-ui font-medium text-content text-pretty">
+      <label htmlFor={labelId} className="min-w-0 flex-1 cursor-pointer space-y-1">
+        <span className="block text-ui font-medium break-words text-content text-pretty">
           {description}
-        </p>
-        <p className="text-micro text-muted">{action.type.replaceAll("_", " ")}</p>
-      </div>
+        </span>
+        <span className="block text-micro break-words text-muted">
+          {action.type.replaceAll("_", " ")}
+        </span>
+      </label>
     </li>
   );
 }

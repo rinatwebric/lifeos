@@ -64,7 +64,13 @@ export function DeleteBlockDialog({ open, onClose, block }: DeleteBlockDialogPro
       ) : null}
 
       <div className="flex flex-wrap items-center justify-end gap-2">
-        <Button variant="secondary" size="lg" data-autofocus onClick={onClose} disabled={deleteBlock.isPending}>
+        <Button
+          variant="secondary"
+          size="lg"
+          data-autofocus
+          onClick={onClose}
+          disabled={deleteBlock.isPending}
+        >
           {t.cancel}
         </Button>
         <Button

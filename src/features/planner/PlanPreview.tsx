@@ -122,12 +122,17 @@ function AlreadyPlannedRow({ entry }: { entry: PlanPreviewAlreadyPlanned }) {
         </p>
         {entry.estimatedDurationMinutes === null ? null : (
           <span className="text-micro text-muted tabular-nums">
-            {tmpl(m.planner.estimate, { duration: formatDurationMinutes(entry.estimatedDurationMinutes, locale) })}
+            {tmpl(m.planner.estimate, {
+              duration: formatDurationMinutes(entry.estimatedDurationMinutes, locale),
+            })}
           </span>
         )}
       </div>
       <p className="text-ui text-muted text-pretty">
-        {tmpl(m.planner.alreadyPlannedExplanation, { start: entry.startLabel, end: entry.endLabel })}
+        {tmpl(m.planner.alreadyPlannedExplanation, {
+          start: entry.startLabel,
+          end: entry.endLabel,
+        })}
       </p>
     </li>
   );
@@ -143,7 +148,9 @@ function IssueRow({ issue }: { issue: PlanPreviewIssue }) {
         <p className="text-ui font-medium text-content text-pretty">{issue.taskTitle}</p>
         {issue.estimatedDurationMinutes === null ? null : (
           <span className="text-micro text-muted tabular-nums">
-            {tmpl(m.planner.estimate, { duration: formatDurationMinutes(issue.estimatedDurationMinutes, locale) })}
+            {tmpl(m.planner.estimate, {
+              duration: formatDurationMinutes(issue.estimatedDurationMinutes, locale),
+            })}
           </span>
         )}
       </div>
@@ -254,21 +261,16 @@ export function PlanPreview({
       </header>
 
       {!summary.hasWakingHours ? (
-        <EmptyState
-          icon={Clock}
-          title={t.setWakingFirst}
-          description={t.wakingHint}
-        />
+        <EmptyState icon={Clock} title={t.setWakingFirst} description={t.wakingHint} />
       ) : hasNothingToPlan ? (
-        <EmptyState
-          icon={ListChecks}
-          title={t.noOpenTasks}
-          description={t.noOpenTasksHint}
-        />
+        <EmptyState icon={ListChecks} title={t.noOpenTasks} description={t.noOpenTasksHint} />
       ) : (
         <>
           <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-            <PreviewStat label={t.planned} value={formatDurationMinutes(summary.plannedMinutes, locale)} />
+            <PreviewStat
+              label={t.planned}
+              value={formatDurationMinutes(summary.plannedMinutes, locale)}
+            />
             <PreviewStat
               label={t.leftToPlace}
               value={
@@ -280,7 +282,9 @@ export function PlanPreview({
             <PreviewStat
               label={t.needsEstimate}
               value={
-                summary.needsEstimateCount > 0 ? taskCountLabel(summary.needsEstimateCount, t) : t.none
+                summary.needsEstimateCount > 0
+                  ? taskCountLabel(summary.needsEstimateCount, t)
+                  : t.none
               }
             />
           </dl>
@@ -310,9 +314,7 @@ export function PlanPreview({
           {preview.alreadyPlanned.length > 0 ? (
             <section className="space-y-3">
               <h3 className="text-ui font-medium text-content">{t.alreadyPlanned}</h3>
-              <p className="text-ui text-muted text-pretty">
-                {t.alreadyPlannedHint}
-              </p>
+              <p className="text-ui text-muted text-pretty">{t.alreadyPlannedHint}</p>
               <ul className="space-y-3">
                 {preview.alreadyPlanned.map((entry) => (
                   <AlreadyPlannedRow key={entry.taskId} entry={entry} />
@@ -351,9 +353,7 @@ export function PlanPreview({
           </Button>
         </div>
         {preview.canAccept ? null : (
-          <p className="text-micro text-muted text-pretty">
-            {t.acceptDisabledHint}
-          </p>
+          <p className="text-micro text-muted text-pretty">{t.acceptDisabledHint}</p>
         )}
       </footer>
     </Card>
@@ -367,7 +367,7 @@ function PlanPreviewSkeleton() {
     <Card>
       <div role="status" aria-label={m.planner.buildingPlan}>
         <span className="sr-only">{m.planner.buildingPlan}</span>
-        <div className="space-y-3 motion-safe:animate-pulse" aria-hidden="true">
+        <div className="space-y-3" aria-hidden="true">
           <div className="h-4 w-1/3 rounded-control bg-surface-muted" />
           <div className="h-14 w-full rounded-control bg-surface-muted" />
           <div className="h-14 w-full rounded-control bg-surface-muted" />
@@ -386,9 +386,7 @@ function PlanPreviewError({ onRetry }: { onRetry?: () => void }) {
         <AlertTriangle className="mt-0.5 size-4 shrink-0 text-danger" aria-hidden="true" />
         <div className="space-y-1">
           <p className="text-ui font-medium text-content">{m.planner.buildPlanError}</p>
-          <p className="text-ui text-muted text-pretty">
-            {m.planner.buildPlanHint}
-          </p>
+          <p className="text-ui text-muted text-pretty">{m.planner.buildPlanHint}</p>
           {onRetry ? (
             <Button variant="secondary" size="lg" className="mt-1" onClick={onRetry}>
               {m.planner.tryAgain}

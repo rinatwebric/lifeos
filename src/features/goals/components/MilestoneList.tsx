@@ -2,6 +2,7 @@ import { ArrowDown, ArrowUp, Pencil, Plus, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/Button";
+import { CheckCircle } from "@/components/ui/CheckCircle";
 import { Input } from "@/components/ui/Input";
 import { DeleteMilestoneDialog } from "@/features/goals/components/DeleteMilestoneDialog";
 import { MilestoneFormDialog } from "@/features/goals/components/MilestoneFormDialog";
@@ -19,6 +20,8 @@ interface MilestoneListProps {
   goalId: string;
   milestones: Milestone[];
 }
+
+const ROW_ACTION_CLASS = "relative after:absolute after:-inset-1 after:content-['']";
 
 function orderedIdsAfterMove(ids: string[], from: number, to: number): string[] {
   const next = [...ids];
@@ -76,35 +79,43 @@ export function MilestoneList({ goalId, milestones }: MilestoneListProps) {
     }
   };
 
+  const addErrorText = addError ?? (createMilestone.isError ? t.milestoneAddError : null);
+  const composer = (
+    <form
+      onSubmit={(event) => void handleAdd(event)}
+      className="flex flex-col gap-2 rounded-card border border-line bg-surface p-3 sm:flex-row sm:p-4"
+    >
+      <Input
+        aria-label={t.addMilestoneAria}
+        placeholder={t.addMilestonePlaceholder}
+        className="min-h-11 sm:min-h-10"
+        value={newTitle}
+        onChange={(event) => {
+          setNewTitle(event.target.value);
+          setAddError(null);
+        }}
+      />
+      <Button
+        type="submit"
+        loading={createMilestone.isPending}
+        className="min-h-11 shrink-0 sm:min-h-0"
+      >
+        <Plus className="size-4" aria-hidden="true" />
+        {t.addMilestone}
+      </Button>
+    </form>
+  );
+
   if (sorted.length === 0) {
     return (
       <div className="space-y-4">
         <div className="rounded-card border border-dashed border-line px-6 py-10 text-center">
-          <p className="mx-auto max-w-sm text-ui text-muted">
-            {t.milestoneEmpty}
-          </p>
+          <p className="mx-auto max-w-sm text-ui text-muted text-pretty">{t.milestoneEmpty}</p>
         </div>
-        <form
-          onSubmit={(event) => void handleAdd(event)}
-          className="flex flex-col gap-2 sm:flex-row"
-        >
-          <Input
-            aria-label={t.addMilestoneAria}
-            placeholder={t.addMilestonePlaceholder}
-            value={newTitle}
-            onChange={(event) => {
-              setNewTitle(event.target.value);
-              setAddError(null);
-            }}
-          />
-          <Button type="submit" loading={createMilestone.isPending} className="shrink-0">
-            <Plus className="size-4" aria-hidden="true" />
-            {t.addMilestone}
-          </Button>
-        </form>
-        {addError ?? (createMilestone.isError ? t.milestoneAddError : null) ? (
+        {composer}
+        {addErrorText ? (
           <p role="alert" className="text-micro text-danger">
-            {addError ?? t.milestoneAddError}
+            {addErrorText}
           </p>
         ) : null}
       </div>
@@ -133,42 +144,46 @@ export function MilestoneList({ goalId, milestones }: MilestoneListProps) {
         {sorted.map((milestone, index) => {
           const completed = milestone.status === "completed";
           return (
-            <li key={milestone.id} className="flex items-start gap-3 px-4 py-3">
-              <label
-                htmlFor={`milestone-${milestone.id}`}
-                className="-m-3.5 inline-flex shrink-0 cursor-pointer p-3.5"
-              >
-                <input
+            <li
+              key={milestone.id}
+              className="flex flex-wrap items-start gap-x-4 gap-y-2 px-4 py-4 sm:px-5"
+            >
+              <div className="flex min-w-[12rem] flex-1 items-start gap-3">
+                <CheckCircle
                   id={`milestone-${milestone.id}`}
-                  type="checkbox"
                   checked={completed}
                   onChange={() => handleToggle(milestone)}
-                  aria-label={
+                  ariaLabel={
                     completed
                       ? tmpl(t.markMilestonePending, { title: milestone.title })
                       : tmpl(t.markMilestoneComplete, { title: milestone.title })
                   }
-                  className="mt-0.5 size-4 shrink-0 accent-current"
+                  className="mt-0.5 size-11 cursor-pointer"
                 />
-              </label>
-              <div className="min-w-0 flex-1">
-                <p
-                  title={milestone.title}
-                  className={
-                    completed ? "truncate text-ui text-muted line-through" : "truncate text-ui text-content"
-                  }
-                >
-                  {milestone.title}
-                </p>
-                {milestone.targetDate ? (
-                  <p className="text-micro text-muted tabular-nums">{milestone.targetDate}</p>
-                ) : null}
+                <div className="min-w-0 flex-1 pt-2.5">
+                  <p
+                    title={milestone.title}
+                    className={
+                      completed
+                        ? "truncate text-ui text-muted line-through"
+                        : "truncate text-ui text-content"
+                    }
+                  >
+                    {milestone.title}
+                  </p>
+                  {milestone.targetDate ? (
+                    <p className="mt-0.5 text-micro text-muted tabular-nums">
+                      {milestone.targetDate}
+                    </p>
+                  ) : null}
+                </div>
               </div>
-              <div className="flex shrink-0 items-center gap-1">
+
+              <div className="flex flex-wrap items-center gap-2 pl-11 sm:justify-end sm:pl-0">
                 <Button
                   variant="ghost"
-                  size="sm"
-                  className="relative after:absolute after:-inset-1 after:content-['']"
+                  size="md"
+                  className={ROW_ACTION_CLASS}
                   aria-label={tmpl(t.moveUp, { title: milestone.title })}
                   disabled={index === 0 || reorderMilestones.isPending}
                   onClick={() => handleMove(index, -1)}
@@ -177,8 +192,8 @@ export function MilestoneList({ goalId, milestones }: MilestoneListProps) {
                 </Button>
                 <Button
                   variant="ghost"
-                  size="sm"
-                  className="relative after:absolute after:-inset-1 after:content-['']"
+                  size="md"
+                  className={ROW_ACTION_CLASS}
                   aria-label={tmpl(t.moveDown, { title: milestone.title })}
                   disabled={index === sorted.length - 1 || reorderMilestones.isPending}
                   onClick={() => handleMove(index, 1)}
@@ -187,8 +202,8 @@ export function MilestoneList({ goalId, milestones }: MilestoneListProps) {
                 </Button>
                 <Button
                   variant="ghost"
-                  size="sm"
-                  className="relative after:absolute after:-inset-1 after:content-['']"
+                  size="md"
+                  className={ROW_ACTION_CLASS}
                   onClick={() => setEditing(milestone)}
                 >
                   <Pencil className="size-3.5" aria-hidden="true" />
@@ -196,8 +211,8 @@ export function MilestoneList({ goalId, milestones }: MilestoneListProps) {
                 </Button>
                 <Button
                   variant="ghost"
-                  size="sm"
-                  className="relative after:absolute after:-inset-1 after:content-['']"
+                  size="md"
+                  className={ROW_ACTION_CLASS}
                   onClick={() => setDeleting(milestone)}
                   aria-label={tmpl(t.deleteAria, { title: milestone.title })}
                 >
@@ -210,24 +225,10 @@ export function MilestoneList({ goalId, milestones }: MilestoneListProps) {
         })}
       </ul>
 
-      <form onSubmit={(event) => void handleAdd(event)} className="flex flex-col gap-2 sm:flex-row">
-        <Input
-          aria-label={t.addMilestoneAria}
-          placeholder={t.addMilestonePlaceholder}
-          value={newTitle}
-          onChange={(event) => {
-            setNewTitle(event.target.value);
-            setAddError(null);
-          }}
-        />
-        <Button type="submit" loading={createMilestone.isPending} className="shrink-0">
-          <Plus className="size-4" aria-hidden="true" />
-          {t.addMilestone}
-        </Button>
-      </form>
-      {addError ?? (createMilestone.isError ? t.milestoneAddError : null) ? (
+      {composer}
+      {addErrorText ? (
         <p role="alert" className="text-micro text-danger">
-          {addError ?? t.milestoneAddError}
+          {addErrorText}
         </p>
       ) : null}
 

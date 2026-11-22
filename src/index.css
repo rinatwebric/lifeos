@@ -3,61 +3,112 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 /* ---------------------------------------------------------------------------
+ * Inter, self-hosted (SIL OFL — see public/fonts/OFL.txt).
+ * Variable latin + cyrillic so both UI languages render in one face.
+ * ------------------------------------------------------------------------- */
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 400 600;
+  font-display: swap;
+  src: url("/fonts/inter-latin.woff2") format("woff2");
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 400 600;
+  font-display: swap;
+  src: url("/fonts/inter-latin-ext.woff2") format("woff2");
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+    U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F,
+    U+A720-A7FF;
+}
+
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 400 600;
+  font-display: swap;
+  src: url("/fonts/inter-cyrillic.woff2") format("woff2");
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+
+/* ---------------------------------------------------------------------------
  * Tier 1 — primitives. Named by value, never referenced directly in
- * components. Light appearance lives in `:root`, dark in `.dark`.
+ * components. Light appearance lives in `:root`, the Midnight appearance in
+ * `.dark`. The app defaults to Midnight (see ThemeProvider / index.html).
  * ------------------------------------------------------------------------- */
 :root {
-  --raw-canvas: #f6f1e6;
-  --raw-surface: #fffdf8;
-  --raw-surface-muted: #efe8d6;
-  --raw-line: #ddd0b2;
-  --raw-control: #8a7c60;
-  --raw-content: #241c10;
-  --raw-muted: #63563d;
-  --raw-accent: #8a5e14;
-  --raw-accent-content: #fffdf8;
-  --raw-focus: #1d4ed8;
-  --raw-scrim: oklch(0.32 0.03 85 / 0.5);
-  --raw-danger: #a8321f;
-  --raw-danger-content: #fffdf8;
-  --raw-danger-subtle: #fbeae4;
-  --raw-danger-border: #e5a58d;
-  --raw-success: #2f6b3c;
-  --raw-success-content: #fffdf8;
-  --raw-success-subtle: #e6f0e4;
-  --raw-success-border: #9cc3a1;
-  --raw-warning: #8a5e14;
-  --raw-warning-content: #fffdf8;
-  --raw-warning-subtle: #f6ecd4;
-  --raw-warning-border: #d9b96a;
   color-scheme: light;
+
+  --raw-canvas: #f7f7f5;
+  --raw-surface: #ffffff;
+  --raw-surface-muted: #f1f1ee;
+  --raw-surface-raised: #fbfbf9;
+  --raw-active: #ecece7;
+  --raw-line: #e4e4de;
+  --raw-rule: #efefea;
+  --raw-control: #8f8f85;
+  --raw-content: #171715;
+  --raw-muted: #5f5f57;
+  --raw-accent: #b45309;
+  --raw-accent-content: #ffffff;
+  --raw-accent-subtle: #fbf3df;
+  --raw-accent-border: #e8d5a8;
+  --raw-focus: #171715;
+  --raw-scrim: rgb(20 20 17 / 0.45);
+
+  --raw-danger: #b42318;
+  --raw-danger-content: #ffffff;
+  --raw-danger-subtle: #fef3f2;
+  --raw-danger-border: #fecdca;
+  --raw-success: #247b50;
+  --raw-success-content: #ffffff;
+  --raw-success-subtle: #ecfdf3;
+  --raw-success-border: #abefc6;
+  --raw-warning: #92400e;
+  --raw-warning-content: #ffffff;
+  --raw-warning-subtle: #fffaeb;
+  --raw-warning-border: #fedf89;
 }
 
 .dark {
-  --raw-canvas: #161209;
-  --raw-surface: #211b11;
-  --raw-surface-muted: #1a150c;
-  --raw-line: #3b3323;
-  --raw-control: #7a6d52;
-  --raw-content: #f4edde;
-  --raw-muted: #c6b897;
-  --raw-accent: #d2a24c;
-  --raw-accent-content: #241a06;
-  --raw-focus: #8ab4ff;
-  --raw-scrim: oklch(0 0 0 / 0.6);
-  --raw-danger: #f1998a;
-  --raw-danger-content: #2a0d08;
-  --raw-danger-subtle: #2b1310;
-  --raw-danger-border: #7a2d1e;
-  --raw-success: #7fd08d;
-  --raw-success-content: #0b2413;
-  --raw-success-subtle: #0e2016;
-  --raw-success-border: #2f6b3c;
-  --raw-warning: #d2a24c;
-  --raw-warning-content: #241a06;
-  --raw-warning-subtle: #241a06;
-  --raw-warning-border: #8a5e14;
   color-scheme: dark;
+
+  --raw-canvas: #0c0b0a;
+  --raw-surface: #191714;
+  --raw-surface-muted: #121110;
+  --raw-surface-raised: #23211e;
+  --raw-active: #23211e;
+  --raw-line: #2a2723;
+  --raw-rule: #211f1c;
+  --raw-control: #6a645a;
+  --raw-content: #f7f7f7;
+  --raw-muted: #b8b5ae;
+  --raw-accent: #eab25c;
+  --raw-accent-content: #141210;
+  --raw-accent-subtle: #2a2113;
+  --raw-accent-border: #5c471f;
+  --raw-focus: #f7f7f7;
+  --raw-scrim: rgb(0 0 0 / 0.72);
+
+  --raw-danger: #e56a72;
+  --raw-danger-content: #2a0d08;
+  --raw-danger-subtle: #2c1a20;
+  --raw-danger-border: #6e2a33;
+  --raw-success: #7fd08b;
+  --raw-success-content: #0b2413;
+  --raw-success-subtle: #14251a;
+  --raw-success-border: #2f6b3c;
+  --raw-warning: #f0b35c;
+  --raw-warning-content: #241a06;
+  --raw-warning-subtle: #2b2414;
+  --raw-warning-border: #6b5120;
 }
 
 /* ---------------------------------------------------------------------------
@@ -69,14 +120,20 @@
   --color-canvas: var(--raw-canvas);
   --color-surface: var(--raw-surface);
   --color-surface-muted: var(--raw-surface-muted);
+  --color-surface-raised: var(--raw-surface-raised);
+  --color-active: var(--raw-active);
   --color-line: var(--raw-line);
+  --color-rule: var(--raw-rule);
   --color-control: var(--raw-control);
   --color-content: var(--raw-content);
   --color-muted: var(--raw-muted);
   --color-accent: var(--raw-accent);
   --color-accent-content: var(--raw-accent-content);
+  --color-accent-subtle: var(--raw-accent-subtle);
+  --color-accent-border: var(--raw-accent-border);
   --color-focus: var(--raw-focus);
   --color-scrim: var(--raw-scrim);
+
   --color-danger: var(--raw-danger);
   --color-danger-content: var(--raw-danger-content);
   --color-danger-subtle: var(--raw-danger-subtle);
@@ -91,10 +148,11 @@
   --color-warning-border: var(--raw-warning-border);
 
   --font-sans:
-    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue",
-    Arial, sans-serif;
+    "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial,
+    sans-serif;
   --font-display:
-    Georgia, "Times New Roman", "Noto Serif", "PT Serif", serif;
+    "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial,
+    sans-serif;
 }
 
 /* ---------------------------------------------------------------------------
@@ -126,16 +184,11 @@
   --text-micro--font-weight: 400;
 
   --radius-control: 0.625rem;
-  --radius-card: 1rem;
+  --radius-card: 1.25rem;
+  --radius-pill: 999px;
 
-  --shadow-raised:
-    0 0 0 1px oklch(0 0 0 / 0.06),
-    0 1px 2px -1px oklch(0 0 0 / 0.06),
-    0 2px 4px 0 oklch(0 0 0 / 0.04);
-  --shadow-overlay:
-    0 0 0 1px oklch(0 0 0 / 0.08),
-    0 4px 8px -2px oklch(0 0 0 / 0.08),
-    0 16px 40px -8px oklch(0 0 0 / 0.22);
+  --shadow-raised: none;
+  --shadow-overlay: 0 0 0 1px oklch(0 0 0 / 0.06), 0 16px 48px -12px oklch(0 0 0 / 0.35);
 
   --duration-fast: 150ms;
   --duration-base: 200ms;
@@ -145,10 +198,7 @@
 }
 
 .dark {
-  --shadow-raised: 0 0 0 1px oklch(1 0 0 / 0.08);
-  --shadow-overlay:
-    0 0 0 1px oklch(1 0 0 / 0.12),
-    0 16px 48px -8px oklch(0 0 0 / 0.6);
+  --shadow-overlay: 0 0 0 1px oklch(1 0 0 / 0.06), 0 18px 60px -12px oklch(0 0 0 / 0.8);
 }
 
 @layer base {
@@ -180,8 +230,52 @@
     background-color: color-mix(in oklab, var(--raw-focus) 25%, transparent);
   }
 
+  /* Native Windows scrollbars (with arrow buttons) break the neutral surface
+     inside menus and dialogs. Thin, transparent-track scrollbars keep the
+     affordance without becoming a second UI. */
+  .scrollbar-neutral {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in oklab, var(--raw-control) 55%, transparent) transparent;
+  }
+
+  .scrollbar-neutral::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .scrollbar-neutral::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-neutral::-webkit-scrollbar-thumb {
+    background-color: color-mix(in oklab, var(--raw-control) 55%, transparent);
+    border-radius: 999px;
+  }
+
+  .scrollbar-neutral::-webkit-scrollbar-thumb:hover {
+    background-color: var(--raw-control);
+  }
+
+  .scrollbar-neutral::-webkit-scrollbar-button,
+  .scrollbar-neutral::-webkit-scrollbar-corner {
+    display: none;
+    width: 0;
+    height: 0;
+  }
+
   time,
   [data-numeric="true"] {
     font-variant-numeric: tabular-nums;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
   }
 }

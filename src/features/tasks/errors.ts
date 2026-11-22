@@ -2,12 +2,7 @@
  * Tasks errors. Thin wrapper over the shared `@/lib/dbErrors` mapping —
  * same contract as goals/errors.ts (UI matches on `code`, never on text).
  */
-import {
-  DbServiceError,
-  DB_ERROR_MESSAGES,
-  toDbError,
-  type DbErrorCode,
-} from "@/lib/dbErrors";
+import { DbServiceError, DB_ERROR_MESSAGES, toDbError, type DbErrorCode } from "@/lib/dbErrors";
 
 export type TaskErrorCode = DbErrorCode;
 

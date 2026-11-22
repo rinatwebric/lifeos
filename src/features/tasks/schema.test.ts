@@ -58,24 +58,22 @@ describe("task schemas", () => {
   });
 
   it("accepts a missing scheduled bound on either side", () => {
-    expect(
-      createTaskSchema.safeParse({ ...validTask, scheduledEnd: null }).success,
-    ).toBe(true);
-    expect(
-      createTaskSchema.safeParse({ ...validTask, scheduledStart: undefined }).success,
-    ).toBe(true);
+    expect(createTaskSchema.safeParse({ ...validTask, scheduledEnd: null }).success).toBe(true);
+    expect(createTaskSchema.safeParse({ ...validTask, scheduledStart: undefined }).success).toBe(
+      true,
+    );
   });
 
   it("rejects zero or negative estimated durations, accepts positive and null", () => {
-    expect(
-      createTaskSchema.safeParse({ ...validTask, estimatedDurationMinutes: 0 }).success,
-    ).toBe(false);
+    expect(createTaskSchema.safeParse({ ...validTask, estimatedDurationMinutes: 0 }).success).toBe(
+      false,
+    );
     expect(
       createTaskSchema.safeParse({ ...validTask, estimatedDurationMinutes: -15 }).success,
     ).toBe(false);
-    expect(
-      createTaskSchema.safeParse({ ...validTask, estimatedDurationMinutes: 30 }).success,
-    ).toBe(true);
+    expect(createTaskSchema.safeParse({ ...validTask, estimatedDurationMinutes: 30 }).success).toBe(
+      true,
+    );
     expect(
       createTaskSchema.safeParse({ ...validTask, estimatedDurationMinutes: null }).success,
     ).toBe(true);
@@ -102,25 +100,17 @@ describe("task schemas", () => {
   });
 
   it("rejects unknown priority and status values, including overdue", () => {
-    expect(createTaskSchema.safeParse({ ...validTask, priority: "urgent" }).success).toBe(
-      false,
-    );
+    expect(createTaskSchema.safeParse({ ...validTask, priority: "urgent" }).success).toBe(false);
     expect(createTaskSchema.safeParse({ ...validTask, status: "done" }).success).toBe(false);
     // Overdue is derived via isTaskOverdue, never a stored status.
-    expect(createTaskSchema.safeParse({ ...validTask, status: "overdue" }).success).toBe(
-      false,
-    );
+    expect(createTaskSchema.safeParse({ ...validTask, status: "overdue" }).success).toBe(false);
   });
 
   it("accepts null/uuid goal and milestone links, rejects non-uuid", () => {
     expect(createTaskSchema.safeParse({ ...validTask, goalId: null }).success).toBe(true);
-    expect(
-      createTaskSchema.safeParse({ ...validTask, milestoneId: undefined }).success,
-    ).toBe(true);
+    expect(createTaskSchema.safeParse({ ...validTask, milestoneId: undefined }).success).toBe(true);
     expect(createTaskSchema.safeParse({ ...validTask, goalId: "nope" }).success).toBe(false);
-    expect(createTaskSchema.safeParse({ ...validTask, milestoneId: "nope" }).success).toBe(
-      false,
-    );
+    expect(createTaskSchema.safeParse({ ...validTask, milestoneId: "nope" }).success).toBe(false);
   });
 
   it("still guards the schedule order on partial updates", () => {

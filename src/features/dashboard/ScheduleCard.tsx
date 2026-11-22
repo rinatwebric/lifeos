@@ -46,9 +46,9 @@ function ScheduleSkeleton() {
     <div role="status" aria-label={label}>
       <span className="sr-only">{label}</span>
       <div className="space-y-3" aria-hidden="true">
-        <div className="h-4 w-3/4 rounded-control bg-surface-muted motion-safe:animate-pulse" />
-        <div className="h-4 w-full rounded-control bg-surface-muted motion-safe:animate-pulse" />
-        <div className="h-4 w-2/3 rounded-control bg-surface-muted motion-safe:animate-pulse" />
+        <div className="h-4 w-3/4 rounded-control bg-surface-muted" />
+        <div className="h-4 w-full rounded-control bg-surface-muted" />
+        <div className="h-4 w-2/3 rounded-control bg-surface-muted" />
       </div>
     </div>
   );
@@ -158,7 +158,9 @@ export function ScheduleBody({ now }: { now?: Date }) {
           </div>
           <div className="space-y-0.5">
             <dt className="text-micro text-muted">{t.blocksToday}</dt>
-            <dd className="text-ui font-medium text-content tabular-nums">{schedule.dayBlockCount}</dd>
+            <dd className="text-ui font-medium text-content tabular-nums">
+              {schedule.dayBlockCount}
+            </dd>
           </div>
         </dl>
         {breakdown ? (

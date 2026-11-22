@@ -39,7 +39,14 @@ describe("formatSlotReason", () => {
 
   it("covers no-due-date + work overlap", () => {
     const text = formatSlotReason(
-      { ...PARTS, dueState: "none", dueDate: null, linked: false, preferred: false, workOverlap: true },
+      {
+        ...PARTS,
+        dueState: "none",
+        dueDate: null,
+        linked: false,
+        preferred: false,
+        workOverlap: true,
+      },
       en.planner,
       en.enums.priority.medium,
     );

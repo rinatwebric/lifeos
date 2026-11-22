@@ -1,9 +1,5 @@
 import { getSupabaseClient } from "@/lib/supabase/client";
-import {
-  mapTaskRowToTask,
-  type MilestonesRow,
-  type TasksRow,
-} from "@/types/database";
+import { mapTaskRowToTask, type MilestonesRow, type TasksRow } from "@/types/database";
 import type { Priority, Task, TaskStatus } from "@/types/domain";
 
 import { TaskServiceError, TASK_ERROR_MESSAGES, toTaskError } from "./errors";
@@ -150,6 +146,38 @@ export async function listTasks(filters?: TaskFilters): Promise<Task[]> {
     return tasks;
   } catch (error) {
     throw toTaskError(error);
+  }
+}
+
+/**
+ * Export reads every row, not the UI's bounded list. The tasks page caps at
+ * `TASK_LIST_LIMIT` because it sorts priority in memory; a CSV must not lose
+ * the tail. Pages of 1000 keep the request count low and the loop stops on the
+ * first short page.
+ */
+export async function listAllTasksForExport(): Promise<Task[]> {
+  const userId = await requireUserId();
+  const client = getSupabaseClient();
+  const pageSize = 1000;
+  const out: Task[] = [];
+
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await client
+      .from("tasks")
+      .select("*")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: true })
+      .range(from, from + pageSize - 1);
+
+    if (error) {
+      throw toTaskError(error);
+    }
+
+    const rows = (data ?? []) as TasksRow[];
+    out.push(...rows.map(mapTaskRowToTask));
+    if (rows.length < pageSize) {
+      return out;
+    }
   }
 }
 

@@ -1,4 +1,4 @@
-import { toDateKey, isTaskOverdue } from "@/lib/dates";
+import { isTaskOverdue, localDateTimeToIso, toDateKey } from "@/lib/dates";
 import { pluralCategory, tmpl } from "@/lib/i18n/format";
 import type { Messages } from "@/lib/i18n/I18nContext";
 import type { Locale } from "@/lib/i18n/types";
@@ -44,7 +44,10 @@ function daysInMonth(y: number, m: number): number {
 }
 
 /** Calendar bounds of the period containing `todayKey`. Weeks are ISO Monday–Sunday. */
-export function getPeriodRange(period: AnalyticsPeriod, todayKey: string): { from: string; to: string } {
+export function getPeriodRange(
+  period: AnalyticsPeriod,
+  todayKey: string,
+): { from: string; to: string } {
   if (period === "day") {
     return { from: todayKey, to: todayKey };
   }
@@ -65,6 +68,34 @@ export function getPeriodRange(period: AnalyticsPeriod, todayKey: string): { fro
   return { from: `${y}-01-01`, to: `${y}-12-31` };
 }
 
+/** Calendar bounds of the period immediately before `range`. */
+export function getPreviousPeriodRange(
+  period: AnalyticsPeriod,
+  range: { from: string; to: string },
+): { from: string; to: string } {
+  if (period === "day") {
+    return { from: addDays(range.from, -1), to: addDays(range.to, -1) };
+  }
+
+  if (period === "week") {
+    return { from: addDays(range.from, -7), to: addDays(range.to, -7) };
+  }
+
+  const { y, m } = parseKey(range.from);
+
+  if (period === "month") {
+    const prevMonth = m === 1 ? 12 : m - 1;
+    const prevYear = m === 1 ? y - 1 : y;
+    const pad = (n: number): string => String(n).padStart(2, "0");
+    return {
+      from: `${prevYear}-${pad(prevMonth)}-01`,
+      to: `${prevYear}-${pad(prevMonth)}-${pad(daysInMonth(prevYear, prevMonth))}`,
+    };
+  }
+
+  return { from: `${y - 1}-01-01`, to: `${y - 1}-12-31` };
+}
+
 export interface AnalyticsBucket {
   key: string;
   label: string;
@@ -73,7 +104,10 @@ export interface AnalyticsBucket {
 }
 
 /** Daily buckets for day/week/month ranges, monthly buckets for a year. */
-export function bucketize(range: { from: string; to: string }, granularity: "day" | "month"): AnalyticsBucket[] {
+export function bucketize(
+  range: { from: string; to: string },
+  granularity: "day" | "month",
+): AnalyticsBucket[] {
   const buckets: AnalyticsBucket[] = [];
 
   if (granularity === "month") {
@@ -185,12 +219,13 @@ export function buildWeeklyReview(
   locale: Locale = "en",
   d?: Messages["weeklyReview"],
 ): string[] {
-  const { tasks, goals, habitRows, weekFrom, timeZone } = input;
+  const { tasks, goals, habitRows, weekFrom, todayKey, timeZone } = input;
   const t = {
     noDue: d?.noDue ?? "No tasks due this week yet — add due dates to see weekly progress.",
     doneAll: d?.doneAll ?? "{done} of {total} tasks due this week done. Clear week.",
     donePartial: d?.donePartial ?? "{done} of {total} tasks due this week done.",
-    overdueOne: d?.overdueOne ?? "{count} overdue task needs a new date — reschedule or reprioritize.",
+    overdueOne:
+      d?.overdueOne ?? "{count} overdue task needs a new date — reschedule or reprioritize.",
     overdueFew:
       d?.overdueFew ?? "{count} overdue tasks need a new date — reschedule or reprioritize.",
     overdueMany:
@@ -205,7 +240,11 @@ export function buildWeeklyReview(
 
   const weekTo = addDays(weekFrom, 6);
   const dueThisWeek = tasks.filter(
-    (t) => t.dueDate !== null && t.dueDate >= weekFrom && t.dueDate <= weekTo && t.status !== "cancelled",
+    (t) =>
+      t.dueDate !== null &&
+      t.dueDate >= weekFrom &&
+      t.dueDate <= weekTo &&
+      t.status !== "cancelled",
   );
   const doneThisWeek = dueThisWeek.filter((t) => t.status === "completed");
 
@@ -220,7 +259,9 @@ export function buildWeeklyReview(
     );
   }
 
-  const now = new Date();
+  // Anchor the review to the requested day, not the wall clock: the same
+  // input must produce the same review tomorrow.
+  const now = new Date(localDateTimeToIso(`${todayKey}T12:00`, timeZone));
   const overdue = tasks.filter((t) => isTaskOverdue(t, now, timeZone));
   if (overdue.length > 0) {
     const cat = pluralCategory(locale, overdue.length);
@@ -242,7 +283,9 @@ export function buildWeeklyReview(
 
   const activeGoals = goals.filter((g) => g.status === "active");
   if (activeGoals.length > 0) {
-    const avg = Math.round(activeGoals.reduce((sum, g) => sum + g.progress, 0) / activeGoals.length);
+    const avg = Math.round(
+      activeGoals.reduce((sum, g) => sum + g.progress, 0) / activeGoals.length,
+    );
     const cat = pluralCategory(locale, activeGoals.length);
     lines.push(
       tmpl(cat === "one" ? t.goalsOne : cat === "few" ? t.goalsFew : t.goalsMany, {

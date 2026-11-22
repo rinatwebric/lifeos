@@ -300,9 +300,7 @@ describe("PlanPreview", () => {
     expect(screen.getByText("Planned already")).toBeInTheDocument();
     expect(screen.getByText("09:00")).toBeInTheDocument();
     expect(screen.getByText("10:00")).toBeInTheDocument();
-    expect(
-      screen.getByText(/Accepting the plan leaves this block untouched/),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/Accepting the plan leaves this block untouched/)).toBeInTheDocument();
   });
 
   it("says so when both problem groups are empty", () => {

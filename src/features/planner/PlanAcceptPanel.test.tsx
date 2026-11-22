@@ -104,8 +104,29 @@ beforeEach(() => {
   } as never);
   vi.mocked(listTasks).mockResolvedValue([TASK]);
   vi.mocked(listBlocks).mockResolvedValue([]);
-  vi.mocked(applyPlan).mockResolvedValue({ blocks: [], mirroredTaskIds: [TASK_ID], skippedTaskIds: [] });
+  vi.mocked(applyPlan).mockResolvedValue({
+    blocks: [],
+    mirroredTaskIds: [TASK_ID],
+    skippedTaskIds: [],
+  });
 });
+
+function chooseListboxValue(control: HTMLElement, value: string): void {
+  fireEvent.click(control);
+  const listbox = screen.getByRole("listbox");
+  const option = Array.from(listbox.querySelectorAll<HTMLElement>("[data-value]")).find(
+    (node) => node.getAttribute("data-value") === value,
+  );
+  if (!option) throw new Error(`Option ${value} not found`);
+  fireEvent.click(option);
+}
+
+function setPlanTime(label: RegExp, time: string): void {
+  fireEvent.click(screen.getByLabelText(label));
+  chooseListboxValue(screen.getByLabelText("Hours"), time.slice(0, 2));
+  chooseListboxValue(screen.getByLabelText("Minutes"), time.slice(3, 5));
+  fireEvent.click(screen.getByRole("button", { name: "Done" }));
+}
 
 describe("PlanAcceptPanel", () => {
   it("shows the computed proposal with editable times", async () => {
@@ -116,8 +137,8 @@ describe("PlanAcceptPanel", () => {
 
     // The 60-minute task lands in the first free window after now (08:00).
     const starts = screen.getByLabelText(/^Starts for /);
-    expect(starts).toHaveValue("2026-11-04T08:00");
-    expect(screen.getByLabelText(/^Ends for /)).toHaveValue("2026-11-04T09:00");
+    expect(starts).toHaveAttribute("data-value", "2026-11-04T08:00");
+    expect(screen.getByLabelText(/^Ends for /)).toHaveAttribute("data-value", "2026-11-04T09:00");
     expect(screen.getByRole("button", { name: "Accept plan" })).toBeEnabled();
   });
 
@@ -159,12 +180,8 @@ describe("PlanAcceptPanel", () => {
     const { onClose } = renderPanel();
 
     await screen.findByText("Plan preview");
-    fireEvent.change(screen.getByLabelText(/^Starts for /), {
-      target: { value: "2026-11-04T10:00" },
-    });
-    fireEvent.change(screen.getByLabelText(/^Ends for /), {
-      target: { value: "2026-11-04T11:00" },
-    });
+    setPlanTime(/^Starts for /, "10:00");
+    setPlanTime(/^Ends for /, "11:00");
     await user.click(screen.getByRole("button", { name: "Cancel" }));
 
     expect(onClose).toHaveBeenCalledTimes(1);
@@ -176,13 +193,12 @@ describe("PlanAcceptPanel", () => {
     renderPanel();
 
     await screen.findByText("Plan preview");
-    const starts = screen.getByLabelText(/^Starts for /);
-    fireEvent.change(starts, { target: { value: "2026-11-04T10:00" } });
-    expect(starts).toHaveValue("2026-11-04T10:00");
+    setPlanTime(/^Starts for /, "10:00");
+    expect(screen.getByLabelText(/^Starts for /)).toHaveAttribute("data-value", "2026-11-04T10:00");
 
     await user.click(screen.getByRole("button", { name: "Regenerate" }));
 
-    expect(screen.getByLabelText(/^Starts for /)).toHaveValue("2026-11-04T08:00");
+    expect(screen.getByLabelText(/^Starts for /)).toHaveAttribute("data-value", "2026-11-04T08:00");
     noWrites();
   });
 
@@ -205,12 +221,8 @@ describe("PlanAcceptPanel", () => {
     const { onClose } = renderPanel();
 
     await screen.findByText("Plan preview");
-    fireEvent.change(screen.getByLabelText(/^Starts for /), {
-      target: { value: "2026-11-04T10:00" },
-    });
-    fireEvent.change(screen.getByLabelText(/^Ends for /), {
-      target: { value: "2026-11-04T11:00" },
-    });
+    setPlanTime(/^Starts for /, "10:00");
+    setPlanTime(/^Ends for /, "11:00");
 
     await user.click(screen.getByRole("button", { name: "Accept plan" }));
 
@@ -293,11 +305,9 @@ describe("PlanAcceptPanel", () => {
     // The proposal avoids the 08:30–09:30 block (09:30–10:30); the user drags
     // the start into it.
     await screen.findByText("Plan preview");
-    expect(screen.getByLabelText(/^Starts for /)).toHaveValue("2026-11-04T09:30");
+    expect(screen.getByLabelText(/^Starts for /)).toHaveAttribute("data-value", "2026-11-04T09:30");
 
-    fireEvent.change(screen.getByLabelText(/^Starts for /), {
-      target: { value: "2026-11-04T09:00" },
-    });
+    setPlanTime(/^Starts for /, "09:00");
     expect(
       await screen.findByText(
         "This planned time overlaps with another block. Both stay in your plan and are marked as overlapping.",
@@ -306,8 +316,9 @@ describe("PlanAcceptPanel", () => {
 
     await user.click(screen.getByRole("button", { name: "Accept plan" }));
 
-    expect(await screen.findByText("Tick the box above to keep this plan at these times."))
-      .toBeInTheDocument();
+    expect(
+      await screen.findByText("Tick the box above to keep this plan at these times."),
+    ).toBeInTheDocument();
     expect(applyPlan).not.toHaveBeenCalled();
 
     await user.click(
@@ -339,8 +350,7 @@ describe("PlanAcceptPanel", () => {
     renderPanel();
 
     await screen.findByText("Plan preview");
-    const starts = screen.getByLabelText(/^Starts for /);
-    fireEvent.change(starts, { target: { value: "2026-11-04T09:00" } });
+    setPlanTime(/^Starts for /, "09:00");
     await screen.findByText(/overlaps with another block/);
 
     await user.click(
@@ -348,11 +358,12 @@ describe("PlanAcceptPanel", () => {
     );
 
     // Another conflicting interval: the old consent must not carry over.
-    fireEvent.change(starts, { target: { value: "2026-11-04T09:15" } });
+    setPlanTime(/^Starts for /, "09:15");
     await user.click(screen.getByRole("button", { name: "Accept plan" }));
 
-    expect(await screen.findByText("Tick the box above to keep this plan at these times."))
-      .toBeInTheDocument();
+    expect(
+      await screen.findByText("Tick the box above to keep this plan at these times."),
+    ).toBeInTheDocument();
     expect(applyPlan).not.toHaveBeenCalled();
   });
 

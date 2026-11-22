@@ -1,11 +1,13 @@
+import { CalendarClock, Pencil, Trash2 } from "lucide-react";
 import { Link } from "react-router-dom";
 
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { CheckCircle } from "@/components/ui/CheckCircle";
 import { useSetTaskStatus } from "@/features/tasks/hooks";
 import { isTaskOverdue } from "@/lib/dates";
 import { tmpl } from "@/lib/i18n/format";
-import { useMessages } from "@/lib/i18n/I18nContext";
+import { useIntlLocale, useMessages } from "@/lib/i18n/I18nContext";
 import { cn } from "@/lib/cn";
 import type { Task } from "@/types/domain";
 
@@ -21,6 +23,18 @@ interface TaskRowProps {
   onDelete: (task: Task) => void;
 }
 
+function formatTaskTime(value: string, timeZone: string, locale: string): string | null {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+  return new Intl.DateTimeFormat(locale, {
+    timeZone,
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
 export function TaskRow({
   task,
   timeZone,
@@ -32,12 +46,16 @@ export function TaskRow({
 }: TaskRowProps) {
   const m = useMessages();
   const t = m.tasks;
+  const intl = useIntlLocale();
 
   const setStatus = useSetTaskStatus();
 
   const completed = task.status === "completed";
   const overdue = isTaskOverdue(task, new Date(), timeZone);
   const showPriorityBadge = task.priority === "high" || task.priority === "critical";
+  const scheduledTime = task.scheduledStart
+    ? formatTaskTime(task.scheduledStart, timeZone, intl)
+    : null;
 
   const handleToggle = (): void => {
     if (setStatus.isPending) {
@@ -47,67 +65,56 @@ export function TaskRow({
   };
 
   return (
-    <li
-      className={cn(
-        "flex items-start gap-3 px-4 py-3",
-        completed && "opacity-70",
-      )}
-    >
-      <label
-        htmlFor={`task-${task.id}`}
-        className="-m-3.5 inline-flex shrink-0 cursor-pointer p-3.5"
-      >
-        <input
-          id={`task-${task.id}`}
-          type="checkbox"
-          checked={completed}
-          onChange={handleToggle}
-          aria-label={
-            completed
-              ? tmpl(t.markIncomplete, { title: task.title })
-              : tmpl(t.markComplete, { title: task.title })
-          }
-          className="mt-0.5 size-4 shrink-0 accent-current"
-        />
-      </label>
-      <div className="min-w-0 flex-1 space-y-1.5">
+    <li className="group grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-3 px-5 py-4 sm:px-6 lg:grid-cols-[auto_minmax(0,1fr)_auto_auto] lg:items-center">
+      <CheckCircle
+        id={`task-${task.id}`}
+        checked={completed}
+        onChange={handleToggle}
+        ariaLabel={
+          completed
+            ? tmpl(t.markIncomplete, { title: task.title })
+            : tmpl(t.markComplete, { title: task.title })
+        }
+        className="-m-3.5 size-11 cursor-pointer self-start lg:self-center"
+      />
+
+      <div className="min-w-0 space-y-1.5">
         <p
           title={task.title}
-          className={
-            completed
-              ? "truncate text-ui text-muted line-through"
-              : "truncate text-ui font-medium text-content"
-          }
+          className={cn(
+            "line-clamp-2 text-ui leading-snug break-words",
+            completed ? "text-muted line-through" : "font-medium text-content",
+          )}
         >
           {task.title}
         </p>
-        <div className="flex flex-wrap items-center gap-1.5">
-          {showPriorityBadge ? (
-            <Badge tone="outline">
-              {tmpl(t.priorityBadge, { priority: m.enums.priority[task.priority] })}
-            </Badge>
-          ) : null}
-          {task.recurrenceRuleId ? <Badge tone="outline">{m.enums.repeat}</Badge> : null}
-          {task.dueDate ? (
-            <span className="text-micro text-muted tabular-nums">{task.dueDate}</span>
-          ) : null}
-          {overdue ? <Badge tone="danger">{m.enums.overdue}</Badge> : null}
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-micro text-muted">
           {task.goalId && goalTitle ? (
             <Link
               to={`/goals/${task.goalId}`}
-              className="text-micro font-medium break-words text-accent hover:underline"
+              className="break-words underline-offset-4 hover:text-content hover:underline"
             >
               {goalTitle}
             </Link>
           ) : null}
           {task.milestoneId && task.goalId && milestoneTitle ? (
-            <Link
-              to={`/goals/${task.goalId}`}
-              className="text-micro break-words text-muted hover:underline"
-            >
-              {milestoneTitle}
-            </Link>
+            <>
+              {goalTitle ? <span aria-hidden="true">·</span> : null}
+              <Link
+                to={`/goals/${task.goalId}`}
+                className="break-words underline-offset-4 hover:text-content hover:underline"
+              >
+                {milestoneTitle}
+              </Link>
+            </>
           ) : null}
+          {showPriorityBadge ? (
+            <span className="font-medium text-content">
+              {tmpl(t.priorityBadge, { priority: m.enums.priority[task.priority] })}
+            </span>
+          ) : null}
+          {task.recurrenceRuleId ? <Badge tone="outline">{m.enums.repeat}</Badge> : null}
+          {overdue ? <Badge tone="danger">{m.enums.overdue}</Badge> : null}
         </div>
         {setStatus.isError ? (
           <p role="alert" className="text-micro text-danger">
@@ -115,31 +122,51 @@ export function TaskRow({
           </p>
         ) : null}
       </div>
-      <div className="flex shrink-0 flex-wrap items-center gap-1">
+
+      {task.dueDate || scheduledTime ? (
+        <div className="col-start-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-micro text-muted tabular-nums lg:col-start-auto lg:min-w-24 lg:flex-col lg:items-end lg:gap-y-0.5">
+          {task.dueDate ? <time dateTime={task.dueDate}>{task.dueDate}</time> : null}
+          {task.dueDate && scheduledTime ? (
+            <span aria-hidden="true" className="lg:hidden">
+              ·
+            </span>
+          ) : null}
+          {scheduledTime && task.scheduledStart ? (
+            <time dateTime={task.scheduledStart}>{scheduledTime}</time>
+          ) : null}
+        </div>
+      ) : null}
+
+      <div className="col-start-2 flex items-center gap-0.5 lg:col-start-auto lg:justify-end">
         <Button
           variant="ghost"
           size="sm"
-          className="relative after:absolute after:-inset-1 after:content-['']"
+          className="relative size-11 shrink-0 p-0 after:absolute after:-inset-1 after:content-[''] lg:size-8"
+          aria-label={t.edit}
+          title={t.edit}
           onClick={() => onEdit(task)}
         >
-          {t.edit}
+          <Pencil className="size-4" aria-hidden="true" />
         </Button>
         <Button
           variant="ghost"
           size="sm"
-          className="relative after:absolute after:-inset-1 after:content-['']"
+          className="relative size-11 shrink-0 p-0 after:absolute after:-inset-1 after:content-[''] lg:size-8"
+          aria-label={t.reschedule}
+          title={t.reschedule}
           onClick={() => onReschedule(task)}
         >
-          {t.reschedule}
+          <CalendarClock className="size-4" aria-hidden="true" />
         </Button>
         <Button
           variant="ghost"
           size="sm"
-          className="relative after:absolute after:-inset-1 after:content-['']"
+          className="relative size-11 shrink-0 p-0 after:absolute after:-inset-1 after:content-[''] lg:size-8"
           onClick={() => onDelete(task)}
           aria-label={tmpl(t.deleteAria, { title: task.title })}
+          title={t.delete}
         >
-          {t.delete}
+          <Trash2 className="size-4" aria-hidden="true" />
         </Button>
       </div>
     </li>

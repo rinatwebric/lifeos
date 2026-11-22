@@ -6,13 +6,37 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { cn } from "@/lib/cn";
+import { toDateKey } from "@/lib/dates";
 import { pluralCategory, tmpl } from "@/lib/i18n/format";
 import { useLocale, useMessages } from "@/lib/i18n/I18nContext";
 import type { BlockType } from "@/types/domain";
 
 import { formatDurationMinutes, type PlannerDay, type PlannerDayBlock } from "./usePlannerDay";
 
-function blockCountLabel(count: number, t: { blocksOne: string; blocksMany: string }, locale: "en" | "ru"): string {
+function minutesFromLabel(label: string): number {
+  const [hours, minutes] = label.split(":").map(Number);
+  return (hours || 0) * 60 + (minutes || 0);
+}
+
+function minutesToLabel(minutes: number): string {
+  const normalized = ((Math.round(minutes) % 1440) + 1440) % 1440;
+  return `${String(Math.floor(normalized / 60)).padStart(2, "0")}:${String(normalized % 60).padStart(2, "0")}`;
+}
+
+function formatTime(now: Date, timeZone: string): string {
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone,
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).format(now);
+}
+
+function blockCountLabel(
+  count: number,
+  t: { blocksOne: string; blocksMany: string },
+  locale: "en" | "ru",
+): string {
   if (count === 1) return t.blocksOne;
   const cat = pluralCategory(locale, count);
   void cat;
@@ -29,6 +53,79 @@ function describeConflicts(
   if (overlaps && sleep) return t.conflictBoth;
   if (overlaps) return t.conflictOverlap;
   return t.conflictSleep;
+}
+
+function DayTimeline({ day, now }: { day: PlannerDay; now: Date }) {
+  const m = useMessages();
+  const start = day.scale.startMinutes;
+  const span = Math.max(60, day.scale.endMinutes - start);
+  const ticks = Array.from({ length: 5 }, (_, index) => Math.round(start + (span * index) / 4));
+  const nowMs = now.getTime();
+  const nowLabel = formatTime(now, day.timeZone);
+  const nowMinutes = minutesFromLabel(nowLabel);
+  const showNow =
+    day.dateKey === toDateKey(now, day.timeZone) &&
+    nowMinutes >= start &&
+    nowMinutes <= start + span;
+  const nowPercent = ((nowMinutes - start) / span) * 100;
+
+  return (
+    <div aria-hidden="true">
+      <div className="relative h-12 border-y border-line">
+        {ticks.map((tick) => (
+          <span
+            key={tick}
+            className="absolute inset-y-2 w-px bg-line"
+            style={{ left: `${((tick - start) / span) * 100}%` }}
+          />
+        ))}
+        {day.blocks.map((block) => {
+          const blockStart = minutesFromLabel(block.startLabel);
+          const rawEnd = minutesFromLabel(block.endLabel);
+          const blockEnd = rawEnd <= blockStart ? rawEnd + 1440 : rawEnd;
+          const left = Math.min(100, Math.max(0, ((blockStart - start) / span) * 100));
+          const width = Math.min(
+            100 - left,
+            Math.max(
+              1.5,
+              ((Math.min(blockEnd, start + span) - Math.max(blockStart, start)) / span) * 100,
+            ),
+          );
+          const isCurrent = Date.parse(block.start) <= nowMs && nowMs < Date.parse(block.end);
+          const isPast = Date.parse(block.end) <= nowMs;
+
+          return (
+            <span
+              key={block.id}
+              title={`${block.startLabel}–${block.endLabel} ${block.title}`}
+              className={cn(
+                "absolute top-3 h-5 rounded-[4px] border",
+                isCurrent
+                  ? "border-accent bg-accent"
+                  : isPast
+                    ? "border-transparent bg-muted/25"
+                    : "border-control bg-surface",
+              )}
+              style={{ left: `${left}%`, width: `${Math.max(0, width)}%` }}
+            />
+          );
+        })}
+        {showNow ? (
+          <span className="absolute inset-y-0 w-px bg-accent" style={{ left: `${nowPercent}%` }} />
+        ) : null}
+      </div>
+      <div className="mt-2 flex justify-between gap-2 text-micro text-muted tabular-nums">
+        {ticks.map((tick) => (
+          <span key={tick}>{minutesToLabel(tick)}</span>
+        ))}
+      </div>
+      {showNow ? (
+        <p className="mt-1 text-micro font-medium text-accent tabular-nums">
+          {m.common.now} {nowLabel}
+        </p>
+      ) : null}
+    </div>
+  );
 }
 
 function DayStat({
@@ -56,23 +153,36 @@ function DayStat({
 function DayBlockRow({
   block,
   onEdit,
+  nowMs,
 }: {
   block: PlannerDayBlock;
   onEdit?: (block: PlannerDayBlock) => void;
+  nowMs: number;
 }) {
   const m = useMessages();
   const t = m.planner;
   const locale = useLocale();
+  const isCurrent = Date.parse(block.start) <= nowMs && nowMs < Date.parse(block.end);
+  const isPast = Date.parse(block.end) <= nowMs;
   const content = (
     <>
-      <p className="flex shrink-0 items-baseline gap-1 text-ui text-content tabular-nums sm:min-w-32">
+      <p
+        className={cn(
+          "flex shrink-0 items-baseline gap-1 text-ui tabular-nums sm:min-w-32",
+          isPast ? "text-muted" : "text-content",
+        )}
+      >
         <time dateTime={block.start}>{block.startLabel}</time>
         <span aria-hidden="true">–</span>
         <span className="sr-only">{m.common.to}</span>
         <time dateTime={block.end}>{block.endLabel}</time>
       </p>
       <div className="min-w-0 flex-1 space-y-1.5">
-        <p className="text-ui font-medium text-content text-pretty">{block.title}</p>
+        <p
+          className={cn("text-ui font-medium text-pretty", isPast ? "text-muted" : "text-content")}
+        >
+          {block.title}
+        </p>
         <div className="flex flex-wrap items-center gap-1.5">
           <Badge tone={block.blockType === "task" ? "neutral" : "outline"}>
             {m.enums.blockType[block.blockType]}
@@ -95,17 +205,27 @@ function DayBlockRow({
   return (
     <li
       className={cn(
-        "relative flex flex-col gap-2 rounded-control border border-line bg-surface-muted p-3 sm:flex-row sm:items-start sm:gap-4",
-        onEdit && "transition-[background-color] duration-fast ease-standard hover:bg-surface",
+        "relative flex flex-col gap-2 px-5 py-4 sm:flex-row sm:items-start sm:gap-4",
+        isPast && "bg-surface-muted/40",
+        isCurrent && "bg-accent-subtle/30",
+        onEdit &&
+          "transition-[background-color] duration-fast ease-standard hover:bg-surface-muted",
       )}
     >
+      {isCurrent ? (
+        <span className="absolute inset-y-4 left-0 w-0.5 bg-accent" aria-hidden="true" />
+      ) : null}
       {content}
       {onEdit ? (
         <button
           type="button"
           onClick={() => onEdit(block)}
-          aria-label={tmpl(t.editBlock, { title: block.title, start: block.startLabel, end: block.endLabel })}
-          className="absolute inset-0 cursor-pointer rounded-control"
+          aria-label={tmpl(t.editBlock, {
+            title: block.title,
+            start: block.startLabel,
+            end: block.endLabel,
+          })}
+          className="absolute inset-0 cursor-pointer"
         />
       ) : null}
     </li>
@@ -119,7 +239,7 @@ function DayViewSkeleton() {
     <Card>
       <div role="status" aria-label={m.planner.loadingDay}>
         <span className="sr-only">{m.planner.loadingDay}</span>
-        <div className="space-y-3 motion-safe:animate-pulse" aria-hidden="true">
+        <div className="space-y-3" aria-hidden="true">
           <div className="h-4 w-1/3 rounded-control bg-surface-muted" />
           <div className="h-14 w-full rounded-control bg-surface-muted" />
           <div className="h-14 w-full rounded-control bg-surface-muted" />
@@ -136,9 +256,7 @@ function DayViewError({ onRetry }: { onRetry: () => void }) {
     <Card>
       <div role="alert" className="space-y-3">
         <p className="text-ui font-medium text-content">{m.planner.loadDayError}</p>
-        <p className="text-ui text-muted text-pretty">
-          {m.planner.loadDayHintLong}
-        </p>
+        <p className="text-ui text-muted text-pretty">{m.planner.loadDayHintLong}</p>
         <Button variant="secondary" size="lg" onClick={onRetry}>
           {m.planner.tryAgain}
         </Button>
@@ -172,7 +290,8 @@ export function DayView({
   const m = useMessages();
   const t = m.planner;
   const locale = useLocale();
-  void locale;
+  const now = new Date();
+  const nowMs = now.getTime();
 
   if (isLoading) {
     return <DayViewSkeleton />;
@@ -184,14 +303,12 @@ export function DayView({
 
   if (day.isEmpty) {
     return (
-      <Card>
-        <EmptyState
-          icon={CalendarPlus}
-          title={t.nothingPlannedDay}
-          description={t.nothingPlannedDayHintLong}
-          action={emptyAction}
-        />
-      </Card>
+      <EmptyState
+        icon={CalendarPlus}
+        title={t.nothingPlannedDay}
+        description={t.nothingPlannedDayHintLong}
+        action={emptyAction}
+      />
     );
   }
 
@@ -199,6 +316,7 @@ export function DayView({
     <div className="space-y-6">
       <Card className="space-y-4">
         <h2 className="text-ui font-medium text-content">{t.daySummary}</h2>
+        <DayTimeline day={day} now={now} />
         <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
           <DayStat label={t.scheduled} minutes={day.totals.scheduled} />
           <DayStat label={t.task} minutes={day.totals.task} />
@@ -207,7 +325,8 @@ export function DayView({
           <DayStat label={t.free} minutes={day.totals.free} unavailable={!day.hasWakingHours} />
         </dl>
         <p className="text-micro text-muted tabular-nums">
-          {tmpl(t.timesIn, { timeZone: day.timeZone })} · {tmpl(t.dayRuns, { start: day.scale.startLabel, end: day.scale.endLabel })}
+          {tmpl(t.timesIn, { timeZone: day.timeZone })} ·{" "}
+          {tmpl(t.dayRuns, { start: day.scale.startLabel, end: day.scale.endLabel })}
         </p>
         {day.hasConflicts ? (
           <div className="flex items-start gap-2 rounded-control border border-danger-border bg-danger-subtle p-3">
@@ -229,7 +348,7 @@ export function DayView({
         </div>
         <ol className="space-y-3">
           {day.blocks.map((block) => (
-            <DayBlockRow key={block.id} block={block} onEdit={onEditBlock} />
+            <DayBlockRow key={block.id} block={block} onEdit={onEditBlock} nowMs={nowMs} />
           ))}
         </ol>
       </Card>
@@ -237,18 +356,12 @@ export function DayView({
       <Card className="space-y-3">
         <h2 className="text-ui font-medium text-content">{t.freeTime}</h2>
         {!day.hasWakingHours ? (
-          <p className="text-ui text-muted text-pretty">
-            {t.freeTimeNoWaking}
-          </p>
+          <p className="text-ui text-muted text-pretty">{t.freeTimeNoWaking}</p>
         ) : day.free.length === 0 ? (
-          <p className="text-ui text-muted text-pretty">
-            {t.freeTimeFull}
-          </p>
+          <p className="text-ui text-muted text-pretty">{t.freeTimeFull}</p>
         ) : (
           <>
-            <p className="text-micro text-muted text-pretty">
-              {t.freeTimeRemainsLong}
-            </p>
+            <p className="text-micro text-muted text-pretty">{t.freeTimeRemainsLong}</p>
             <ul className="space-y-2">
               {day.free.map((window) => (
                 <li

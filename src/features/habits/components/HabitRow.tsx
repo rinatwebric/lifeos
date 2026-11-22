@@ -30,10 +30,9 @@ export function HabitRow({ habit, stats, onLog, onEdit, onTogglePause, onDelete 
         ? t.frequencyWeekly
         : t.frequencyWeekdays;
 
-  const targetLabel = tmpl(
-    habit.frequency === "weekly" ? t.targetPerWeek : t.targetPerDay,
-    { count: habit.targetCount },
-  );
+  const targetLabel = tmpl(habit.frequency === "weekly" ? t.targetPerWeek : t.targetPerDay, {
+    count: habit.targetCount,
+  });
 
   const streakLabel = (() => {
     if (stats.currentStreak === 0 && stats.bestStreak === 0) {
@@ -56,47 +55,51 @@ export function HabitRow({ habit, stats, onLog, onEdit, onTogglePause, onDelete 
   })();
 
   return (
-    <li className={cn("flex items-start gap-3 px-4 py-3", archived && "opacity-70")}>
+    <li
+      className={cn(
+        "flex flex-col gap-4 px-5 py-4 lg:grid lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)_auto] lg:items-center",
+        archived && "opacity-70",
+      )}
+    >
       <div className="min-w-0 flex-1 space-y-1.5">
         <p title={habit.title} className="truncate text-ui font-medium text-content">
           {habit.title}
         </p>
-        <div className="flex flex-wrap items-center gap-1.5">
-          <Badge tone="outline">{frequencyLabel}</Badge>
-          <span className="text-micro text-muted tabular-nums">{targetLabel}</span>
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-caption text-muted">
+          <span>{frequencyLabel}</span>
+          <span aria-hidden="true">·</span>
+          <span className="tabular-nums">{targetLabel}</span>
           {paused ? <Badge tone="outline">{m.enums.status.paused}</Badge> : null}
           {archived ? <Badge tone="outline">{m.enums.status.archived}</Badge> : null}
-          <Badge tone="accent">{streakLabel}</Badge>
-          {stats.completionRate === null ? (
-            <span className="text-micro text-muted">{t.noPlannedDays}</span>
-          ) : (
-            <span className="text-micro text-muted tabular-nums">
-              {tmpl(t.completion, { rate: stats.completionRate })}
-            </span>
-          )}
         </div>
       </div>
-      <div className="flex shrink-0 flex-wrap items-center gap-1">
-        <Button
-          variant="ghost"
-          size="sm"
-          className="relative after:absolute after:-inset-1 after:content-['']"
-          onClick={() => onLog(habit)}
+
+      <div className="flex flex-wrap gap-x-5 gap-y-1 text-caption lg:shrink-0">
+        <span
+          className={cn("tabular-nums", stats.currentStreak > 0 ? "text-accent" : "text-muted")}
         >
+          {streakLabel}
+        </span>
+        {stats.completionRate === null ? (
+          <span className="text-muted">{t.noPlannedDays}</span>
+        ) : (
+          <span className="text-muted tabular-nums">
+            {tmpl(t.completion, { rate: stats.completionRate })}
+          </span>
+        )}
+      </div>
+
+      <div className="flex shrink-0 flex-wrap items-center gap-1 lg:justify-end">
+        <Button variant="ghost" size="sm" className="min-h-11" onClick={() => onLog(habit)}>
           {t.log}
         </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="relative after:absolute after:-inset-1 after:content-['']"
-          onClick={() => onEdit(habit)}
-        >
+        <Button variant="ghost" size="sm" className="min-h-11" onClick={() => onEdit(habit)}>
           {t.edit}
         </Button>
         <Button
           variant="ghost"
           size="sm"
-          className="relative after:absolute after:-inset-1 after:content-['']"
+          className="min-h-11"
           onClick={() => onTogglePause(habit)}
           aria-label={tmpl(paused || archived ? t.resumeAria : t.pauseAria, { title: habit.title })}
         >
@@ -105,7 +108,7 @@ export function HabitRow({ habit, stats, onLog, onEdit, onTogglePause, onDelete 
         <Button
           variant="ghost"
           size="sm"
-          className="relative after:absolute after:-inset-1 after:content-['']"
+          className="min-h-11"
           onClick={() => onDelete(habit)}
           aria-label={tmpl(t.deleteAria, { title: habit.title })}
         >

@@ -4,7 +4,14 @@ import { goals } from "@/features/goals/queryKeys";
 import { planner } from "@/features/planner/queryKeys";
 import { tasks } from "@/features/tasks/queryKeys";
 
-import { approveProposal, listConversations, listMessages, rejectProposal, sendMessage } from "./api";
+import {
+  approveProposal,
+  deleteConversation,
+  listConversations,
+  listMessages,
+  rejectProposal,
+  sendMessage,
+} from "./api";
 import { assistant } from "./queryKeys";
 import type { SendMessageInput } from "./schemas";
 
@@ -31,13 +38,28 @@ export function useMessages(conversationId: string | undefined) {
   });
 }
 
+/** Delete one dialog and drop its cached messages. */
+export function useDeleteConversation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (conversationId: string) => deleteConversation(conversationId),
+    onSuccess: (_result, conversationId) => {
+      queryClient.removeQueries({ queryKey: assistant.messages(conversationId) });
+      void queryClient.invalidateQueries({ queryKey: assistant.conversations });
+    },
+  });
+}
+
 /**
  * One assistant turn. On success only the assistant prefix is invalidated
  * (the list — a new dialog may have been created — plus the answered
  * dialog). `["goals", "list"]` and `["tasks", ...]` are never touched here:
  * a proposal changes nothing until step 7 applies it after human approval.
  */
-export function useSendMessage() {
+export function useSendMessage({
+  invalidateMessages = true,
+}: { invalidateMessages?: boolean } = {}) {
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -45,7 +67,9 @@ export function useSendMessage() {
     onSuccess: (result, variables) => {
       void queryClient.invalidateQueries({ queryKey: assistant.conversations });
       const conversationId = result.conversationId ?? variables.conversationId;
-      if (conversationId) {
+      // ChatPanel keeps the message cache stable while it types the summary,
+      // then invalidates once. Other callers keep the eager refresh.
+      if (invalidateMessages && conversationId) {
         void queryClient.invalidateQueries({
           queryKey: assistant.messages(conversationId),
         });

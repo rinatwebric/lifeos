@@ -105,9 +105,7 @@ describe("theme sync", () => {
 
     expect(await screen.findByTestId("theme")).toHaveTextContent("dark");
     expect(document.documentElement.classList.contains("dark")).toBe(true);
-    await waitFor(() =>
-      expect(mocks.updateCalls.some((c) => c.theme === "dark")).toBe(true),
-    );
+    await waitFor(() => expect(mocks.updateCalls.some((c) => c.theme === "dark")).toBe(true));
   });
 
   it("sends a choice that arrives while the previous PATCH is in flight", async () => {
@@ -152,7 +150,8 @@ describe("theme sync", () => {
 
     renderStatus();
 
-    expect(await screen.findByTestId("theme")).toHaveTextContent("light");
+    await screen.findByTestId("theme");
+    await waitFor(() => expect(screen.getByTestId("theme")).toHaveTextContent("light"));
     await new Promise((r) => setTimeout(r, 50));
     expect(mocks.updateCalls.length).toBe(callsBefore);
   });

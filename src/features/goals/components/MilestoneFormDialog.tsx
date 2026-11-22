@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useForm, type Resolver } from "react-hook-form";
 
 import { Button } from "@/components/ui/Button";
+import { DateTimePicker } from "@/components/ui/DateTimePicker";
 import { Dialog } from "@/components/ui/Dialog";
 import { Field } from "@/components/ui/Field";
 import { Input } from "@/components/ui/Input";
@@ -22,10 +23,14 @@ interface MilestoneFormDialogProps {
   milestone: Milestone | null;
 }
 
-const nullIfEmpty = (value: unknown): string | null | unknown =>
-  value === "" ? null : value;
+const nullIfEmpty = (value: unknown): string | null | unknown => (value === "" ? null : value);
 
-export function MilestoneFormDialog({ open, onClose, goalId, milestone }: MilestoneFormDialogProps) {
+export function MilestoneFormDialog({
+  open,
+  onClose,
+  goalId,
+  milestone,
+}: MilestoneFormDialogProps) {
   const m = useMessages();
   const t = m.goals;
   const createMilestone = useCreateMilestone();
@@ -43,18 +48,28 @@ export function MilestoneFormDialog({ open, onClose, goalId, milestone }: Milest
     [m.validation],
   );
 
-  type Values = { title: string; description: string | null | undefined; targetDate: string | null | undefined };
+  type Values = {
+    title: string;
+    description: string | null | undefined;
+    targetDate: string | null | undefined;
+  };
 
   const {
     register,
     handleSubmit,
+    watch,
+    setValue,
     reset,
     trigger,
     formState: { errors },
   } = useForm<Values>({
     resolver: zodResolver(schema) as Resolver<Values>,
     defaultValues: milestone
-      ? { title: milestone.title, description: milestone.description, targetDate: milestone.targetDate }
+      ? {
+          title: milestone.title,
+          description: milestone.description,
+          targetDate: milestone.targetDate,
+        }
       : { title: "", description: null, targetDate: null },
   });
 
@@ -69,12 +84,17 @@ export function MilestoneFormDialog({ open, onClose, goalId, milestone }: Milest
     if (open) {
       reset(
         milestone
-          ? { title: milestone.title, description: milestone.description, targetDate: milestone.targetDate }
+          ? {
+              title: milestone.title,
+              description: milestone.description,
+              targetDate: milestone.targetDate,
+            }
           : { title: "", description: null, targetDate: null },
       );
     }
   }, [open, milestone, reset]);
 
+  const targetDate = watch("targetDate") ?? "";
   const saving = createMilestone.isPending || updateMilestone.isPending;
 
   const handleClose = (): void => {
@@ -100,15 +120,25 @@ export function MilestoneFormDialog({ open, onClose, goalId, milestone }: Milest
     <Dialog
       open={open}
       onClose={handleClose}
-      title={milestone ? tmpl(t.milestoneEditTitle, { title: milestone.title }) : t.milestoneNewTitle}
+      title={
+        milestone ? tmpl(t.milestoneEditTitle, { title: milestone.title }) : t.milestoneNewTitle
+      }
       description={milestone ? t.milestoneEditDescription : t.milestoneNewDescription}
     >
-      <form onSubmit={(event) => void handleSubmit(onSubmit)(event)} noValidate className="space-y-4">
+      <form
+        onSubmit={(event) => void handleSubmit(onSubmit)(event)}
+        noValidate
+        className="space-y-4"
+      >
         <Field id="milestone-title" label={t.milestoneTitle} required error={errors.title?.message}>
           <Input data-autofocus placeholder={t.milestoneTitlePlaceholder} {...register("title")} />
         </Field>
 
-        <Field id="milestone-description" label={t.milestoneDescription} error={errors.description?.message}>
+        <Field
+          id="milestone-description"
+          label={t.milestoneDescription}
+          error={errors.description?.message}
+        >
           <Textarea
             placeholder={t.milestoneDescriptionPlaceholder}
             {...register("description", { setValueAs: nullIfEmpty })}
@@ -121,7 +151,17 @@ export function MilestoneFormDialog({ open, onClose, goalId, milestone }: Milest
           hint={t.milestoneTargetHint}
           error={errors.targetDate?.message}
         >
-          <Input type="date" {...register("targetDate", { setValueAs: nullIfEmpty })} />
+          <DateTimePicker
+            mode="date"
+            clearable
+            value={targetDate}
+            onChange={(next) =>
+              setValue("targetDate", next === "" ? null : next, {
+                shouldValidate: true,
+                shouldDirty: true,
+              })
+            }
+          />
         </Field>
 
         {serverError ? (

@@ -187,9 +187,10 @@ describe("GoalDetailPage", () => {
     stubAll(GOAL, [M1, M2, M3]);
     renderDetail();
 
-    expect(
-      screen.getByRole("progressbar", { name: "Progress for Learn piano" }),
-    ).toHaveAttribute("aria-valuenow", "67");
+    expect(screen.getByRole("progressbar", { name: "Progress for Learn piano" })).toHaveAttribute(
+      "aria-valuenow",
+      "67",
+    );
     expect(screen.getByText("67% complete", { exact: false })).toBeInTheDocument();
     expect(screen.getByText("from milestones", { exact: false })).toBeInTheDocument();
   });

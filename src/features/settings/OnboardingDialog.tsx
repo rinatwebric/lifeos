@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { PreferencesForm } from "./PreferencesForm";
@@ -14,6 +14,7 @@ import { isSupabaseConfigured } from "@/lib/env";
 import { useMessages } from "@/lib/i18n/I18nContext";
 import { toWallTime } from "@/lib/dates";
 import { Button } from "@/components/ui/Button";
+import { Dialog } from "@/components/ui/Dialog";
 
 export const ONBOARDING_COPY = {
   title: "Set up your day",
@@ -30,7 +31,8 @@ export const ONBOARDING_COPY = {
  * One-step onboarding hint, not a route gate. Mounted by `AppLayout` only
  * when `profiles.onboarded_at IS NULL`. Both Save (after the day setup
  * lands) and Skip write `onboarded_at` so the dialog never returns.
- * Escape acts as Skip. No focus trap: tab navigation keeps working.
+ * The shared Dialog supplies modal focus and backdrop close; Escape and
+ * backdrop close both run Skip.
  */
 export function OnboardingDialog() {
   const m = useMessages();
@@ -40,6 +42,7 @@ export function OnboardingDialog() {
   const [dismissed, setDismissed] = useState(false);
   const [skipping, setSkipping] = useState(false);
   const [skipError, setSkipError] = useState<string | null>(null);
+  const skipInFlight = useRef(false);
 
   const enabled = status === "authenticated" && isSupabaseConfigured;
 
@@ -57,10 +60,11 @@ export function OnboardingDialog() {
   });
 
   const handleSkip = async (): Promise<void> => {
-    if (skipping || dismissed) {
+    if (skipInFlight.current || dismissed) {
       return;
     }
 
+    skipInFlight.current = true;
     setSkipping(true);
     setSkipError(null);
 
@@ -71,23 +75,29 @@ export function OnboardingDialog() {
     } catch (error) {
       setSkipError(error instanceof Error ? error.message : t.fallbackError);
     } finally {
+      skipInFlight.current = false;
       setSkipping(false);
     }
   };
 
+  // Dialog owns native Escape in a browser; this listener also covers jsdom
+  // and older engines where native close events are unavailable. Preventing
+  // the default keeps the dialog mounted when Skip itself fails.
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.key === "Escape") {
-        void handleSkip();
+      if (event.key !== "Escape") {
+        return;
       }
+
+      event.preventDefault();
+      void handleSkip();
     };
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-    // `handleSkip` is stable enough via refs; re-subscribing on every render
-    // would churn listeners. Skipping state is read inside the handler.
+    // The ref makes `handleSkip` safe to capture once per dismissal state.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [skipping, dismissed]);
+  }, [dismissed]);
 
   if (dismissed) {
     return null;
@@ -104,56 +114,51 @@ export function OnboardingDialog() {
   const sleepTime = toWallTime(preferencesQuery.data?.sleepTime) ?? "23:00";
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="onboarding-title"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-scrim/80 px-4"
-    >
-      <div className="w-full max-w-md rounded-card border border-line bg-surface p-6 shadow-overlay">
-        <h2 id="onboarding-title" className="text-heading font-semibold tracking-tight text-content">
-          {t.title}
-        </h2>
-        <p className="mt-1 text-ui text-muted">{t.description}</p>
-
-        <div className="mt-4">
-          {loading ? (
-            <p role="status" className="text-ui text-muted">
+    <Dialog open onClose={() => void handleSkip()} title={t.title} description={t.description}>
+      <div className="space-y-5">
+        {loading ? (
+          <div aria-busy="true" className="space-y-3">
+            <p role="status" className="text-caption text-muted">
               {t.loading}
             </p>
-          ) : loadFailed ? (
-            <p role="alert" className="text-ui text-danger">
-              {t.loadError}
-            </p>
-          ) : (
-            <PreferencesForm
-              key={`${profileQuery.data?.timezone ?? browserZone}-${wakeUpTime}-${sleepTime}`}
-              defaultValues={{
-                timezone: profileQuery.data?.timezone ?? browserZone,
-                wakeUpTime,
-                sleepTime,
-              }}
-              submitLabel={t.save}
-              idPrefix="onboarding"
-              onSaved={async () => {
-                await markOnboarded();
-                await queryClient.invalidateQueries({ queryKey: profileQueryKey });
-                setDismissed(true);
-              }}
-            />
-          )}
-        </div>
+            <div aria-hidden="true" className="space-y-3">
+              <div className="h-11 w-full rounded-control bg-surface-muted" />
+              <div className="h-11 w-4/5 rounded-control bg-surface-muted" />
+              <div className="h-3 w-1/2 rounded-full bg-surface-muted" />
+            </div>
+          </div>
+        ) : loadFailed ? (
+          <p role="alert" className="text-caption text-danger">
+            {t.loadError}
+          </p>
+        ) : (
+          <PreferencesForm
+            key={`${profileQuery.data?.timezone ?? browserZone}-${wakeUpTime}-${sleepTime}`}
+            defaultValues={{
+              timezone: profileQuery.data?.timezone ?? browserZone,
+              wakeUpTime,
+              sleepTime,
+            }}
+            submitLabel={t.save}
+            idPrefix="onboarding"
+            onSaved={async () => {
+              await markOnboarded();
+              await queryClient.invalidateQueries({ queryKey: profileQueryKey });
+              setDismissed(true);
+            }}
+          />
+        )}
 
-        <div className="mt-3 flex flex-col gap-2">
+        <div className="space-y-3 border-t border-line pt-4">
           {skipError ? (
-            <p role="alert" className="text-micro text-danger">
+            <p role="alert" className="text-caption text-danger">
               {skipError}
             </p>
           ) : null}
           <Button
             type="button"
             variant="secondary"
-            className="w-full"
+            className="min-h-11 w-full"
             onClick={() => void handleSkip()}
             disabled={skipping}
             loading={skipping}
@@ -162,6 +167,6 @@ export function OnboardingDialog() {
           </Button>
         </div>
       </div>
-    </div>
+    </Dialog>
   );
 }

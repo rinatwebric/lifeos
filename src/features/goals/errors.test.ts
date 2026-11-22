@@ -65,14 +65,14 @@ describe("toGoalError", () => {
     for (const raw of [
       { code: "22007", message: "invalid_datetime_format" },
       { code: "22008", message: "datetime_field_overflow" },
-      { message: "invalid input syntax for type date: \"2026-02-30\"" },
+      { message: 'invalid input syntax for type date: "2026-02-30"' },
     ]) {
       const error = toGoalError(raw);
       expect(error.code).toBe("validation");
       expect(error.message).toBe(GOAL_ERROR_MESSAGES.validation);
       expect(error.details).toBe(
         typeof (raw as { message?: unknown }).message === "string"
-          ? ((raw as { message: string }).message)
+          ? (raw as { message: string }).message
           : undefined,
       );
     }

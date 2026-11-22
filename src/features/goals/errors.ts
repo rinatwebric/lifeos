@@ -4,12 +4,7 @@
  * imports (`GoalServiceError`, `GOAL_ERROR_MESSAGES`, `toGoalError`) and the
  * 46 goals tests keep working untouched.
  */
-import {
-  DbServiceError,
-  DB_ERROR_MESSAGES,
-  toDbError,
-  type DbErrorCode,
-} from "@/lib/dbErrors";
+import { DbServiceError, DB_ERROR_MESSAGES, toDbError, type DbErrorCode } from "@/lib/dbErrors";
 
 export type GoalErrorCode = DbErrorCode;
 

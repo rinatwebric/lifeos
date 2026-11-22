@@ -11,11 +11,7 @@ import { useLocale, useMessages } from "@/lib/i18n/I18nContext";
 import type { BlockType } from "@/types/domain";
 
 import { formatDurationMinutes } from "./usePlannerDay";
-import {
-  formatBlockCount,
-  type PlannerWeek,
-  type PlannerWeekDay,
-} from "./usePlannerWeek";
+import { formatBlockCount, type PlannerWeek, type PlannerWeekDay } from "./usePlannerWeek";
 
 /**
  * Week view (iteration 4, unit 6). A read-only grid of the seven days of the
@@ -48,7 +44,7 @@ function WeekViewSkeleton() {
     <Card>
       <div role="status" aria-label={m.planner.loadingWeek}>
         <span className="sr-only">{m.planner.loadingWeek}</span>
-        <div className="space-y-3 motion-safe:animate-pulse" aria-hidden="true">
+        <div className="space-y-3" aria-hidden="true">
           <div className="h-4 w-1/3 rounded-control bg-surface-muted" />
           <div className="h-14 w-full rounded-control bg-surface-muted" />
           <div className="h-24 w-full rounded-control bg-surface-muted" />
@@ -65,9 +61,7 @@ function WeekViewError({ onRetry }: { onRetry: () => void }) {
     <Card>
       <div role="alert" className="space-y-3">
         <p className="text-ui font-medium text-content">{m.planner.loadWeekError}</p>
-        <p className="text-ui text-muted text-pretty">
-          {m.planner.loadWeekHint}
-        </p>
+        <p className="text-ui text-muted text-pretty">{m.planner.loadWeekHint}</p>
         <Button variant="secondary" size="lg" onClick={onRetry}>
           {m.planner.tryAgain}
         </Button>
@@ -112,7 +106,7 @@ function WeekDayCard({ day, href }: { day: PlannerWeekDay; href: string }) {
           <span className="text-micro text-muted tabular-nums">{day.dateLabel}</span>
         </div>
 
-        {day.isToday ? <Badge tone="accent">{t.today}</Badge> : null}
+        {day.isToday ? <Badge tone="outline">{t.today}</Badge> : null}
 
         {day.isEmpty ? (
           <p className="text-ui text-muted text-pretty">{t.nothingPlanned}</p>
@@ -122,7 +116,10 @@ function WeekDayCard({ day, href }: { day: PlannerWeekDay; href: string }) {
               {formatDurationMinutes(day.totals.scheduled, locale)}
             </p>
             <p className="text-micro text-muted tabular-nums">
-              {formatBlockCount(day.blockCount, { blocksOne: t.blocksOne, blocksMany: t.blocksMany })}
+              {formatBlockCount(day.blockCount, {
+                blocksOne: t.blocksOne,
+                blocksMany: t.blocksMany,
+              })}
             </p>
             <dl className="space-y-0.5">
               {plannedTypes.map((type) => (
@@ -195,14 +192,12 @@ export function WeekView({
 
   if (week.isEmpty) {
     return (
-      <Card>
-        <EmptyState
-          icon={CalendarPlus}
-          title={t.nothingPlannedWeek}
-          description={t.nothingPlannedWeekHint}
-          action={emptyAction}
-        />
-      </Card>
+      <EmptyState
+        icon={CalendarPlus}
+        title={t.nothingPlannedWeek}
+        description={t.nothingPlannedWeekHint}
+        action={emptyAction}
+      />
     );
   }
 
@@ -212,15 +207,27 @@ export function WeekView({
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h2 className="text-ui font-medium text-content">{t.weekSummary}</h2>
           <span className="text-micro text-muted tabular-nums">
-            {formatBlockCount(week.blockCount, { blocksOne: t.blocksOne, blocksMany: t.blocksMany })}
+            {formatBlockCount(week.blockCount, {
+              blocksOne: t.blocksOne,
+              blocksMany: t.blocksMany,
+            })}
           </span>
         </div>
         <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-          <WeekStat label={t.scheduled} value={formatDurationMinutes(week.totals.scheduled, locale)} />
+          <WeekStat
+            label={t.scheduled}
+            value={formatDurationMinutes(week.totals.scheduled, locale)}
+          />
           <WeekStat label={t.task} value={formatDurationMinutes(week.totals.task, locale)} />
           <WeekStat label={t.break} value={formatDurationMinutes(week.totals.break, locale)} />
-          <WeekStat label={t.personal} value={formatDurationMinutes(week.totals.personal, locale)} />
-          <WeekStat label={t.plannedDays} value={tmpl(t.daysOfSeven, { count: week.plannedDays })} />
+          <WeekStat
+            label={t.personal}
+            value={formatDurationMinutes(week.totals.personal, locale)}
+          />
+          <WeekStat
+            label={t.plannedDays}
+            value={tmpl(t.daysOfSeven, { count: week.plannedDays })}
+          />
         </dl>
         <p className="text-micro text-muted tabular-nums">
           {tmpl(t.timesIn, { timeZone: week.timeZone })} · {t.weekRuns}
@@ -243,9 +250,7 @@ export function WeekView({
             <WeekDayCard key={day.dateKey} day={day} href={dayHref(day.dateKey)} />
           ))}
         </ul>
-        <p className="text-micro text-muted text-pretty">
-          {t.openDayHint}
-        </p>
+        <p className="text-micro text-muted text-pretty">{t.openDayHint}</p>
       </Card>
     </div>
   );

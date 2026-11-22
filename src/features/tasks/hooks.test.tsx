@@ -6,13 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { goals } from "@/features/goals/queryKeys";
 import type { Task } from "@/types/domain";
 
-import {
-  createTask,
-  deleteTask,
-  rescheduleTask,
-  setTaskStatus,
-  updateTask,
-} from "./api";
+import { createTask, deleteTask, rescheduleTask, setTaskStatus, updateTask } from "./api";
 import {
   useCreateTask,
   useDeleteTask,
@@ -222,9 +216,9 @@ describe("tasks mutations", () => {
       wrapper: createWrapper(queryClient),
     });
 
-    await expect(
-      result.current.mutateAsync({ id: "t1", status: "completed" }),
-    ).rejects.toThrow("offline");
+    await expect(result.current.mutateAsync({ id: "t1", status: "completed" })).rejects.toThrow(
+      "offline",
+    );
 
     await waitFor(() => {
       expect(queryClient.getQueryData<Task[]>(tasks.list({}))?.[0]).toMatchObject({

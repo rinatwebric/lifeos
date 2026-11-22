@@ -14,7 +14,7 @@ export const SIGN_IN_COPY = {
   title: "Welcome back",
   subtitle: "Sign in to continue to LifeOS.",
   emailLabel: "Email",
-  emailPlaceholder: "you@example.com",
+  emailPlaceholder: "you@lifeos.app",
   passwordLabel: "Password",
   submit: "Sign in",
   submitting: "Signing in…",
@@ -60,7 +60,11 @@ export function SignInPage() {
     defaultValues: { email: state?.email ?? "", password: "" },
   });
 
-  const formError = formErrorCode ? translateAuthError(formErrorCode, m) : demoErrorCode ? translateAuthError(demoErrorCode, m) : null;
+  const formError = formErrorCode
+    ? translateAuthError(formErrorCode, m)
+    : demoErrorCode
+      ? translateAuthError(demoErrorCode, m)
+      : null;
 
   const onSubmit = async (values: SignInValues): Promise<void> => {
     setFormErrorCode(null);
@@ -103,10 +107,12 @@ export function SignInPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="space-y-1">
-        <h1 className="text-heading font-semibold tracking-tight text-content">{t.title}</h1>
-        <p className="text-ui text-muted">{t.subtitle}</p>
+    <div className="space-y-7">
+      <div className="space-y-1.5">
+        <h1 className="text-[30px] leading-tight font-semibold tracking-[-0.03em] text-content">
+          {t.title}
+        </h1>
+        <p className="text-ui text-muted text-pretty">{t.subtitle}</p>
       </div>
 
       {state?.passwordReset ? <AuthAlert tone="success">{t.passwordResetSuccess}</AuthAlert> : null}
@@ -122,7 +128,11 @@ export function SignInPage() {
             disabled={resendStatus !== "idle"}
             className="mt-2 inline-flex min-h-11 items-center font-medium text-content underline underline-offset-4 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {resendStatus === "sending" ? t.resending : resendStatus === "sent" ? t.resendSent : t.resend}
+            {resendStatus === "sending"
+              ? t.resending
+              : resendStatus === "sent"
+                ? t.resendSent
+                : t.resend}
           </button>
         </AuthAlert>
       ) : null}
@@ -130,7 +140,7 @@ export function SignInPage() {
       <form
         noValidate
         onSubmit={(event) => void handleSubmit(onSubmit)(event)}
-        className="space-y-4"
+        className="space-y-5"
       >
         <AuthField
           id="sign-in-email"

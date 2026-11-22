@@ -34,6 +34,7 @@ function makeBlock(overrides: Partial<DashboardScheduleBlock> = {}): DashboardSc
 function makeSchedule(overrides: Partial<DashboardSchedule> = {}): DashboardSchedule {
   return {
     blocks: [],
+    dayBlocks: [],
     totals: { task: 0, break: 0, personal: 0, scheduled: 0 },
     dayBlockCount: 0,
     isEmpty: true,

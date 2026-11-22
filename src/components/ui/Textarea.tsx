@@ -1,4 +1,4 @@
-import type { TextareaHTMLAttributes } from "react";
+import { forwardRef, type TextareaHTMLAttributes } from "react";
 
 import { cn } from "@/lib/cn";
 
@@ -6,15 +6,20 @@ export interface TextareaProps extends TextareaHTMLAttributes<HTMLTextAreaElemen
   invalid?: boolean;
 }
 
-export function Textarea({ invalid, className, rows = 3, ...rest }: TextareaProps) {
+export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(function Textarea(
+  { invalid, className, rows = 3, ...rest },
+  ref,
+) {
   return (
     <textarea
+      ref={ref}
       rows={rows}
       aria-invalid={invalid || undefined}
       className={cn(
-        "w-full rounded-control border bg-surface px-3 py-2 text-base text-content placeholder:text-muted transition-[border-color] duration-fast ease-standard",
+        "w-full rounded-control border bg-surface px-3 py-2 text-base text-content placeholder:text-muted transition-[border-color,background-color] duration-fast ease-standard",
         "sm:text-ui",
-        "focus:border-focus",
+        "hover:border-muted",
+        "focus:border-content",
         "disabled:cursor-not-allowed disabled:opacity-60",
         invalid ? "border-danger" : "border-control",
         className,
@@ -22,4 +27,4 @@ export function Textarea({ invalid, className, rows = 3, ...rest }: TextareaProp
       {...rest}
     />
   );
-}
+});

@@ -3,6 +3,7 @@ import { AlertTriangle, Trash2 } from "lucide-react";
 import { useState, type FormEvent } from "react";
 
 import { Button } from "@/components/ui/Button";
+import { DateTimePicker } from "@/components/ui/DateTimePicker";
 import { Dialog } from "@/components/ui/Dialog";
 import { Field } from "@/components/ui/Field";
 import { Input } from "@/components/ui/Input";
@@ -10,7 +11,7 @@ import { Select } from "@/components/ui/Select";
 import { getPreferences, preferencesQueryKey } from "@/features/settings/api";
 import { listTasks } from "@/features/tasks/api";
 import { tasks as taskKeys } from "@/features/tasks/queryKeys";
-import { isoToLocalDateTime } from "@/lib/dates";
+import { isoToLocalDateTime, toDateKey } from "@/lib/dates";
 import { tmpl } from "@/lib/i18n/format";
 import { useLocale, useMessages } from "@/lib/i18n/I18nContext";
 import { BLOCK_TYPES, type BlockType } from "@/types/domain";
@@ -112,6 +113,7 @@ export function TimeBlockDialog({
 }: TimeBlockDialogProps) {
   const m = useMessages();
   const t = m.planner;
+  const todayKey = toDateKey(now ?? new Date(), timeZone);
   const locale = useLocale();
   const createBlock = useCreateBlock();
   const updateBlock = useUpdateBlock();
@@ -170,7 +172,11 @@ export function TimeBlockDialog({
   }
 
   const blockTypeHint =
-    form.blockType === "task" ? t.taskBlockHint : form.blockType === "break" ? t.breakHint : t.personalHint;
+    form.blockType === "task"
+      ? t.taskBlockHint
+      : form.blockType === "break"
+        ? t.breakHint
+        : t.personalHint;
 
   const startIso = wallTimeToIso(form.startLocal, timeZone);
   const endIso = wallTimeToIso(form.endLocal, timeZone);
@@ -231,7 +237,11 @@ export function TimeBlockDialog({
       missingStart: t.chooseStart,
       missingEnd: t.chooseEnd,
       missingTask: t.chooseTask,
-      v: { ...m.validation, schemaEndAfterStart: t.schemaEndAfterStart, schemaTaskLink: t.schemaTaskLink },
+      v: {
+        ...m.validation,
+        schemaEndAfterStart: t.schemaEndAfterStart,
+        schemaTaskLink: t.schemaTaskLink,
+      },
     });
 
     if (!result.ok) {
@@ -271,12 +281,7 @@ export function TimeBlockDialog({
       description={tmpl(t.chooseTimeHint, { timeZone })}
     >
       <form className="space-y-4" noValidate onSubmit={(event) => void handleSubmit(event)}>
-        <Field
-          id="block-type"
-          label={t.blockType}
-          required
-          hint={blockTypeHint}
-        >
+        <Field id="block-type" label={t.blockType} required hint={blockTypeHint}>
           <Select
             data-autofocus
             className="min-h-11"
@@ -325,19 +330,21 @@ export function TimeBlockDialog({
 
         <div className="grid gap-4 sm:grid-cols-2">
           <Field id="block-start" label={t.starts} required error={fieldErrors.startTime}>
-            <Input
-              type="datetime-local"
-              className="min-h-11 tabular-nums"
+            <DateTimePicker
+              mode="datetime"
+              align="start"
+              todayKey={todayKey}
               value={form.startLocal}
-              onChange={(event) => updateField("startLocal", event.target.value)}
+              onChange={(value) => updateField("startLocal", value)}
             />
           </Field>
           <Field id="block-end" label={t.ends} required error={fieldErrors.endTime}>
-            <Input
-              type="datetime-local"
-              className="min-h-11 tabular-nums"
+            <DateTimePicker
+              mode="datetime"
+              align="end"
+              todayKey={todayKey}
               value={form.endLocal}
-              onChange={(event) => updateField("endLocal", event.target.value)}
+              onChange={(value) => updateField("endLocal", value)}
             />
           </Field>
         </div>

@@ -111,9 +111,7 @@ describe("PostgREST wall-time regression", () => {
 
   it("marks sleep conflicts in the week from PostgREST waking hours", () => {
     const week = buildPlannerWeek({
-      blocks: [
-        makeBlock({ id: "late", startTime: at("23:30"), endTime: at("23:45") }),
-      ],
+      blocks: [makeBlock({ id: "late", startTime: at("23:30"), endTime: at("23:45") })],
       dateKey: DATE_KEY,
       timeZone: TIME_ZONE,
       now: NOW,

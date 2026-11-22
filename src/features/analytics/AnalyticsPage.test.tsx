@@ -75,12 +75,17 @@ describe("AnalyticsPage", () => {
 
     render(<AnalyticsPage />, { wrapper });
 
-    expect(screen.getByText("No tasks yet — create one to see completion here.")).toBeInTheDocument();
+    expect(
+      screen.getByText("No tasks yet — create one to see completion here."),
+    ).toBeInTheDocument();
     expect(screen.getByText("No data to chart yet")).toBeInTheDocument();
     expect(screen.queryByText(/0% completion/)).not.toBeInTheDocument();
   });
 
   it("renders real aggregates, charts and a deterministic weekly review", () => {
+    // The page derives its period from the wall clock; anchor the fixture to
+    // today so the assertion does not expire with the calendar.
+    const todayKey = new Date().toISOString().slice(0, 10);
     mockedTasks.mockReturnValue(
       idle(
         [
@@ -93,11 +98,11 @@ describe("AnalyticsPage", () => {
             description: null,
             priority: "high",
             status: "completed",
-            dueDate: "2026-11-03",
+            dueDate: todayKey,
             scheduledStart: null,
             scheduledEnd: null,
             estimatedDurationMinutes: null,
-            completedAt: "2026-11-03T10:00:00.000Z",
+            completedAt: `${todayKey}T10:00:00.000Z`,
             recurrenceRuleId: null,
             createdAt: "2026-11-01T00:00:00.000Z",
             updatedAt: "2026-11-03T10:00:00.000Z",

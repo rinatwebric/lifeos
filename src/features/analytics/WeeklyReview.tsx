@@ -1,5 +1,3 @@
-import { ListOrdered } from "lucide-react";
-
 import { Card } from "@/components/ui/Card";
 import { useMessages } from "@/lib/i18n/I18nContext";
 
@@ -12,18 +10,17 @@ export function WeeklyReview({ lines }: WeeklyReviewProps) {
 
   return (
     <Card>
-      <div className="space-y-1">
-        <h2 className="text-title font-semibold text-content">{t.title}</h2>
-        <p className="text-ui text-muted">{t.description}</p>
+      <div className="space-y-1.5">
+        <h2 className="text-[15px] font-medium text-content">{t.title}</h2>
+        <p className="text-caption leading-relaxed text-muted">{t.description}</p>
       </div>
       {lines.length === 0 ? (
-        <p className="text-ui text-muted mt-3">{t.empty}</p>
+        <p className="mt-4 text-ui text-muted">{t.empty}</p>
       ) : (
-        <ul className="mt-3 space-y-2">
+        <ul className="mt-4 divide-y divide-line border-t border-line">
           {lines.map((line) => (
-            <li key={line} className="flex items-start gap-2 text-ui text-content">
-              <ListOrdered className="mt-1 size-4 shrink-0 text-muted" aria-hidden="true" />
-              <span>{line}</span>
+            <li key={line} className="py-3 text-ui leading-relaxed text-content">
+              {line}
             </li>
           ))}
         </ul>

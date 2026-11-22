@@ -113,10 +113,14 @@ export function ProposalModal({
       title={t.reviewTitle}
       description={t.reviewHint}
     >
-      <div className="space-y-4">
-        <div className="space-y-1">
-          <p className="text-ui font-medium text-content text-pretty">{proposal.summary}</p>
-          <p className="text-ui text-muted text-pretty">{proposal.reasoning}</p>
+      <div className="space-y-5">
+        <div className="space-y-2 rounded-control bg-surface-muted p-4">
+          <p className="text-body font-medium break-words text-content text-pretty">
+            {proposal.summary}
+          </p>
+          <p className="max-w-prose text-ui break-words text-muted text-pretty">
+            {proposal.reasoning}
+          </p>
         </div>
 
         <ul className="space-y-2">
@@ -148,6 +152,7 @@ export function ProposalModal({
               <Button
                 variant="secondary"
                 size="lg"
+                className="min-h-11"
                 disabled={busy}
                 onClick={() => {
                   approveMutation.reset();
@@ -160,21 +165,28 @@ export function ProposalModal({
           </div>
         ) : null}
 
-        <div className="flex flex-wrap items-center gap-2">
-          <Button size="lg" disabled={busy} onClick={() => void handleAcceptAll()}>
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+          <Button
+            size="lg"
+            className="min-h-11 w-full sm:w-auto"
+            disabled={busy}
+            onClick={() => void handleAcceptAll()}
+          >
             {t.acceptAll}
           </Button>
           <Button
             variant="secondary"
             size="lg"
+            className="min-h-11 w-full sm:w-auto"
             disabled={busy || selected.size === 0}
             onClick={() => void handleAcceptSelected()}
           >
             {tmpl(t.acceptSelected, { count: selected.size })}
           </Button>
           <Button
-            variant="ghost"
+            variant="secondary"
             size="lg"
+            className="min-h-11 w-full sm:w-auto"
             disabled={busy}
             data-autofocus
             onClick={() => void handleReject()}

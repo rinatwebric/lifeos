@@ -42,8 +42,7 @@ export interface BlockTaskOption {
 }
 
 export type BuildBlockInputResult =
-  | { ok: true; input: CreateBlockInput }
-  | { ok: false; errors: BlockFormErrors };
+  { ok: true; input: CreateBlockInput } | { ok: false; errors: BlockFormErrors };
 
 /**
  * Reads a `<input type="datetime-local">` value as wall time in `timeZone` and
@@ -105,7 +104,8 @@ export function buildBlockInput(
     missingStart?: string;
     missingEnd?: string;
     missingTask?: string;
-    v?: Messages["validation"] & Pick<Messages["planner"], "schemaEndAfterStart" | "schemaTaskLink">;
+    v?: Messages["validation"] &
+      Pick<Messages["planner"], "schemaEndAfterStart" | "schemaTaskLink">;
   },
 ): BuildBlockInputResult {
   const MISSING_START = options.missingStart ?? "Choose a start date and time.";

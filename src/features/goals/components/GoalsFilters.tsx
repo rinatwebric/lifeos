@@ -20,6 +20,8 @@ interface GoalsFiltersProps {
 }
 
 const SEARCH_INPUT_ID = "goals-filter-search";
+const FILTER_LABEL_CLASS = "block text-caption font-medium text-content";
+const FILTER_CONTROL_CLASS = "min-h-11 sm:min-h-10";
 
 function toOptional(value: string): string | undefined {
   return value === "" ? undefined : value;
@@ -57,16 +59,20 @@ export function GoalsFilters({ filters, onChange }: GoalsFiltersProps) {
   }
 
   return (
-    <div className="grid gap-3 rounded-card border border-line bg-surface p-4 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="grid grid-cols-2 gap-3 rounded-card border border-line bg-surface p-3 sm:p-4 lg:grid-cols-4">
       <div className="space-y-1.5">
-        <label htmlFor="goals-filter-status" className="block text-ui font-medium text-content">
+        <label htmlFor="goals-filter-status" className={FILTER_LABEL_CLASS}>
           {t.filtersStatus}
         </label>
         <Select
           id="goals-filter-status"
+          className={FILTER_CONTROL_CLASS}
           value={filters.status ?? ""}
           onChange={(event) =>
-            onChange({ ...filters, status: toOptional(event.target.value) as GoalStatus | undefined })
+            onChange({
+              ...filters,
+              status: toOptional(event.target.value) as GoalStatus | undefined,
+            })
           }
         >
           <option value="">{t.allStatuses}</option>
@@ -79,11 +85,12 @@ export function GoalsFilters({ filters, onChange }: GoalsFiltersProps) {
       </div>
 
       <div className="space-y-1.5">
-        <label htmlFor="goals-filter-category" className="block text-ui font-medium text-content">
+        <label htmlFor="goals-filter-category" className={FILTER_LABEL_CLASS}>
           {t.filtersCategory}
         </label>
         <Select
           id="goals-filter-category"
+          className={FILTER_CONTROL_CLASS}
           value={filters.category ?? ""}
           onChange={(event) =>
             onChange({
@@ -102,14 +109,18 @@ export function GoalsFilters({ filters, onChange }: GoalsFiltersProps) {
       </div>
 
       <div className="space-y-1.5">
-        <label htmlFor="goals-filter-priority" className="block text-ui font-medium text-content">
+        <label htmlFor="goals-filter-priority" className={FILTER_LABEL_CLASS}>
           {t.filtersPriority}
         </label>
         <Select
           id="goals-filter-priority"
+          className={FILTER_CONTROL_CLASS}
           value={filters.priority ?? ""}
           onChange={(event) =>
-            onChange({ ...filters, priority: toOptional(event.target.value) as Priority | undefined })
+            onChange({
+              ...filters,
+              priority: toOptional(event.target.value) as Priority | undefined,
+            })
           }
         >
           <option value="">{t.allPriorities}</option>
@@ -122,12 +133,13 @@ export function GoalsFilters({ filters, onChange }: GoalsFiltersProps) {
       </div>
 
       <div className="space-y-1.5">
-        <label htmlFor={SEARCH_INPUT_ID} className="block text-ui font-medium text-content">
+        <label htmlFor={SEARCH_INPUT_ID} className={FILTER_LABEL_CLASS}>
           {t.filtersSearch}
         </label>
         <Input
           id={SEARCH_INPUT_ID}
           type="search"
+          className={FILTER_CONTROL_CLASS}
           placeholder={t.searchGoals}
           value={search}
           onChange={(event) => setSearch(event.target.value)}

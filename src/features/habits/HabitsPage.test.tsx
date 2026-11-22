@@ -1,9 +1,17 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useCreateHabit, useDeleteHabit, useHabitsWithStats, useLogHabit, useSetHabitStatus, useUpdateHabit } from "@/features/habits/hooks";
+import {
+  useCreateHabit,
+  useDeleteHabit,
+  useHabitsWithStats,
+  useLogHabit,
+  useSetHabitStatus,
+  useUpdateHabit,
+} from "@/features/habits/hooks";
 import { getProfile } from "@/features/settings/api";
 import type { Habit } from "@/types/domain";
 
@@ -48,7 +56,11 @@ const HABIT: Habit = {
 
 function wrapper({ children }: { children: ReactNode }) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+  return (
+    <QueryClientProvider client={client}>
+      <MemoryRouter>{children}</MemoryRouter>
+    </QueryClientProvider>
+  );
 }
 
 function statsQuery(data: unknown, flags: object = {}) {
@@ -102,7 +114,12 @@ describe("HabitsPage", () => {
     mockedStats.mockReturnValue({
       habitsQuery: { data: undefined, isLoading: false, isError: true, refetch: refetchHabits },
       logsQuery: { data: undefined, isLoading: false, isError: false, refetch: refetchLogs },
-      versionsQuery: { data: undefined, isLoading: false, isError: false, refetch: refetchVersions },
+      versionsQuery: {
+        data: undefined,
+        isLoading: false,
+        isError: false,
+        refetch: refetchVersions,
+      },
       rows: [],
       todayKey: "2026-11-05",
     } as never);
@@ -139,7 +156,14 @@ describe("HabitsPage", () => {
       rows: [
         {
           habit: HABIT,
-          stats: { planned: 4, completed: 3, missed: 1, completionRate: 75, currentStreak: 3, bestStreak: 3 },
+          stats: {
+            planned: 4,
+            completed: 3,
+            missed: 1,
+            completionRate: 75,
+            currentStreak: 3,
+            bestStreak: 3,
+          },
         },
       ],
       todayKey: "2026-11-05",
@@ -162,7 +186,14 @@ describe("HabitsPage", () => {
       rows: [
         {
           habit: HABIT,
-          stats: { planned: 0, completed: 0, missed: 0, completionRate: null, currentStreak: 0, bestStreak: 0 },
+          stats: {
+            planned: 0,
+            completed: 0,
+            missed: 0,
+            completionRate: null,
+            currentStreak: 0,
+            bestStreak: 0,
+          },
         },
       ],
       todayKey: "2026-11-05",

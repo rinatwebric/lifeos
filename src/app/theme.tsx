@@ -1,4 +1,12 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import type { ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -39,7 +47,7 @@ function readDeviceEntry(): { value: ProfileTheme; userId: string | null } | nul
 
 /**
  * Owns the UI theme. Priority: session override → device storage (same
- * user) → server profile → light. Explicit choices apply instantly (class +
+ * user) → server profile → dark. Explicit choices apply instantly (class +
  * storage) and sync with `PATCH profiles {theme}` — a single field.
  * Effect-driven queue: one request at a time, last choice wins.
  */
@@ -151,7 +159,9 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
         .catch((error: unknown) => {
           sendingRef.current = false;
           if (userIdRef.current !== sendUserId) return;
-          setSyncError(error instanceof Error && error.message ? error.message : "Please try again.");
+          setSyncError(
+            error instanceof Error && error.message ? error.message : "Please try again.",
+          );
         });
     };
 
@@ -188,11 +198,14 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     setRetryKey((k) => k + 1);
   }, []);
 
-  const theme: ProfileTheme = override ?? deviceTheme ?? serverTheme ?? "light";
+  const theme: ProfileTheme = override ?? deviceTheme ?? serverTheme ?? "dark";
 
   useEffect(() => {
     try {
       applyTheme(theme);
+      document
+        .querySelector('meta[name="theme-color"]')
+        ?.setAttribute("content", theme === "dark" ? "#0c0b0a" : "#f7f7f5");
     } catch {
       // Non-DOM test env: ignore.
     }
@@ -225,7 +238,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 export function useTheme(): ThemeContextValue {
   return (
     useContext(ThemeContext) ?? {
-      theme: "light",
+      theme: "dark",
       setTheme: () => {},
       syncStatus: "idle",
       syncError: null,

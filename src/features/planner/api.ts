@@ -5,7 +5,12 @@ import { mapTimeBlockRowToTimeBlock, type TimeBlocksRow } from "@/types/database
 import type { BlockType, TimeBlock } from "@/types/domain";
 
 import { BlockServiceError, BLOCK_ERROR_MESSAGES, toBlockError } from "./errors";
-import { applyPlanSchema, type ApplyPlanInput, type CreateBlockInput, type UpdateBlockInput } from "./schemas";
+import {
+  applyPlanSchema,
+  type ApplyPlanInput,
+  type CreateBlockInput,
+  type UpdateBlockInput,
+} from "./schemas";
 
 /**
  * Half-open overlap window for one fetch: `[from, to)` as ISO instants.
@@ -134,8 +139,7 @@ async function mirrorAfterBlockLeavesTask(
   }
 
   const survivor = (Array.isArray(data) ? data : [])[0] as
-    | Pick<TimeBlocksRow, "start_time" | "end_time">
-    | undefined;
+    Pick<TimeBlocksRow, "start_time" | "end_time"> | undefined;
 
   return survivor
     ? { taskId, scheduledStart: survivor.start_time, scheduledEnd: survivor.end_time }
@@ -290,8 +294,7 @@ export async function updateBlock(id: string, patch: UpdateBlockInput): Promise<
       assertValidBlockLink(effectiveBlockType, effectiveTaskId);
 
       if (effectiveTaskId !== null) {
-        const needsOwnershipCheck =
-          patch.taskId !== undefined || patch.blockType !== undefined;
+        const needsOwnershipCheck = patch.taskId !== undefined || patch.blockType !== undefined;
         if (needsOwnershipCheck) {
           await assertTaskOwnedByUser(effectiveTaskId, userId);
         }
@@ -359,9 +362,7 @@ export async function updateBlock(id: string, patch: UpdateBlockInput): Promise<
     if (relinked && previousTaskId !== null) {
       // The old task loses this block: repoint its mirror at whatever it still
       // has, or clear it. Without this the old task keeps a phantom schedule.
-      mirrorWrites.push(
-        await mirrorAfterBlockLeavesTask(client, userId, previousTaskId, id),
-      );
+      mirrorWrites.push(await mirrorAfterBlockLeavesTask(client, userId, previousTaskId, id));
     }
 
     if (nextTaskId !== null && (relinked || touchesTime)) {

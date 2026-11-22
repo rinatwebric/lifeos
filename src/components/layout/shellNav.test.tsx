@@ -14,28 +14,18 @@ describe("shell navigation", () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByRole("link", { name: "Goals" })).toHaveAttribute(
-      "aria-current",
-      "page",
-    );
-    expect(screen.getByRole("link", { name: "Dashboard" })).not.toHaveAttribute(
-      "aria-current",
-    );
+    expect(screen.getByRole("link", { name: "Goals" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: "Dashboard" })).not.toHaveAttribute("aria-current");
   });
 
   it("marks the active mobile entry with aria-current", () => {
     render(
-      <MemoryRouter initialEntries={["/settings"]}>
+      <MemoryRouter initialEntries={["/tasks"]}>
         <MobileNav />
       </MemoryRouter>,
     );
 
-    expect(screen.getByRole("link", { name: "Settings" })).toHaveAttribute(
-      "aria-current",
-      "page",
-    );
-    expect(screen.getByRole("link", { name: "Tasks" })).not.toHaveAttribute(
-      "aria-current",
-    );
+    expect(screen.getByRole("link", { name: "Tasks" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: "Goals" })).not.toHaveAttribute("aria-current");
   });
 });

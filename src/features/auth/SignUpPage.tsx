@@ -15,7 +15,7 @@ export const SIGN_UP_COPY = {
   nameLabel: "Full name (optional)",
   namePlaceholder: "Ada Lovelace",
   emailLabel: "Email",
-  emailPlaceholder: "you@example.com",
+  emailPlaceholder: "you@lifeos.app",
   passwordLabel: "Password",
   passwordHint: "At least 6 characters.",
   submit: "Create account",
@@ -68,12 +68,16 @@ export function SignUpPage() {
 
   return (
     <div className="space-y-6">
-      <div className="space-y-1">
-        <h1 className="text-heading font-semibold tracking-tight text-content">{t.title}</h1>
-        <p className="text-ui text-muted">{t.subtitle}</p>
+      <div className="space-y-1.5">
+        <h1 className="text-[24px] leading-tight font-semibold tracking-[-0.02em] text-content">
+          {t.title}
+        </h1>
+        <p className="text-caption text-muted text-pretty">{t.subtitle}</p>
       </div>
 
-      {formErrorCode ? <AuthAlert tone="error">{translateAuthError(formErrorCode, m)}</AuthAlert> : null}
+      {formErrorCode ? (
+        <AuthAlert tone="error">{translateAuthError(formErrorCode, m)}</AuthAlert>
+      ) : null}
 
       <form
         noValidate

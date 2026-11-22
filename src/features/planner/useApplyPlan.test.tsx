@@ -20,7 +20,9 @@ const DATE_KEY = "2026-11-04";
 const TIME_ZONE = "UTC";
 
 function createClient() {
-  return new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  return new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
 }
 
 function wrapper(client: QueryClient) {

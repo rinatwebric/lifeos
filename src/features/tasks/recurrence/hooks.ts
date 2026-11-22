@@ -1,9 +1,4 @@
-import {
-  useMutation,
-  useQuery,
-  useQueryClient,
-  type QueryClient,
-} from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 
 import { tasks } from "@/features/tasks/queryKeys";
 
@@ -48,7 +43,11 @@ export function useCreateRecurrenceRule() {
 export function useCreateRecurringTask() {
   const queryClient = useQueryClient();
 
-  return useMutation<CreateRecurringTaskResult, Error, CreateRecurringTaskInput & { timeZone?: string }>({
+  return useMutation<
+    CreateRecurringTaskResult,
+    Error,
+    CreateRecurringTaskInput & { timeZone?: string }
+  >({
     mutationFn: (variables) => {
       const { timeZone, ...input } = variables;
       return createRecurringTask(input, timeZone ? { timeZone } : undefined);

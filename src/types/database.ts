@@ -12,6 +12,7 @@ import type {
   Habit,
   HabitLog,
   HabitScheduleVersion,
+  FocusSession,
   HabitStatus,
   Milestone,
   MilestoneStatus,
@@ -73,9 +74,7 @@ export function mapProfileRowToProfile(row: ProfilesRow): Profile {
   };
 }
 
-export function mapUserPreferencesRowToUserPreferences(
-  row: UserPreferencesRow,
-): UserPreferences {
+export function mapUserPreferencesRowToUserPreferences(row: UserPreferencesRow): UserPreferences {
   return {
     id: row.id,
     userId: row.user_id,
@@ -423,6 +422,37 @@ export function mapHabitScheduleVersionRowToHabitScheduleVersion(
     targetCount: row.target_count,
     startDate: row.start_date,
     status: row.status,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+/** Mirrors migration 0009_focus_sessions; `task` is the embedded title relation. */
+export interface FocusSessionsRow {
+  id: string;
+  user_id: string;
+  task_id: string | null;
+  started_at: string;
+  ended_at: string | null;
+  planned_minutes: number;
+  paused_at: string | null;
+  paused_seconds: number;
+  created_at: string;
+  updated_at: string;
+  task?: { id: string; title: string } | null;
+}
+
+export function mapFocusSessionRowToFocusSession(row: FocusSessionsRow): FocusSession {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    taskId: row.task_id,
+    taskTitle: row.task?.title ?? null,
+    startedAt: row.started_at,
+    endedAt: row.ended_at,
+    plannedMinutes: row.planned_minutes,
+    pausedAt: row.paused_at,
+    pausedSeconds: row.paused_seconds,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

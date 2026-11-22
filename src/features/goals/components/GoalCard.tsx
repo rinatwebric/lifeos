@@ -8,7 +8,7 @@ import { ProgressBar } from "@/components/ui/ProgressBar";
 import { useUpdateGoal } from "@/features/goals/hooks";
 import { tmpl } from "@/lib/i18n/format";
 import { useMessages } from "@/lib/i18n/I18nContext";
-import type { Goal, GoalStatus } from "@/types/domain";
+import type { Goal } from "@/types/domain";
 
 interface GoalCardProps {
   goal: Goal;
@@ -17,18 +17,7 @@ interface GoalCardProps {
   onDelete: (goal: Goal) => void;
 }
 
-const STATUS_TONE: Record<GoalStatus, "accent" | "neutral" | "outline"> = {
-  active: "accent",
-  completed: "neutral",
-  not_started: "outline",
-  paused: "outline",
-  archived: "outline",
-};
-
-function formatDateRange(
-  goal: Goal,
-  started: (vars: Record<string, string>) => string,
-): string {
+function formatDateRange(goal: Goal, started: (vars: Record<string, string>) => string): string {
   if (goal.targetDate) {
     return `${goal.startDate} – ${goal.targetDate}`;
   }
@@ -48,61 +37,101 @@ export function GoalCard({ goal, progress, onEdit, onDelete }: GoalCardProps) {
   };
 
   return (
-    <Card className="flex flex-col gap-3">
-      <div className="flex items-start justify-between gap-2">
-        <h3 className="min-w-0 flex-1 truncate text-body font-semibold text-content">
-          <Link to={`/goals/${goal.id}`} className="hover:underline" title={goal.title}>
-            {goal.title}
-          </Link>
-        </h3>
-        <Badge tone={STATUS_TONE[goal.status]}>{m.enums.status[goal.status]}</Badge>
-      </div>
+    <Card className="flex h-full flex-col p-0">
+      <div className="flex flex-1 flex-col gap-4 p-5">
+        <div className="flex items-start justify-between gap-3">
+          <h3 className="min-w-0 text-body leading-snug font-semibold text-content">
+            <Link
+              to={`/goals/${goal.id}`}
+              className="line-clamp-2 underline-offset-4 hover:underline"
+              title={goal.title}
+            >
+              {goal.title}
+            </Link>
+          </h3>
+          <Badge tone="neutral" className="shrink-0">
+            {m.enums.status[goal.status]}
+          </Badge>
+        </div>
 
-      {goal.description ? (
-        <p className="text-ui text-muted break-words">{goal.description}</p>
-      ) : null}
+        {goal.description ? (
+          <p className="line-clamp-2 text-caption leading-relaxed text-muted break-words">
+            {goal.description}
+          </p>
+        ) : null}
 
-      <div className="flex flex-wrap gap-1.5">
-        <Badge>{m.enums.category[goal.category]}</Badge>
-        <Badge tone="outline">{m.enums.priority[goal.priority]}</Badge>
-      </div>
+        <div className="space-y-2">
+          <div className="flex items-baseline justify-between gap-3">
+            <span className="text-caption text-content tabular-nums">
+              {tmpl(t.percentComplete, { percent: progress })}
+            </span>
+            <span className="text-micro text-muted">
+              {goal.progressMode === "milestones" ? t.fromMilestones : t.manual}
+            </span>
+          </div>
+          <ProgressBar
+            value={progress}
+            tone="neutral"
+            label={tmpl(t.progressLabel, { title: goal.title })}
+          />
+        </div>
 
-      <div className="space-y-1">
-        <ProgressBar value={progress} label={tmpl(t.progressLabel, { title: goal.title })} />
-        <p className="text-micro text-muted tabular-nums">
-          {tmpl(t.percentComplete, { percent: progress })}
-          {goal.progressMode === "milestones" ? ` · ${t.fromMilestones}` : ` · ${t.manual}`}
+        <dl className="grid grid-cols-2 gap-3">
+          <div className="min-w-0">
+            <dt className="text-micro text-muted">{t.filtersCategory}</dt>
+            <dd
+              className="mt-0.5 truncate text-caption text-content"
+              title={m.enums.category[goal.category]}
+            >
+              {m.enums.category[goal.category]}
+            </dd>
+          </div>
+          <div className="min-w-0">
+            <dt className="text-micro text-muted">{t.filtersPriority}</dt>
+            <dd className="mt-0.5 truncate text-caption text-content">
+              {m.enums.priority[goal.priority]}
+            </dd>
+          </div>
+        </dl>
+
+        <p className="mt-auto text-micro text-muted tabular-nums">
+          {formatDateRange(goal, (vars) => tmpl(t.started, vars))}
         </p>
       </div>
 
-      <p className="text-micro text-muted tabular-nums">
-        {formatDateRange(goal, (vars) => tmpl(t.started, vars))}
-      </p>
-
-      <div className="mt-auto flex flex-wrap gap-2 pt-1">
-        <Button variant="secondary" size="sm" onClick={() => onEdit(goal)}>
+      <div className="flex flex-nowrap items-center gap-1.5 border-t border-line px-4 py-3">
+        <Button
+          variant="secondary"
+          size="sm"
+          className="relative min-h-9 shrink-0 px-2 text-[12px] after:absolute after:-inset-1 after:content-[''] sm:px-3"
+          onClick={() => onEdit(goal)}
+          aria-label={t.edit}
+        >
           <Pencil className="size-3.5" aria-hidden="true" />
-          {t.edit}
+          <span className="hidden sm:inline">{t.edit}</span>
         </Button>
         {goal.status === "archived" ? null : (
           <Button
             variant="ghost"
             size="sm"
+            className="relative min-h-9 shrink-0 px-2 text-[12px] after:absolute after:-inset-1 after:content-[''] sm:px-3"
             onClick={handleArchive}
             loading={updateGoal.isPending}
+            aria-label={t.archive}
           >
             <Archive className="size-3.5" aria-hidden="true" />
-            {t.archive}
+            <span className="hidden sm:inline">{t.archive}</span>
           </Button>
         )}
         <Button
           variant="ghost"
           size="sm"
+          className="relative min-h-9 shrink-0 px-2 text-[12px] after:absolute after:-inset-1 after:content-[''] sm:px-3"
           onClick={() => onDelete(goal)}
           aria-label={tmpl(t.deleteAria, { title: goal.title })}
         >
           <Trash2 className="size-3.5" aria-hidden="true" />
-          {t.delete}
+          <span className="hidden sm:inline">{t.delete}</span>
         </Button>
       </div>
     </Card>

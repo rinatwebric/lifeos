@@ -36,7 +36,11 @@ export function DeleteMilestoneDialog({ open, onClose, milestone }: DeleteMilest
     <Dialog
       open={open}
       onClose={onClose}
-      title={milestone ? tmpl(t.deleteMilestoneWithTitle, { title: milestone.title }) : t.deleteMilestoneTitle}
+      title={
+        milestone
+          ? tmpl(t.deleteMilestoneWithTitle, { title: milestone.title })
+          : t.deleteMilestoneTitle
+      }
       description={t.deleteMilestoneDescription}
     >
       {serverError ? (
@@ -46,7 +50,13 @@ export function DeleteMilestoneDialog({ open, onClose, milestone }: DeleteMilest
       ) : null}
 
       <div className="flex justify-end gap-2">
-        <Button variant="secondary" size="lg" data-autofocus onClick={onClose} disabled={deleteMilestone.isPending}>
+        <Button
+          variant="secondary"
+          size="lg"
+          data-autofocus
+          onClick={onClose}
+          disabled={deleteMilestone.isPending}
+        >
           {t.cancel}
         </Button>
         <Button

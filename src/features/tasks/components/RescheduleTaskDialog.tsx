@@ -1,9 +1,9 @@
 import { useState } from "react";
 
 import { Button } from "@/components/ui/Button";
+import { DateTimePicker } from "@/components/ui/DateTimePicker";
 import { Dialog } from "@/components/ui/Dialog";
 import { Field } from "@/components/ui/Field";
-import { Input } from "@/components/ui/Input";
 import { useRescheduleTask } from "@/features/tasks/hooks";
 import { tmpl } from "@/lib/i18n/format";
 import { useMessages } from "@/lib/i18n/I18nContext";
@@ -57,11 +57,13 @@ export function RescheduleTaskDialog({ open, onClose, task }: RescheduleTaskDial
     >
       <div className="space-y-4">
         <Field id="task-reschedule-date" label={t.rescheduleDueDate} error={undefined}>
-          <Input
+          <DateTimePicker
+            mode="date"
             data-autofocus
-            type="date"
+            clearable
+            className="[&>button]:min-h-11 sm:[&>button]:min-h-10"
             value={dueDate}
-            onChange={(event) => setDueDate(event.target.value)}
+            onChange={setDueDate}
           />
         </Field>
 
@@ -71,11 +73,22 @@ export function RescheduleTaskDialog({ open, onClose, task }: RescheduleTaskDial
           </p>
         ) : null}
 
-        <div className="flex justify-end gap-2">
-          <Button variant="secondary" size="lg" onClick={onClose} disabled={rescheduleTask.isPending}>
+        <div className="flex flex-col-reverse gap-2 border-t border-line pt-4 sm:flex-row sm:justify-end">
+          <Button
+            variant="secondary"
+            size="lg"
+            className="min-h-11 w-full sm:w-auto"
+            onClick={onClose}
+            disabled={rescheduleTask.isPending}
+          >
             {t.cancel}
           </Button>
-          <Button size="lg" onClick={() => void handleSave()} loading={rescheduleTask.isPending}>
+          <Button
+            size="lg"
+            className="min-h-11 w-full sm:w-auto"
+            onClick={() => void handleSave()}
+            loading={rescheduleTask.isPending}
+          >
             {t.rescheduleSave}
           </Button>
         </div>

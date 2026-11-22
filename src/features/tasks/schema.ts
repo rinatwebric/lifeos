@@ -103,12 +103,7 @@ export interface TaskValidationMessages {
 /** Localized factories for forms; static exports above stay English for tests. */
 export function createTaskFormSchemas(v: TaskValidationMessages) {
   const titleField = z.string().trim().min(1, v.titleRequired).max(200, v.titleTooLong);
-  const descriptionField = z
-    .string()
-    .trim()
-    .max(2000, v.descriptionTooLong)
-    .nullable()
-    .optional();
+  const descriptionField = z.string().trim().max(2000, v.descriptionTooLong).nullable().optional();
   const dateKeyField = z.iso.date({ error: v.dateFormat });
   const optionalDateKeyField = dateKeyField.nullable().optional();
   const datetimeField = z.iso.datetime({ error: v.isoDateTime });
@@ -121,12 +116,7 @@ export function createTaskFormSchemas(v: TaskValidationMessages) {
     dueDate: optionalDateKeyField,
     scheduledStart: optionalDatetimeField,
     scheduledEnd: optionalDatetimeField,
-    estimatedDurationMinutes: z
-      .number()
-      .int()
-      .positive(v.durationPositive)
-      .nullable()
-      .optional(),
+    estimatedDurationMinutes: z.number().int().positive(v.durationPositive).nullable().optional(),
     goalId: z.string().uuid(v.validGoal).nullable().optional(),
     milestoneId: z.string().uuid(v.validMilestone).nullable().optional(),
   });

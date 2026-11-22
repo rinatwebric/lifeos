@@ -1,7 +1,7 @@
 import { AlertTriangle } from "lucide-react";
 
 import { Field } from "@/components/ui/Field";
-import { Input } from "@/components/ui/Input";
+import { DateTimePicker } from "@/components/ui/DateTimePicker";
 import { isoToLocalDateTime, localDateTimeToIso } from "@/lib/dates";
 import { tmpl } from "@/lib/i18n/format";
 import { useLocale, useMessages } from "@/lib/i18n/I18nContext";
@@ -58,8 +58,7 @@ function draftId(taskId: string): string {
 const FALLBACK_WAKE_UP = "00:00";
 const FALLBACK_SLEEP = "23:59";
 
-const INVALID_MESSAGE =
-  "This planned time ends before it starts. Fix the times before accepting.";
+const INVALID_MESSAGE = "This planned time ends before it starts. Fix the times before accepting.";
 const OVERLAP_MESSAGE =
   "This planned time overlaps with another block. Both stay in your plan and are marked as overlapping.";
 const PAST_MESSAGE =
@@ -144,7 +143,11 @@ export function collectPlanSlotWarnings(
     const endMs = Date.parse(slot.end);
 
     if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) {
-      warnings.push({ taskId: slot.taskId, kind: "invalid", message: t?.plannedEndsBeforeStart ?? INVALID_MESSAGE });
+      warnings.push({
+        taskId: slot.taskId,
+        kind: "invalid",
+        message: t?.plannedEndsBeforeStart ?? INVALID_MESSAGE,
+      });
       continue;
     }
 
@@ -155,14 +158,14 @@ export function collectPlanSlotWarnings(
     }
 
     if (kinds.has("overlap")) {
-      warnings.push({ taskId: slot.taskId, kind: "overlap", message: t?.plannedOverlap ?? OVERLAP_MESSAGE });
+      warnings.push({
+        taskId: slot.taskId,
+        kind: "overlap",
+        message: t?.plannedOverlap ?? OVERLAP_MESSAGE,
+      });
     }
 
-    if (
-      kinds.has("sleep") &&
-      input.wakeUpTime !== null &&
-      input.sleepTime !== null
-    ) {
+    if (kinds.has("sleep") && input.wakeUpTime !== null && input.sleepTime !== null) {
       warnings.push({
         taskId: slot.taskId,
         kind: "sleep",
@@ -216,12 +219,11 @@ function SlotTimeField({
 }) {
   return (
     <Field id={id} label={label} required>
-      <Input
-        type="datetime-local"
-        className="min-h-11 tabular-nums"
+      <DateTimePicker
+        mode="datetime"
         value={isoToLocalDateTime(valueIso, timeZone)}
-        onChange={(event) => {
-          const iso = wallTimeToIso(event.target.value, timeZone);
+        onChange={(next) => {
+          const iso = wallTimeToIso(next, timeZone);
 
           if (iso !== null) {
             onCommit(iso);
@@ -265,9 +267,7 @@ export function PlanSlotEditor({
     <div className="space-y-4">
       <div className="space-y-1">
         <h3 className="text-ui font-medium text-content">{t.adjustTimes}</h3>
-        <p className="text-ui text-muted text-pretty">
-          {t.adjustHint}
-        </p>
+        <p className="text-ui text-muted text-pretty">{t.adjustHint}</p>
       </div>
 
       <ul className="space-y-3">
@@ -320,9 +320,7 @@ export function PlanSlotEditor({
         <div className="space-y-2 rounded-control border border-danger-border bg-danger-subtle p-3">
           <div className="flex items-start gap-2">
             <AlertTriangle className="mt-0.5 size-4 shrink-0 text-danger" aria-hidden="true" />
-            <p className="text-ui font-medium text-content">
-              {t.checkTimes}
-            </p>
+            <p className="text-ui font-medium text-content">{t.checkTimes}</p>
           </div>
           <label className="flex min-h-11 cursor-pointer items-center gap-2 text-ui font-medium text-content">
             <input

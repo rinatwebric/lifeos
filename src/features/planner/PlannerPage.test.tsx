@@ -235,7 +235,7 @@ describe("PlannerPage manual blocks", () => {
     await user.click(screen.getByRole("button", { name: "Edit Report block, 09:00 to 10:30" }));
 
     expect(screen.getByRole("dialog", { name: "Edit block" })).toBeInTheDocument();
-    expect(screen.getByLabelText(/^Task/)).toHaveValue(TASK_ID);
+    expect(screen.getByLabelText(/^Task/)).toHaveAttribute("data-value", TASK_ID);
   });
 
   it("offers Add block in the week view too", async () => {

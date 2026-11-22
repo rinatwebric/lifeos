@@ -17,6 +17,7 @@ import {
 } from "@/features/tasks/hooks";
 
 import { TasksPage } from "./TasksPage";
+import { chooseSelect } from "@/test/chooseSelect";
 
 vi.mock("@/features/tasks/hooks", () => ({
   useTasks: vi.fn(),
@@ -276,7 +277,7 @@ describe("TasksPage", () => {
     const user = userEvent.setup();
     renderTasksPage();
 
-    await user.selectOptions(screen.getByLabelText("Status"), "completed");
+    await chooseSelect(user, screen.getByLabelText("Status"), "completed");
 
     expect(vi.mocked(useTasks)).toHaveBeenCalledWith(
       expect.objectContaining({ status: "completed" }),
@@ -312,9 +313,8 @@ describe("TasksPage", () => {
     await user.click(screen.getByRole("button", { name: "New task" }));
     const dialog = await screen.findByRole("dialog");
     await user.type(within(dialog).getByLabelText("Title", { exact: false }), "Morning run");
-    await user.selectOptions(within(dialog).getByLabelText("Goal"), GOAL_1_ID);
-    await within(dialog).findByRole("option", { name: "Finish chapter 1" });
-    await user.selectOptions(within(dialog).getByLabelText("Milestone"), MILESTONE_1_ID);
+    await chooseSelect(user, within(dialog).getByLabelText("Goal"), GOAL_1_ID);
+    await chooseSelect(user, within(dialog).getByLabelText("Milestone"), MILESTONE_1_ID);
     await user.click(within(dialog).getByRole("button", { name: "Create task" }));
 
     expect(createMutateAsync).toHaveBeenCalledWith(
@@ -335,16 +335,15 @@ describe("TasksPage", () => {
     await user.click(screen.getByRole("button", { name: "New task" }));
     const dialog = await screen.findByRole("dialog");
     const goalSelect = within(dialog).getByLabelText("Goal");
-    const milestoneSelect = within(dialog).getByLabelText("Milestone") as HTMLSelectElement;
+    const milestoneSelect = within(dialog).getByLabelText("Milestone");
 
-    await user.selectOptions(goalSelect, GOAL_1_ID);
-    await within(dialog).findByRole("option", { name: "Finish chapter 1" });
-    await user.selectOptions(milestoneSelect, MILESTONE_1_ID);
-    expect(milestoneSelect.value).toBe(MILESTONE_1_ID);
+    await chooseSelect(user, goalSelect, GOAL_1_ID);
+    await chooseSelect(user, milestoneSelect, MILESTONE_1_ID);
+    expect(milestoneSelect).toHaveAttribute("data-value", MILESTONE_1_ID);
 
-    await user.selectOptions(goalSelect, GOAL_2_ID);
+    await chooseSelect(user, goalSelect, GOAL_2_ID);
 
-    expect(milestoneSelect.value).toBe("");
+    expect(milestoneSelect).toHaveAttribute("data-value", "");
     expect(vi.mocked(useMilestones)).toHaveBeenCalledWith(GOAL_2_ID);
   });
 
@@ -357,12 +356,15 @@ describe("TasksPage", () => {
     await user.click(within(row).getByRole("button", { name: "Reschedule" }));
 
     const dialog = await screen.findByRole("dialog");
-    const dateInput = within(dialog).getByLabelText("Due date");
-    await user.clear(dateInput);
-    await user.type(dateInput, "2026-12-01");
+    const now = new Date();
+    const todayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(
+      now.getDate(),
+    ).padStart(2, "0")}`;
+    await user.click(within(dialog).getByLabelText("Due date"));
+    await user.click(within(dialog).getByRole("button", { name: "Today" }));
     await user.click(within(dialog).getByRole("button", { name: "Save" }));
 
-    expect(rescheduleMutateAsync).toHaveBeenCalledWith({ id: "t1", dueDate: "2026-12-01" });
+    expect(rescheduleMutateAsync).toHaveBeenCalledWith({ id: "t1", dueDate: todayKey });
   });
 
   it("deletes only after confirmation", async () => {
@@ -411,7 +413,7 @@ describe("TasksPage", () => {
     const user = userEvent.setup();
     renderTasksPage();
 
-    await user.selectOptions(screen.getByLabelText("Status"), "completed");
+    await chooseSelect(user, screen.getByLabelText("Status"), "completed");
     expect(await screen.findByText("No tasks match these filters")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Clear filters" }));
@@ -457,7 +459,7 @@ describe("TasksPage", () => {
 
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByLabelText("Title", { exact: false })).toHaveValue("Practice scales");
-    expect(within(dialog).getByLabelText("Due date")).toHaveValue("2020-01-05");
+    expect(within(dialog).getByLabelText("Due date")).toHaveTextContent("Jan 5, 2020");
   });
 
   it("loads the profile time zone for overdue through the settings API", () => {

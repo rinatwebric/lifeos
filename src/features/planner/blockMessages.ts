@@ -59,11 +59,7 @@ const DRAFT_BLOCK_ID = "__draft__";
 const FALLBACK_WAKE_UP = "00:00";
 const FALLBACK_SLEEP = "23:59";
 
-function overlapMessage(
-  count: number,
-  t: Messages["planner"],
-  locale: Locale,
-): string {
+function overlapMessage(count: number, t: Messages["planner"], locale: Locale): string {
   if (count === 1) return t.overlapWarning;
   const cat = pluralCategory(locale, count);
   void cat;
@@ -112,7 +108,9 @@ export function collectBlockWarnings(
     sleepTime: input.sleepTime ?? FALLBACK_SLEEP,
     workingHours: input.workingHours ?? {},
     studyHours: input.studyHours ?? {},
-  }).filter((conflict) => conflict.kind !== "work" && (hasWakingHours || conflict.kind !== "sleep"));
+  }).filter(
+    (conflict) => conflict.kind !== "work" && (hasWakingHours || conflict.kind !== "sleep"),
+  );
 
   let overlapCount = 0;
   let crossesSleep = false;
@@ -145,10 +143,19 @@ export function collectBlockWarnings(
   if (overlapCount > 0) {
     warnings.push({
       kind: "overlap",
-      message: t && locale ? overlapMessage(overlapCount, t, locale) : overlapMessage(overlapCount, {
-        overlapWarning: "This block shares its time with another block. Both stay in your plan and are marked as overlapping.",
-        overlapWarningMany: "This block shares its time with {count} other blocks. They all stay in your plan and are marked as overlapping.",
-      } as Messages["planner"], "en"),
+      message:
+        t && locale
+          ? overlapMessage(overlapCount, t, locale)
+          : overlapMessage(
+              overlapCount,
+              {
+                overlapWarning:
+                  "This block shares its time with another block. Both stay in your plan and are marked as overlapping.",
+                overlapWarningMany:
+                  "This block shares its time with {count} other blocks. They all stay in your plan and are marked as overlapping.",
+              } as Messages["planner"],
+              "en",
+            ),
     });
   }
 
@@ -164,7 +171,9 @@ export function collectBlockWarnings(
   if (inPast) {
     warnings.push({
       kind: "past",
-      message: t ? pastMessage(t) : "This block is in the past. Nothing new is planned there, so it stays as a record of what already happened.",
+      message: t
+        ? pastMessage(t)
+        : "This block is in the past. Nothing new is planned there, so it stays as a record of what already happened.",
     });
   }
 
@@ -176,8 +185,7 @@ export function collectBlockWarnings(
  * for a developer reading a stack trace.
  */
 const BLOCK_ERROR_UI_COPY: Record<BlockErrorCode, string> = {
-  validation:
-    "This block could not be saved. Check the times and the linked task, then try again.",
+  validation: "This block could not be saved. Check the times and the linked task, then try again.",
   not_found: "This block is no longer there. It may have been deleted in another tab.",
   forbidden: "You do not have access to change this block. Sign in again and retry.",
   conflict:

@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -99,7 +100,11 @@ function ruProvider(children: ReactNode) {
 
 function wrapper({ children }: { children: ReactNode }) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+  return (
+    <QueryClientProvider client={client}>
+      <MemoryRouter>{children}</MemoryRouter>
+    </QueryClientProvider>
+  );
 }
 
 function statsQuery(data: unknown, flags: object = {}) {
@@ -144,9 +149,7 @@ describe("HabitsPage RU", () => {
 
     expect(screen.getByRole("heading", { name: "Привычки" })).toBeInTheDocument();
     expect(screen.getByText("Привычек пока нет")).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Создать первую привычку" }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Создать первую привычку" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Новая привычка" })).toBeInTheDocument();
   });
 
@@ -167,7 +170,14 @@ describe("HabitsPage RU", () => {
     const rowsFor = (n: number) =>
       Array.from({ length: n }, (_, i) => ({
         habit: { ...HABIT, id: `h${i}` },
-        stats: { planned: 0, completed: 0, missed: 0, completionRate: null, currentStreak: 0, bestStreak: 0 },
+        stats: {
+          planned: 0,
+          completed: 0,
+          missed: 0,
+          completionRate: null,
+          currentStreak: 0,
+          bestStreak: 0,
+        },
       }));
     for (const [n, expected] of [
       [1, "1 привычка"],
@@ -210,7 +220,14 @@ describe("HabitsPage RU", () => {
       rows: [
         {
           habit: HABIT,
-          stats: { planned: 4, completed: 3, missed: 1, completionRate: 75, currentStreak: 3, bestStreak: 5 },
+          stats: {
+            planned: 4,
+            completed: 3,
+            missed: 1,
+            completionRate: 75,
+            currentStreak: 3,
+            bestStreak: 5,
+          },
         },
       ],
       todayKey: "2026-11-05",
@@ -233,7 +250,14 @@ describe("HabitRow RU streak plurals", () => {
         <ul>
           <HabitRow
             habit={{ ...HABIT, frequency }}
-            stats={{ planned: 4, completed: 3, missed: 1, completionRate: 75, currentStreak: streak, bestStreak: best }}
+            stats={{
+              planned: 4,
+              completed: 3,
+              missed: 1,
+              completionRate: 75,
+              currentStreak: streak,
+              bestStreak: best,
+            }}
             onLog={noop}
             onEdit={noop}
             onTogglePause={noop}
@@ -267,7 +291,14 @@ describe("HabitRow RU streak plurals", () => {
         <ul>
           <HabitRow
             habit={{ ...HABIT, frequency: "weekly" }}
-            stats={{ planned: 4, completed: 3, missed: 1, completionRate: 75, currentStreak: 2, bestStreak: 4 }}
+            stats={{
+              planned: 4,
+              completed: 3,
+              missed: 1,
+              completionRate: 75,
+              currentStreak: 2,
+              bestStreak: 4,
+            }}
             onLog={noop}
             onEdit={noop}
             onTogglePause={noop}
@@ -286,16 +317,36 @@ describe("HabitRow RU streak plurals", () => {
     const noop = () => {};
     const props = {
       habit: HABIT,
-      stats: { planned: 4, completed: 3, missed: 1, completionRate: 75, currentStreak: 3, bestStreak: 3 },
+      stats: {
+        planned: 4,
+        completed: 3,
+        missed: 1,
+        completionRate: 75,
+        currentStreak: 3,
+        bestStreak: 3,
+      },
       onLog: noop,
       onEdit: noop,
       onTogglePause: noop,
       onDelete: noop,
     };
-    const { rerender } = render(enProvider(<ul><HabitRow {...props} /></ul>), { wrapper });
+    const { rerender } = render(
+      enProvider(
+        <ul>
+          <HabitRow {...props} />
+        </ul>,
+      ),
+      { wrapper },
+    );
     expect(screen.getByText("3-days streak · best 3")).toBeInTheDocument();
 
-    rerender(ruProvider(<ul><HabitRow {...props} /></ul>));
+    rerender(
+      ruProvider(
+        <ul>
+          <HabitRow {...props} />
+        </ul>,
+      ),
+    );
     expect(screen.getByText("серия 3 дня · лучшая 3")).toBeInTheDocument();
     expect(screen.queryByText("3-days streak · best 3")).not.toBeInTheDocument();
   });

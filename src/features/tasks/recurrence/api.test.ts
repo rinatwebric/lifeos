@@ -95,10 +95,8 @@ function mockBuilder(thenResult: unknown, singleResult?: unknown): BuilderMocks 
   single.mockResolvedValue(singleResult ?? thenResult);
 
   const withThen = Object.assign(builder, {
-    then: (
-      onFulfilled: (value: unknown) => unknown,
-      onRejected?: (reason: unknown) => unknown,
-    ) => Promise.resolve(thenResult).then(onFulfilled, onRejected),
+    then: (onFulfilled: (value: unknown) => unknown, onRejected?: (reason: unknown) => unknown) =>
+      Promise.resolve(thenResult).then(onFulfilled, onRejected),
   });
 
   return {
@@ -162,13 +160,7 @@ describe("recurrence expansion boundaries", () => {
       5,
     );
 
-    expect(dates).toEqual([
-      "2024-02-27",
-      "2024-02-28",
-      "2024-02-29",
-      "2024-03-01",
-      "2024-03-02",
-    ]);
+    expect(dates).toEqual(["2024-02-27", "2024-02-28", "2024-02-29", "2024-03-01", "2024-03-02"]);
   });
 
   it("returns no dates for an empty weekdays selection", () => {
@@ -236,10 +228,7 @@ describe("recurrence rules api", () => {
       { data: null, error: null },
       { data: { ...RULE_ROW, start_date: "2026-11-04" }, error: null },
     );
-    const tasks = mockBuilder(
-      { data: null, error: null },
-      { data: null, error: null },
-    );
+    const tasks = mockBuilder({ data: null, error: null }, { data: null, error: null });
     const inserted = [{ ...TASK_ROW }, { ...TASK_ROW, id: "t2", due_date: "2026-11-05" }];
     tasks.insert.mockReturnValue(
       Object.assign(tasks.builder, {
@@ -327,10 +316,7 @@ describe("recurrence rules api", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-11-04T00:00:00.000Z"));
 
-    const ruleBuilder = mockBuilder(
-      { data: null, error: null },
-      { data: RULE_ROW, error: null },
-    );
+    const ruleBuilder = mockBuilder({ data: null, error: null }, { data: RULE_ROW, error: null });
     const existingBuilder = mockBuilder({ data: [{ due_date: "2026-11-04" }], error: null });
     const templateBuilder = mockBuilder({ data: [TASK_ROW], error: null });
     const insertBuilder = mockBuilder({ data: [], error: null });
@@ -374,10 +360,7 @@ describe("recurrence rules api", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-11-04T00:00:00.000Z"));
 
-    const ruleBuilder = mockBuilder(
-      { data: null, error: null },
-      { data: RULE_ROW, error: null },
-    );
+    const ruleBuilder = mockBuilder({ data: null, error: null }, { data: RULE_ROW, error: null });
     const existingBuilder = mockBuilder({ data: [], error: null });
     const templateBuilder = mockBuilder({ data: [TASK_ROW], error: null });
     const batchFailBuilder = mockBuilder({
@@ -420,10 +403,7 @@ describe("recurrence rules api", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-11-04T00:00:00.000Z"));
 
-    const ruleBuilder = mockBuilder(
-      { data: null, error: null },
-      { data: RULE_ROW, error: null },
-    );
+    const ruleBuilder = mockBuilder({ data: null, error: null }, { data: RULE_ROW, error: null });
     const existingBuilder = mockBuilder({
       data: [{ due_date: "2026-11-04" }, { due_date: "2026-11-05" }],
       error: null,
@@ -511,14 +491,8 @@ describe("recurrence rules api", () => {
     vi.setSystemTime(new Date("2026-11-04T00:00:00.000Z"));
 
     const updatedRule = { ...RULE_ROW, interval_value: 1 };
-    const ruleUpdate = mockBuilder(
-      { data: null, error: null },
-      { data: updatedRule, error: null },
-    );
-    const ruleFetch = mockBuilder(
-      { data: null, error: null },
-      { data: updatedRule, error: null },
-    );
+    const ruleUpdate = mockBuilder({ data: null, error: null }, { data: updatedRule, error: null });
+    const ruleFetch = mockBuilder({ data: null, error: null }, { data: updatedRule, error: null });
     const existing = mockBuilder({ data: [{ due_date: "2026-11-04" }], error: null });
     const template = mockBuilder({ data: [TASK_ROW], error: null });
     const inserter = mockBuilder({ data: [], error: null });
@@ -552,9 +526,7 @@ describe("recurrence rules api", () => {
     const result = await updateRecurrenceRule("r1", { intervalValue: 1 });
 
     expect(result).toMatchObject({ id: "r1" });
-    expect(ruleUpdate.update).toHaveBeenCalledWith(
-      expect.objectContaining({ interval_value: 1 }),
-    );
+    expect(ruleUpdate.update).toHaveBeenCalledWith(expect.objectContaining({ interval_value: 1 }));
     const [payloads] = inserter.insert.mock.calls[0] as [Array<{ due_date: string }>];
     expect(payloads.map((p) => p.due_date)).not.toContain("2026-11-04");
   });
@@ -669,9 +641,7 @@ describe("recurrence rules api", () => {
     await topUpRecurrenceInstances("r1", { horizonDays: 2, timeZone: "Asia/Bishkek" });
 
     expect(insertPayloads).not.toBeNull();
-    const dates = (insertPayloads as unknown as Array<{ due_date: string }>).map(
-      (p) => p.due_date,
-    );
+    const dates = (insertPayloads as unknown as Array<{ due_date: string }>).map((p) => p.due_date);
     // Local today is 2026-11-04, so the window is [11-04, 11-06), never 11-03.
     expect(dates).toEqual(["2026-11-04", "2026-11-05"]);
     expect(dates).not.toContain("2026-11-03");
@@ -687,10 +657,7 @@ describe("recurrence rules api", () => {
       interval_value: 7,
       start_date: "2026-11-04",
     };
-    const ruleBuilder = mockBuilder(
-      { data: null, error: null },
-      { data: weeklyRule, error: null },
-    );
+    const ruleBuilder = mockBuilder({ data: null, error: null }, { data: weeklyRule, error: null });
     const existingBuilder = mockBuilder({ data: [{ due_date: "2026-11-04" }], error: null });
     const templateBuilder = mockBuilder({
       data: [
@@ -758,10 +725,7 @@ describe("recurrence rules api", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-11-04T00:00:00.000Z"));
 
-    const ruleBuilder = mockBuilder(
-      { data: null, error: null },
-      { data: RULE_ROW, error: null },
-    );
+    const ruleBuilder = mockBuilder({ data: null, error: null }, { data: RULE_ROW, error: null });
     // 2026-11-04 was deleted; only 2026-11-05 survives.
     const existingBuilder = mockBuilder({ data: [{ due_date: "2026-11-05" }], error: null });
     // Latest-created survivor anchors the series (created_at desc).
@@ -801,9 +765,7 @@ describe("recurrence rules api", () => {
 
     expect(templateBuilder.order).toHaveBeenCalledWith("created_at", { ascending: false });
     expect(insertPayloads).not.toBeNull();
-    const dates = (insertPayloads as unknown as Array<{ due_date: string }>).map(
-      (p) => p.due_date,
-    );
+    const dates = (insertPayloads as unknown as Array<{ due_date: string }>).map((p) => p.due_date);
     // 11-04 is recreated even though the anchor template is dated 11-05.
     expect(dates).toEqual(["2026-11-04", "2026-11-06"]);
   });

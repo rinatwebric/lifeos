@@ -5,7 +5,13 @@ import { Select } from "@/components/ui/Select";
 import type { TaskFilters } from "@/features/tasks/api";
 import { useMessages } from "@/lib/i18n/I18nContext";
 import { useDebouncedValue } from "@/lib/useDebouncedValue";
-import { PRIORITIES, TASK_STATUSES, type Goal, type Priority, type TaskStatus } from "@/types/domain";
+import {
+  PRIORITIES,
+  TASK_STATUSES,
+  type Goal,
+  type Priority,
+  type TaskStatus,
+} from "@/types/domain";
 
 interface TasksFiltersProps {
   filters: TaskFilters;
@@ -50,16 +56,23 @@ export function TasksFilters({ filters, goals, onChange }: TasksFiltersProps) {
   }
 
   return (
-    <div className="grid gap-3 rounded-card border border-line bg-surface p-4 sm:grid-cols-2 lg:grid-cols-4">
-      <div className="space-y-1.5">
-        <label htmlFor="tasks-filter-status" className="block text-ui font-medium text-content">
+    <div className="grid grid-cols-2 gap-3 rounded-card border border-line bg-surface p-3 sm:p-4 lg:grid-cols-4">
+      <div className="min-w-0 space-y-1.5">
+        <label
+          htmlFor="tasks-filter-status"
+          className="block text-caption font-medium text-content"
+        >
           {t.filtersStatus}
         </label>
         <Select
           id="tasks-filter-status"
+          className="h-11 sm:h-10"
           value={filters.status ?? ""}
           onChange={(event) =>
-            onChange({ ...filters, status: toOptional(event.target.value) as TaskStatus | undefined })
+            onChange({
+              ...filters,
+              status: toOptional(event.target.value) as TaskStatus | undefined,
+            })
           }
         >
           <option value="">{t.allStatuses}</option>
@@ -71,12 +84,16 @@ export function TasksFilters({ filters, goals, onChange }: TasksFiltersProps) {
         </Select>
       </div>
 
-      <div className="space-y-1.5">
-        <label htmlFor="tasks-filter-priority" className="block text-ui font-medium text-content">
+      <div className="min-w-0 space-y-1.5">
+        <label
+          htmlFor="tasks-filter-priority"
+          className="block text-caption font-medium text-content"
+        >
           {t.filtersPriority}
         </label>
         <Select
           id="tasks-filter-priority"
+          className="h-11 sm:h-10"
           value={filters.priority ?? ""}
           onChange={(event) =>
             onChange({
@@ -94,16 +111,15 @@ export function TasksFilters({ filters, goals, onChange }: TasksFiltersProps) {
         </Select>
       </div>
 
-      <div className="space-y-1.5">
-        <label htmlFor="tasks-filter-goal" className="block text-ui font-medium text-content">
+      <div className="min-w-0 space-y-1.5">
+        <label htmlFor="tasks-filter-goal" className="block text-caption font-medium text-content">
           {t.filtersGoal}
         </label>
         <Select
           id="tasks-filter-goal"
+          className="h-11 sm:h-10"
           value={filters.goalId ?? ""}
-          onChange={(event) =>
-            onChange({ ...filters, goalId: toOptional(event.target.value) })
-          }
+          onChange={(event) => onChange({ ...filters, goalId: toOptional(event.target.value) })}
         >
           <option value="">{t.allGoals}</option>
           {goals.map((goal) => (
@@ -114,12 +130,13 @@ export function TasksFilters({ filters, goals, onChange }: TasksFiltersProps) {
         </Select>
       </div>
 
-      <div className="space-y-1.5">
-        <label htmlFor={SEARCH_INPUT_ID} className="block text-ui font-medium text-content">
+      <div className="min-w-0 space-y-1.5">
+        <label htmlFor={SEARCH_INPUT_ID} className="block text-caption font-medium text-content">
           {t.filtersSearch}
         </label>
         <Input
           id={SEARCH_INPUT_ID}
+          className="h-11 sm:h-10"
           type="search"
           placeholder={t.searchTasks}
           value={search}

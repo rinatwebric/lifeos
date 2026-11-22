@@ -1,16 +1,16 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { DASHBOARD_COPY, DashboardPage } from "./DashboardPage";
+import { DashboardPage } from "./DashboardPage";
 import { useDashboardSchedule, type DashboardSchedule } from "./useDashboardSchedule";
 import { listAllMilestones, listGoals } from "@/features/goals/api";
 import { getProfile } from "@/features/settings/api";
 import { listTasks } from "@/features/tasks/api";
 import { useSetTaskStatus } from "@/features/tasks/hooks";
-import { formatLongDate, toDateKey } from "@/lib/dates";
+import { toDateKey } from "@/lib/dates";
 import type { Goal, Profile, Task } from "@/types/domain";
 import type { MilestoneProgressSlice } from "@/features/goals/api";
 
@@ -37,6 +37,12 @@ vi.mock("@/features/tasks/hooks", () => ({
 // dashboard's own data flow (no blocks request leaves the test).
 vi.mock("./useDashboardSchedule", () => ({
   useDashboardSchedule: vi.fn(),
+}));
+
+// FocusCard owns its focus-session network state; this file covers the
+// dashboard composition, and FocusCard has its own test suite.
+vi.mock("@/features/focus/FocusCard", () => ({
+  FocusCard: () => null,
 }));
 
 const TIME_ZONE = "Asia/Bishkek";
@@ -131,12 +137,13 @@ interface DashboardStub {
 
 function makeSchedule(overrides: Partial<DashboardSchedule> = {}): DashboardSchedule {
   return {
-    blocks: [],
-    totals: { task: 0, break: 0, personal: 0, scheduled: 0 },
-    dayBlockCount: 0,
-    isEmpty: true,
-    isAllPast: false,
     ...overrides,
+    blocks: overrides.blocks ?? [],
+    dayBlocks: overrides.dayBlocks ?? overrides.blocks ?? [],
+    totals: overrides.totals ?? { task: 0, break: 0, personal: 0, scheduled: 0 },
+    dayBlockCount: overrides.dayBlockCount ?? 0,
+    isEmpty: overrides.isEmpty ?? true,
+    isAllPast: overrides.isAllPast ?? false,
   };
 }
 
@@ -189,20 +196,27 @@ beforeEach(() => {
 });
 
 describe("DashboardPage", () => {
-  it("greets the user by profile name", async () => {
+  it("shows today's screen regardless of profile name", async () => {
     stubDashboard();
     renderDashboard();
 
-    expect(await screen.findByRole("heading", { name: "Welcome back, Alex" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Today" })).toBeInTheDocument();
   });
 
   it("shows the date in the profile time zone", async () => {
     stubDashboard();
     renderDashboard();
 
-    await screen.findByRole("heading", { name: "Welcome back, Alex" });
-    expect(screen.getByText(formatLongDate(new Date(), TIME_ZONE))).toBeInTheDocument();
-    expect(screen.getByText(`Times shown in ${TIME_ZONE}.`)).toBeInTheDocument();
+    await screen.findByRole("heading", { name: "Today" });
+    const dateLabel = new Intl.DateTimeFormat("en-US", {
+      timeZone: TIME_ZONE,
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+    }).format(new Date());
+    const header = screen.getByRole("heading", { name: "Today" }).closest("header");
+    await waitFor(() => expect(header?.textContent).toContain(dateLabel));
+    expect(screen.queryByText(/Times shown in/)).not.toBeInTheDocument();
   });
 
   it("shows an empty state instead of 0% on an empty day", async () => {
@@ -212,9 +226,7 @@ describe("DashboardPage", () => {
     expect(
       await screen.findByText("Nothing planned for today — add a task to get started"),
     ).toBeInTheDocument();
-    expect(
-      screen.queryByRole("progressbar", { name: "Today's progress" }),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("progressbar", { name: "Today's progress" })).not.toBeInTheDocument();
   });
 
   it("computes daily progress from completed over total", async () => {
@@ -232,7 +244,7 @@ describe("DashboardPage", () => {
     });
     renderDashboard();
 
-    expect(await screen.findAllByText("Completed 1 of 4 tasks today")).toHaveLength(2);
+    expect(await screen.findByText("1 of 4 tasks done")).toBeInTheDocument();
     expect(screen.getByRole("progressbar", { name: "Today's progress" })).toHaveAttribute(
       "aria-valuenow",
       "25",
@@ -274,7 +286,7 @@ describe("DashboardPage", () => {
     expect(screen.getByText(/3 of 4 milestones remaining/)).toBeInTheDocument();
   });
 
-  it("flags goals without milestones and surfaces them in insights", async () => {
+  it("flags goals without milestones in the goal row", async () => {
     stubDashboard({
       todayTasks: [],
       todoTasks: [],
@@ -284,7 +296,6 @@ describe("DashboardPage", () => {
     renderDashboard();
 
     expect(await screen.findByText(/No milestones yet/)).toBeInTheDocument();
-    expect(await screen.findByText("1 goal has no milestones yet")).toBeInTheDocument();
   });
 
   it("surfaces an overdue task in insights", async () => {
@@ -300,7 +311,7 @@ describe("DashboardPage", () => {
     expect(await screen.findByText("1 task is overdue")).toBeInTheDocument();
   });
 
-  it("shows a quiet empty line in insights when there is nothing to report", async () => {
+  it("shows no overdue finding when nothing is overdue", async () => {
     stubDashboard({
       todayTasks: [],
       todoTasks: [],
@@ -309,16 +320,16 @@ describe("DashboardPage", () => {
     });
     renderDashboard();
 
-    await screen.findByRole("heading", { name: "Welcome back, Alex" });
-    await screen.findByText(/0 of 1 milestones remaining/);
-    expect(await screen.findByText(DASHBOARD_COPY.emptyInsights)).toBeInTheDocument();
+    await screen.findByRole("heading", { name: "Today" });
+    expect(await screen.findByText(/All milestones complete/)).toBeInTheDocument();
+    expect(screen.queryByText(/overdue/i)).not.toBeInTheDocument();
   });
 
   it("offers the planner from an empty schedule card", async () => {
     stubDashboard();
     renderDashboard();
 
-    const heading = await screen.findByRole("heading", { name: "Schedule" });
+    const heading = await screen.findByRole("heading", { name: "Today's blocks" });
     const card = heading.closest("section") as HTMLElement;
     expect(within(card).getByText("Nothing scheduled today")).toBeInTheDocument();
     expect(
@@ -341,9 +352,7 @@ describe("DashboardPage", () => {
     const user = userEvent.setup();
     renderDashboard();
 
-    await user.click(
-      await screen.findByRole("checkbox", { name: "Mark Today work as completed" }),
-    );
+    await user.click(await screen.findByRole("checkbox", { name: "Mark Today work as completed" }));
 
     expect(setStatusMutate).toHaveBeenCalledWith({ id: "t1", status: "completed" });
   });
@@ -461,7 +470,7 @@ describe("DashboardPage", () => {
     expect(await screen.findByText("1 task is overdue")).toBeInTheDocument();
   });
 
-  it("hides cancelled tasks from Today's tasks and keeps 100% progress", async () => {
+  it("hides cancelled tasks from today's actions and keeps 100% progress", async () => {
     const today = todayKey();
     stubDashboard({
       todayTasks: [
@@ -479,9 +488,10 @@ describe("DashboardPage", () => {
     });
     renderDashboard();
 
-    expect(await screen.findByText("Done work")).toBeInTheDocument();
+    expect(screen.queryByText("Done work")).not.toBeInTheDocument();
     expect(screen.queryByText("Cancelled work")).not.toBeInTheDocument();
-    expect(await screen.findAllByText("Completed 1 of 1 tasks today")).toHaveLength(2);
+    expect(await screen.findByText("1 of 1 tasks done")).toBeInTheDocument();
+    expect(await screen.findByText("All tasks for today are done")).toBeInTheDocument();
     expect(screen.getByRole("progressbar", { name: "Today's progress" })).toHaveAttribute(
       "aria-valuenow",
       "100",

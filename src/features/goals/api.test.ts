@@ -108,10 +108,8 @@ function mockBuilder(thenResult: unknown, singleResult?: unknown): BuilderMocks 
   single.mockResolvedValue(singleResult ?? thenResult);
 
   const withThen = Object.assign(builder, {
-    then: (
-      onFulfilled: (value: unknown) => unknown,
-      onRejected?: (reason: unknown) => unknown,
-    ) => Promise.resolve(thenResult).then(onFulfilled, onRejected),
+    then: (onFulfilled: (value: unknown) => unknown, onRejected?: (reason: unknown) => unknown) =>
+      Promise.resolve(thenResult).then(onFulfilled, onRejected),
   });
 
   return {

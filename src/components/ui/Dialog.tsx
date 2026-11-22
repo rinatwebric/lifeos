@@ -74,7 +74,7 @@ export function Dialog({ open, onClose, title, description, children, wide }: Di
         previouslyFocused.focus();
       }
     };
-  }, [open ]);
+  }, [open]);
 
   if (!open) {
     return null;
@@ -93,13 +93,13 @@ export function Dialog({ open, onClose, title, description, children, wide }: Di
       aria-describedby={description ? descriptionId : undefined}
       onClose={onClose}
       onClick={handleBackdropClick}
-      className={`m-auto rounded-card border border-line bg-surface p-0 text-content shadow-overlay overscroll-contain backdrop:bg-scrim ${
-        wide ? "w-full max-w-2xl" : "w-full max-w-lg"
+      className={`scrollbar-neutral m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] overflow-y-auto overscroll-contain rounded-card border border-line bg-surface p-0 text-content shadow-overlay backdrop:bg-scrim ${
+        wide ? "max-w-2xl" : "max-w-lg"
       }`}
     >
       <div className="space-y-4 p-6">
         <div className="space-y-1">
-          <h2 id={titleId} className="text-heading font-semibold tracking-tight text-balance">
+          <h2 id={titleId} className="text-heading font-semibold tracking-[-0.01em] text-balance">
             {title}
           </h2>
           {description ? (

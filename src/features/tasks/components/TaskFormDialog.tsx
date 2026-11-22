@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useForm, type Resolver } from "react-hook-form";
 
 import { Button } from "@/components/ui/Button";
+import { DateTimePicker } from "@/components/ui/DateTimePicker";
 import { Dialog } from "@/components/ui/Dialog";
 import { Field } from "@/components/ui/Field";
 import { Input } from "@/components/ui/Input";
@@ -11,10 +12,7 @@ import { Textarea } from "@/components/ui/Textarea";
 import { useGoals, useMilestones } from "@/features/goals/hooks";
 import { useCreateTask, useUpdateTask } from "@/features/tasks/hooks";
 import { useCreateRecurringTask } from "@/features/tasks/recurrence/hooks";
-import {
-  createTaskFormSchemas,
-  type CreateTaskInput,
-} from "@/features/tasks/schema";
+import { createTaskFormSchemas, type CreateTaskInput } from "@/features/tasks/schema";
 import { isoToLocalDateTime, localDateTimeToIso, toDateKey } from "@/lib/dates";
 import { tmpl } from "@/lib/i18n/format";
 import { useMessages } from "@/lib/i18n/I18nContext";
@@ -66,12 +64,12 @@ function defaultValuesFor(task: Task | null): TaskFormValues {
   };
 }
 
-const nullIfEmpty = (value: unknown): string | null | unknown =>
-  value === "" ? null : value;
+const nullIfEmpty = (value: unknown): string | null | unknown => (value === "" ? null : value);
 
 export function TaskFormDialog({ open, onClose, task, timeZone }: TaskFormDialogProps) {
   const m = useMessages();
   const t = m.tasks;
+  const todayKey = toDateKey(new Date(), timeZone);
   const createTask = useCreateTask();
   const createRecurringTask = useCreateRecurringTask();
   const updateTask = useUpdateTask();
@@ -135,6 +133,7 @@ export function TaskFormDialog({ open, onClose, task, timeZone }: TaskFormDialog
 
   const selectedGoalId = watch("goalId") ?? null;
   const selectedMilestoneId = watch("milestoneId") ?? null;
+  const dueDate = watch("dueDate") ?? "";
   const scheduledStart = watch("scheduledStart") ?? null;
   const scheduledEnd = watch("scheduledEnd") ?? null;
   const milestonesQuery = useMilestones(selectedGoalId ?? undefined);
@@ -242,41 +241,221 @@ export function TaskFormDialog({ open, onClose, task, timeZone }: TaskFormDialog
       description={task ? t.formEditDescription : t.formNewDescription}
       wide
     >
-      <form onSubmit={(event) => void handleSubmit(onSubmit)(event)} noValidate className="space-y-4">
-        <Field id="task-title" label={t.fieldTitle} required error={errors.title?.message}>
-          <Input data-autofocus placeholder={t.titlePlaceholder} {...register("title")} />
-        </Field>
-
-        <Field id="task-description" label={t.fieldDescription} error={errors.description?.message}>
-          <Textarea
-            placeholder={t.descriptionPlaceholder}
-            {...register("description", { setValueAs: nullIfEmpty })}
-          />
-        </Field>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field id="task-priority" label={t.fieldPriority} required error={errors.priority?.message}>
-            <Select {...register("priority")}>
-              {PRIORITIES.map((priority) => (
-                <option key={priority} value={priority}>
-                  {m.enums.priority[priority]}
-                </option>
-              ))}
-            </Select>
+      <form
+        onSubmit={(event) => void handleSubmit(onSubmit)(event)}
+        noValidate
+        className="space-y-6"
+      >
+        {/* What: the action itself and how it is classified. */}
+        <section className="space-y-4">
+          <Field id="task-title" label={t.fieldTitle} required error={errors.title?.message}>
+            <Input
+              data-autofocus
+              className="h-11 sm:h-10"
+              placeholder={t.titlePlaceholder}
+              {...register("title")}
+            />
           </Field>
 
-          <Field id="task-status" label={t.fieldStatus} required error={errors.status?.message}>
-            <Select {...register("status")}>
-              {TASK_STATUSES.map((status) => (
-                <option key={status} value={status}>
-                  {m.enums.status[status]}
-                </option>
-              ))}
-            </Select>
+          <Field
+            id="task-description"
+            label={t.fieldDescription}
+            error={errors.description?.message}
+          >
+            <Textarea
+              placeholder={t.descriptionPlaceholder}
+              {...register("description", { setValueAs: nullIfEmpty })}
+            />
           </Field>
-        </div>
 
-        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field
+              id="task-priority"
+              label={t.fieldPriority}
+              required
+              error={errors.priority?.message}
+            >
+              <Select className="h-11 sm:h-10" {...register("priority")}>
+                {PRIORITIES.map((priority) => (
+                  <option key={priority} value={priority}>
+                    {m.enums.priority[priority]}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+
+            <Field id="task-status" label={t.fieldStatus} required error={errors.status?.message}>
+              <Select className="h-11 sm:h-10" {...register("status")}>
+                {TASK_STATUSES.map((status) => (
+                  <option key={status} value={status}>
+                    {m.enums.status[status]}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          </div>
+        </section>
+
+        {/* When: deadlines, estimates, scheduled time and recurrence. */}
+        <section className="space-y-4 border-t border-line pt-6">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field
+              id="task-dueDate"
+              label={t.fieldDueDate}
+              hint={t.goalHint}
+              error={errors.dueDate?.message}
+            >
+              <DateTimePicker
+                mode="date"
+                align="start"
+                clearable
+                todayKey={todayKey}
+                value={dueDate}
+                onChange={(value) => {
+                  setValue("dueDate", value === "" ? null : value, { shouldValidate: true });
+                }}
+              />
+            </Field>
+
+            <Field
+              id="task-duration"
+              label={t.fieldDuration}
+              hint={t.goalHint}
+              error={errors.estimatedDurationMinutes?.message}
+            >
+              <Input
+                className="h-11 sm:h-10"
+                type="number"
+                min={1}
+                step={1}
+                {...register("estimatedDurationMinutes", {
+                  setValueAs: (value: unknown) =>
+                    value === "" || value === null || value === undefined ? null : Number(value),
+                })}
+              />
+            </Field>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field
+              id="task-scheduledStart"
+              label={t.fieldScheduledStart}
+              hint={t.goalHint}
+              error={errors.scheduledStart?.message}
+            >
+              <DateTimePicker
+                mode="datetime"
+                align="start"
+                clearable
+                todayKey={todayKey}
+                value={toLocalInput(scheduledStart)}
+                onChange={(value) =>
+                  setValue("scheduledStart", fromLocalInput(value), {
+                    shouldValidate: true,
+                  })
+                }
+              />
+            </Field>
+
+            <Field
+              id="task-scheduledEnd"
+              label={t.fieldScheduledEnd}
+              hint={t.scheduledEndHint}
+              error={errors.scheduledEnd?.message}
+            >
+              <DateTimePicker
+                mode="datetime"
+                align="end"
+                clearable
+                todayKey={todayKey}
+                value={toLocalInput(scheduledEnd)}
+                onChange={(value) =>
+                  setValue("scheduledEnd", fromLocalInput(value), {
+                    shouldValidate: true,
+                  })
+                }
+              />
+            </Field>
+          </div>
+
+          {task ? null : (
+            <div className="space-y-3 rounded-control border border-line p-4">
+              <label className="flex min-h-11 cursor-pointer items-center gap-2 text-ui font-medium text-content sm:min-h-10">
+                <input
+                  type="checkbox"
+                  checked={repeatEnabled}
+                  onChange={(event) => setRepeatEnabled(event.target.checked)}
+                  className="size-4 accent-current"
+                />
+                {t.repeat}
+              </label>
+
+              {repeatEnabled ? (
+                <div className="space-y-3">
+                  <Field id="task-repeat-frequency" label={t.repeatFrequency} required>
+                    <Select
+                      className="h-11 sm:h-10"
+                      value={repeatFrequency}
+                      onChange={(event) =>
+                        setRepeatFrequency(event.target.value as RecurrenceFrequency)
+                      }
+                    >
+                      <option value="daily">{t.everyDay}</option>
+                      <option value="weekdays">{t.specificDays}</option>
+                      <option value="weekly">{t.everyWeek}</option>
+                    </Select>
+                  </Field>
+
+                  {repeatFrequency === "weekdays" ? (
+                    <fieldset>
+                      <legend className="mb-1 block text-ui font-medium text-content">
+                        {t.repeatDays}
+                      </legend>
+                      <div className="flex flex-wrap gap-2">
+                        {WEEKDAY_VALUES.map((value) => (
+                          <label
+                            key={value}
+                            htmlFor={`task-repeat-weekday-${value}`}
+                            className="flex min-h-11 cursor-pointer items-center gap-1 rounded-pill border border-line px-3 text-micro text-content sm:min-h-8"
+                          >
+                            <input
+                              id={`task-repeat-weekday-${value}`}
+                              type="checkbox"
+                              checked={repeatWeekdays.includes(value)}
+                              onChange={() => toggleWeekday(value)}
+                              className="size-3.5 accent-current"
+                            />
+                            {weekdayLabel(value)}
+                          </label>
+                        ))}
+                      </div>
+                    </fieldset>
+                  ) : null}
+
+                  <Field id="task-repeat-end" label={t.repeatEnds} hint={t.repeatEndsHint}>
+                    <DateTimePicker
+                      mode="date"
+                      align="start"
+                      clearable
+                      todayKey={todayKey}
+                      value={repeatEndDate}
+                      onChange={setRepeatEndDate}
+                    />
+                  </Field>
+
+                  {repeatError ? (
+                    <p role="alert" className="text-micro text-danger">
+                      {repeatError}
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+          )}
+        </section>
+
+        {/* Where: the goal and milestone this action belongs to. */}
+        <section className="grid gap-4 border-t border-line pt-6 sm:grid-cols-2">
           <Field
             id="task-goal"
             label={t.fieldGoal}
@@ -284,6 +463,7 @@ export function TaskFormDialog({ open, onClose, task, timeZone }: TaskFormDialog
             error={errors.goalId?.message}
           >
             <Select
+              className="h-11 sm:h-10"
               value={selectedGoalId ?? ""}
               disabled={goalsQuery.isLoading}
               onChange={(event) =>
@@ -306,14 +486,13 @@ export function TaskFormDialog({ open, onClose, task, timeZone }: TaskFormDialog
             error={errors.milestoneId?.message}
           >
             <Select
+              className="h-11 sm:h-10"
               value={selectedMilestoneId ?? ""}
               disabled={!selectedGoalId || milestonesQuery.isLoading}
               onChange={(event) =>
-                setValue(
-                  "milestoneId",
-                  event.target.value === "" ? null : event.target.value,
-                  { shouldValidate: true },
-                )
+                setValue("milestoneId", event.target.value === "" ? null : event.target.value, {
+                  shouldValidate: true,
+                })
               }
             >
               <option value="">{t.noMilestone}</option>
@@ -324,146 +503,7 @@ export function TaskFormDialog({ open, onClose, task, timeZone }: TaskFormDialog
               ))}
             </Select>
           </Field>
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field
-            id="task-dueDate"
-            label={t.fieldDueDate}
-            hint={t.goalHint}
-            error={errors.dueDate?.message}
-          >
-            <Input type="date" {...register("dueDate", { setValueAs: nullIfEmpty })} />
-          </Field>
-
-          <Field
-            id="task-duration"
-            label={t.fieldDuration}
-            hint={t.goalHint}
-            error={errors.estimatedDurationMinutes?.message}
-          >
-            <Input
-              type="number"
-              min={1}
-              step={1}
-              {...register("estimatedDurationMinutes", {
-                setValueAs: (value: unknown) =>
-                  value === "" || value === null || value === undefined ? null : Number(value),
-              })}
-            />
-          </Field>
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field
-            id="task-scheduledStart"
-            label={t.fieldScheduledStart}
-            hint={t.goalHint}
-            error={errors.scheduledStart?.message}
-          >
-            <Input
-              type="datetime-local"
-              value={toLocalInput(scheduledStart)}
-              onChange={(event) =>
-                setValue("scheduledStart", fromLocalInput(event.target.value), {
-                  shouldValidate: true,
-                })
-              }
-            />
-          </Field>
-
-          <Field
-            id="task-scheduledEnd"
-            label={t.fieldScheduledEnd}
-            hint={t.scheduledEndHint}
-            error={errors.scheduledEnd?.message}
-          >
-            <Input
-              type="datetime-local"
-              value={toLocalInput(scheduledEnd)}
-              onChange={(event) =>
-                setValue("scheduledEnd", fromLocalInput(event.target.value), {
-                  shouldValidate: true,
-                })
-              }
-            />
-          </Field>
-        </div>
-
-        {task ? null : (
-          <div className="space-y-3 rounded-card border border-line p-3">
-            <label className="flex cursor-pointer items-center gap-2 text-ui font-medium text-content">
-              <input
-                type="checkbox"
-                checked={repeatEnabled}
-                onChange={(event) => setRepeatEnabled(event.target.checked)}
-                className="size-4 accent-current"
-              />
-              {t.repeat}
-            </label>
-
-            {repeatEnabled ? (
-              <div className="space-y-3">
-                <Field id="task-repeat-frequency" label={t.repeatFrequency} required>
-                  <Select
-                    value={repeatFrequency}
-                    onChange={(event) =>
-                      setRepeatFrequency(event.target.value as RecurrenceFrequency)
-                    }
-                  >
-                    <option value="daily">{t.everyDay}</option>
-                    <option value="weekdays">{t.specificDays}</option>
-                    <option value="weekly">{t.everyWeek}</option>
-                  </Select>
-                </Field>
-
-                {repeatFrequency === "weekdays" ? (
-                  <fieldset>
-                    <legend className="mb-1 block text-ui font-medium text-content">
-                      {t.repeatDays}
-                    </legend>
-                    <div className="flex flex-wrap gap-2">
-                      {WEEKDAY_VALUES.map((value) => (
-                        <label
-                          key={value}
-                          htmlFor={`task-repeat-weekday-${value}`}
-                          className="flex cursor-pointer items-center gap-1 rounded-full border border-line px-2.5 py-1 text-micro text-content"
-                        >
-                          <input
-                            id={`task-repeat-weekday-${value}`}
-                            type="checkbox"
-                            checked={repeatWeekdays.includes(value)}
-                            onChange={() => toggleWeekday(value)}
-                            className="size-3.5 accent-current"
-                          />
-                          {weekdayLabel(value)}
-                        </label>
-                      ))}
-                    </div>
-                  </fieldset>
-                ) : null}
-
-                <Field
-                  id="task-repeat-end"
-                  label={t.repeatEnds}
-                  hint={t.repeatEndsHint}
-                >
-                  <Input
-                    type="date"
-                    value={repeatEndDate}
-                    onChange={(event) => setRepeatEndDate(event.target.value)}
-                  />
-                </Field>
-
-                {repeatError ? (
-                  <p role="alert" className="text-micro text-danger">
-                    {repeatError}
-                  </p>
-                ) : null}
-              </div>
-            ) : null}
-          </div>
-        )}
+        </section>
 
         {serverError ? (
           <p role="alert" className="text-micro text-danger">
@@ -471,11 +511,17 @@ export function TaskFormDialog({ open, onClose, task, timeZone }: TaskFormDialog
           </p>
         ) : null}
 
-        <div className="flex justify-end gap-2">
-          <Button variant="secondary" size="lg" onClick={onClose} disabled={saving}>
+        <div className="flex flex-col-reverse gap-2 border-t border-line pt-4 sm:flex-row sm:justify-end">
+          <Button
+            variant="secondary"
+            size="lg"
+            className="min-h-11 w-full sm:w-auto"
+            onClick={onClose}
+            disabled={saving}
+          >
             {t.cancel}
           </Button>
-          <Button type="submit" size="lg" loading={saving}>
+          <Button type="submit" size="lg" className="min-h-11 w-full sm:w-auto" loading={saving}>
             {task ? t.saveChanges : t.createTask}
           </Button>
         </div>
