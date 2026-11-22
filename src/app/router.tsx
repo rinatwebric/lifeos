@@ -99,8 +99,16 @@ const router = createBrowserRouter([
       { path: "analytics", element: <AnalyticsPage /> },
       { path: "assistant", element: <AssistantPage /> },
       { path: "settings", element: <SettingsPage /> },
-      { path: "*", element: <NotFoundPage /> },
     ],
+  },
+  {
+    path: "*",
+    errorElement: <RouteErrorPage />,
+    element: (
+      <RequireAuth>
+        <NotFoundPage />
+      </RequireAuth>
+    ),
   },
 ]);
 

@@ -353,7 +353,8 @@ describe("TasksPage", () => {
     renderTasksPage();
 
     const row = screen.getByText("Practice scales").closest("li") as HTMLElement;
-    await user.click(within(row).getByRole("button", { name: "Reschedule" }));
+    await user.click(within(row).getByRole("button", { name: "Actions" }));
+    await user.click(within(row).getByRole("menuitem", { name: "Reschedule" }));
 
     const dialog = await screen.findByRole("dialog");
     const now = new Date();
@@ -371,8 +372,10 @@ describe("TasksPage", () => {
     const { deleteMutateAsync } = stubDefaults();
     const user = userEvent.setup();
     renderTasksPage();
+    const row = screen.getByText("Practice scales").closest("li") as HTMLElement;
 
-    await user.click(screen.getByRole("button", { name: "Delete Practice scales" }));
+    await user.click(within(row).getByRole("button", { name: "Actions" }));
+    await user.click(within(row).getByRole("menuitem", { name: "Delete Practice scales" }));
     const dialog = await screen.findByRole("dialog");
     expect(deleteMutateAsync).not.toHaveBeenCalled();
 
@@ -380,7 +383,8 @@ describe("TasksPage", () => {
     expect(deleteMutateAsync).not.toHaveBeenCalled();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Delete Practice scales" }));
+    await user.click(within(row).getByRole("button", { name: "Actions" }));
+    await user.click(within(row).getByRole("menuitem", { name: "Delete Practice scales" }));
     const confirm = await screen.findByRole("dialog");
     await user.click(within(confirm).getByRole("button", { name: "Delete" }));
 
@@ -455,7 +459,8 @@ describe("TasksPage", () => {
     renderTasksPage();
 
     const row = screen.getByText("Practice scales").closest("li") as HTMLElement;
-    await user.click(within(row).getByRole("button", { name: "Edit" }));
+    await user.click(within(row).getByRole("button", { name: "Actions" }));
+    await user.click(within(row).getByRole("menuitem", { name: "Edit" }));
 
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByLabelText("Title", { exact: false })).toHaveValue("Practice scales");

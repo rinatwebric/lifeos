@@ -1,9 +1,8 @@
-import { CalendarClock, Pencil, Trash2 } from "lucide-react";
 import { Link } from "react-router-dom";
 
 import { Badge } from "@/components/ui/Badge";
-import { Button } from "@/components/ui/Button";
 import { CheckCircle } from "@/components/ui/CheckCircle";
+import { TaskActionsMenu } from "@/features/tasks/components/TaskActionsMenu";
 import { useSetTaskStatus } from "@/features/tasks/hooks";
 import { isTaskOverdue } from "@/lib/dates";
 import { tmpl } from "@/lib/i18n/format";
@@ -71,7 +70,7 @@ export function TaskRow({
   };
 
   return (
-    <li className="group grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-3 px-5 py-4 sm:px-6 lg:grid-cols-[auto_minmax(0,1fr)_auto_auto] lg:items-center">
+    <li className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-3 px-5 py-4 sm:px-6 lg:grid-cols-[auto_minmax(0,1fr)_auto_auto] lg:items-center">
       <CheckCircle
         id={`task-${task.id}`}
         checked={completed}
@@ -145,40 +144,13 @@ export function TaskRow({
         </div>
       ) : null}
 
-      <div className="col-start-2 flex items-center gap-0.5 lg:col-start-auto lg:justify-end lg:gap-1">
-        <Button
-          variant="ghost"
-          size="sm"
-          className="relative size-11 shrink-0 gap-1.5 p-0 text-muted after:absolute after:-inset-1 after:content-[''] hover:bg-surface-muted hover:text-content lg:size-10 lg:gap-0 lg:px-0 xl:h-9 xl:w-auto xl:gap-1.5 xl:px-2.5"
-          aria-label={t.edit}
-          title={t.edit}
-          onClick={() => onEdit(task)}
-        >
-          <Pencil className="size-4" aria-hidden="true" />
-          <span className="hidden xl:inline">{t.edit}</span>
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="relative size-11 shrink-0 gap-1.5 p-0 text-muted after:absolute after:-inset-1 after:content-[''] hover:bg-surface-muted hover:text-content lg:size-10 lg:gap-0 lg:px-0 xl:h-9 xl:w-auto xl:gap-1.5 xl:px-2.5"
-          aria-label={t.reschedule}
-          title={t.reschedule}
-          onClick={() => onReschedule(task)}
-        >
-          <CalendarClock className="size-4" aria-hidden="true" />
-          <span className="hidden xl:inline">{t.reschedule}</span>
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="relative size-11 shrink-0 gap-1.5 p-0 text-muted after:absolute after:-inset-1 after:content-[''] hover:bg-surface-muted hover:text-danger lg:size-10 lg:gap-0 lg:px-0 xl:h-9 xl:w-auto xl:gap-1.5 xl:px-2.5"
-          onClick={() => onDelete(task)}
-          aria-label={tmpl(t.deleteAria, { title: task.title })}
-          title={t.delete}
-        >
-          <Trash2 className="size-4" aria-hidden="true" />
-          <span className="hidden xl:inline">{t.delete}</span>
-        </Button>
+      <div className="col-start-2 lg:col-start-auto">
+        <TaskActionsMenu
+          task={task}
+          onEdit={onEdit}
+          onReschedule={onReschedule}
+          onDelete={onDelete}
+        />
       </div>
     </li>
   );

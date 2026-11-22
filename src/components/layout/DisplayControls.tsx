@@ -1,15 +1,20 @@
-import { Moon, Sun } from "lucide-react";
+import { Languages, Moon, Sun } from "lucide-react";
 
 import { useTheme } from "@/app/theme";
 import { cn } from "@/lib/cn";
 import { useLanguageSync, useMessages } from "@/lib/i18n/I18nContext";
+
+interface DisplayControlsProps {
+  /** Tiles for the Settings card; compact pills for the sidebar footer. */
+  variant?: "tiles" | "compact";
+}
 
 /**
  * Theme and language are one-click controls, not settings. The visible label
  * is the current value; the accessible name is the action, so the same button
  * works with a pointer, keyboard or a screen reader.
  */
-export function DisplayControls() {
+export function DisplayControls({ variant = "tiles" }: DisplayControlsProps) {
   const m = useMessages();
   const t = m.settings;
   const {
@@ -34,56 +39,116 @@ export function DisplayControls() {
   const themeLabel = theme === "dark" ? t.themeDark : t.themeLight;
   const languageLabel = isKyFallback ? "KY" : locale === "ru" ? "RU" : "EN";
 
-  const buttonClass = cn(
-    "relative inline-flex min-h-9 items-center justify-center gap-2 rounded-full px-2.5 text-ui text-muted transition-[color,background-color] duration-fast ease-standard",
-    "hover:bg-surface-muted hover:text-content",
-    "justify-start text-left",
+  const tileClass = cn(
+    "group relative flex min-h-[108px] min-w-0 flex-col items-start justify-between gap-4 rounded-control bg-surface-muted p-3.5 text-left transition-[background-color,scale] duration-fast ease-standard",
+    "hover:bg-surface-raised motion-safe:active:scale-[0.985]",
   );
 
   return (
-    <div role="group" aria-label={t.displayLabel} className="px-1 pb-2">
-      <div className="flex w-full items-center justify-between gap-1">
-        <button
-          type="button"
-          data-testid="theme-toggle"
-          onClick={() => setTheme(nextTheme)}
-          aria-label={themeAction}
-          title={themeAction}
-          className={cn(buttonClass, "flex-1")}
-        >
-          {theme === "dark" ? (
-            <Moon className="size-4 shrink-0" aria-hidden="true" />
-          ) : (
-            <Sun className="size-4 shrink-0" aria-hidden="true" />
-          )}
-          <span className="truncate">{themeLabel}</span>
-          {themeStatus === "error" ? (
-            <span
-              aria-hidden="true"
-              className="absolute top-1 right-1 size-1.5 rounded-full bg-danger"
-              title={themeError ?? undefined}
-            />
-          ) : null}
-        </button>
+    <div role="group" aria-label={t.displayLabel}>
+      {variant === "compact" ? (
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            data-testid="theme-toggle"
+            onClick={() => setTheme(nextTheme)}
+            aria-label={themeAction}
+            title={themeAction}
+            className="relative flex min-h-10 min-w-0 items-center justify-center gap-1.5 rounded-pill bg-surface-muted px-2 text-caption text-muted transition-[color,background-color] duration-fast ease-standard hover:bg-surface-raised hover:text-content"
+          >
+            {theme === "dark" ? (
+              <Moon className="size-3.5 shrink-0" aria-hidden="true" />
+            ) : (
+              <Sun className="size-3.5 shrink-0" aria-hidden="true" />
+            )}
+            <span className="truncate">{themeLabel}</span>
+            {themeStatus === "error" ? (
+              <span
+                aria-hidden="true"
+                className="absolute top-1.5 right-1.5 size-1.5 rounded-full bg-danger"
+                title={themeError ?? undefined}
+              />
+            ) : null}
+          </button>
 
-        <button
-          type="button"
-          data-testid="language-toggle"
-          onClick={() => setLocale(nextLocale)}
-          aria-label={languageAction}
-          title={languageAction}
-          className={cn(buttonClass, "min-w-10 px-3 text-micro font-medium")}
-        >
-          {languageLabel}
-          {langStatus === "error" ? (
-            <span
-              aria-hidden="true"
-              className="absolute top-1 right-1 size-1.5 rounded-full bg-danger"
-              title={langError ?? undefined}
-            />
-          ) : null}
-        </button>
-      </div>
+          <button
+            type="button"
+            data-testid="language-toggle"
+            onClick={() => setLocale(nextLocale)}
+            aria-label={languageAction}
+            title={languageAction}
+            className="relative flex min-h-10 min-w-0 items-center justify-center gap-1.5 rounded-pill bg-surface-muted px-2 text-caption text-muted transition-[color,background-color] duration-fast ease-standard hover:bg-surface-raised hover:text-content"
+          >
+            <Languages className="size-3.5 shrink-0" aria-hidden="true" />
+            <span className="truncate">{languageLabel}</span>
+            {langStatus === "error" ? (
+              <span
+                aria-hidden="true"
+                className="absolute top-1.5 right-1.5 size-1.5 rounded-full bg-danger"
+                title={langError ?? undefined}
+              />
+            ) : null}
+          </button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            type="button"
+            data-testid="theme-toggle"
+            onClick={() => setTheme(nextTheme)}
+            aria-label={themeAction}
+            title={themeAction}
+            className={tileClass}
+          >
+            <span className="flex size-8 items-center justify-center rounded-full bg-surface text-muted transition-colors group-hover:text-content">
+              {theme === "dark" ? (
+                <Moon className="size-4" aria-hidden="true" />
+              ) : (
+                <Sun className="size-4" aria-hidden="true" />
+              )}
+            </span>
+            <span className="min-w-0">
+              <span className="block text-micro text-muted">{t.themeLabel}</span>
+              <span className="mt-0.5 block truncate text-ui font-medium text-content">
+                {themeLabel}
+              </span>
+            </span>
+            {themeStatus === "error" ? (
+              <span
+                aria-hidden="true"
+                className="absolute top-2.5 right-2.5 size-1.5 rounded-full bg-danger"
+                title={themeError ?? undefined}
+              />
+            ) : null}
+          </button>
+
+          <button
+            type="button"
+            data-testid="language-toggle"
+            onClick={() => setLocale(nextLocale)}
+            aria-label={languageAction}
+            title={languageAction}
+            className={tileClass}
+          >
+            <span className="flex size-8 items-center justify-center rounded-full bg-surface text-muted transition-colors group-hover:text-content">
+              <Languages className="size-4" aria-hidden="true" />
+            </span>
+            <span className="min-w-0">
+              <span className="block text-micro text-muted">{t.languageLabel}</span>
+              <span className="mt-0.5 block truncate text-ui font-medium text-content">
+                {languageLabel}
+              </span>
+            </span>
+            {langStatus === "error" ? (
+              <span
+                aria-hidden="true"
+                className="absolute top-2.5 right-2.5 size-1.5 rounded-full bg-danger"
+                title={langError ?? undefined}
+              />
+            ) : null}
+          </button>
+        </div>
+      )}
 
       {isKyFallback ? (
         <p className="mt-1 px-2 text-micro text-muted">{t.languageUnavailable}</p>

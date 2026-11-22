@@ -1,3 +1,5 @@
+import { Check, Pause, Pencil, Play, Trash2 } from "lucide-react";
+
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/cn";
@@ -89,29 +91,47 @@ export function HabitRow({ habit, stats, onLog, onEdit, onTogglePause, onDelete 
         )}
       </div>
 
-      <div className="flex shrink-0 flex-wrap items-center gap-1 lg:justify-end">
-        <Button variant="ghost" size="sm" className="min-h-11" onClick={() => onLog(habit)}>
+      <div className="grid shrink-0 grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center lg:justify-end">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="min-h-11 justify-start gap-2 bg-surface-muted px-3 text-content hover:bg-surface-raised"
+          onClick={() => onLog(habit)}
+        >
+          <Check className="size-4" aria-hidden="true" />
           {t.log}
         </Button>
-        <Button variant="ghost" size="sm" className="min-h-11" onClick={() => onEdit(habit)}>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="min-h-11 justify-start gap-2 bg-surface-muted px-3 hover:bg-surface-raised"
+          onClick={() => onEdit(habit)}
+        >
+          <Pencil className="size-4" aria-hidden="true" />
           {t.edit}
         </Button>
         <Button
           variant="ghost"
           size="sm"
-          className="min-h-11"
+          className="min-h-11 justify-start gap-2 bg-surface-muted px-3 hover:bg-surface-raised"
           onClick={() => onTogglePause(habit)}
           aria-label={tmpl(paused || archived ? t.resumeAria : t.pauseAria, { title: habit.title })}
         >
+          {paused || archived ? (
+            <Play className="size-4" aria-hidden="true" />
+          ) : (
+            <Pause className="size-4" aria-hidden="true" />
+          )}
           {paused || archived ? t.resume : t.pause}
         </Button>
         <Button
           variant="ghost"
           size="sm"
-          className="min-h-11"
+          className="min-h-11 justify-start gap-2 bg-surface-muted px-3 text-danger hover:bg-danger-subtle hover:text-danger"
           onClick={() => onDelete(habit)}
           aria-label={tmpl(t.deleteAria, { title: habit.title })}
         >
+          <Trash2 className="size-4" aria-hidden="true" />
           {t.delete}
         </Button>
       </div>

@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Check, Copy, MessageSquare, Plus, Search, Trash2 } from "lucide-react";
+import { Check, ChevronDown, Copy, MessageSquare, Plus, Search, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -132,6 +132,7 @@ export function ChatPanel() {
   const sendMutation = useSendMessage({ invalidateMessages: false });
   const deleteMutation = useDeleteConversation();
   const [conversationSearch, setConversationSearch] = useState("");
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<AiConversation | null>(null);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const [pendingTurn, setPendingTurn] = useState<PendingTurn | null>(null);
@@ -446,6 +447,7 @@ export function ChatPanel() {
     setDecision(null);
     setLastProposal(null);
     setReviewOpen(false);
+    setHistoryOpen(false);
     turnActiveRef.current = false;
     forceScrollRef.current = true;
     sendMutation.reset();
@@ -479,7 +481,7 @@ export function ChatPanel() {
               {t.loadingConversations}
             </div>
           ) : conversationsQuery.isError ? (
-            <div className="flex min-w-0 flex-1 items-center justify-between gap-2 rounded-control bg-surface-muted px-3 text-caption text-muted">
+            <div className="flex h-11 min-w-0 flex-1 items-center justify-between gap-2 rounded-control bg-surface-muted px-3 text-caption text-muted">
               <span className="truncate">{errorText(conversationsQuery.error, m)}</span>
               <Button
                 variant="secondary"
@@ -490,29 +492,22 @@ export function ChatPanel() {
               </Button>
             </div>
           ) : (
-            <>
-              <label htmlFor="assistant-conversation" className="sr-only">
-                {t.conversations}
-              </label>
-              <select
-                id="assistant-conversation"
-                value={effectiveId ?? ""}
-                disabled={isTurnActive}
-                onChange={(event) => {
-                  const id = event.target.value;
-                  if (id === "") startNewConversation();
-                  else openConversation(id);
-                }}
-                className="h-11 min-w-0 flex-1 rounded-control border border-line bg-surface px-3 text-ui text-content disabled:opacity-60"
-              >
-                <option value="">{t.newChat}</option>
-                {conversations.map((conversation) => (
-                  <option key={conversation.id} value={conversation.id}>
-                    {conversation.title}
-                  </option>
-                ))}
-              </select>
-            </>
+            <Button
+              variant="secondary"
+              size="lg"
+              className="h-11 min-w-0 flex-1 justify-between gap-3 px-3 text-left"
+              aria-label={`${t.conversations}: ${currentConversation?.title ?? t.newChat}`}
+              aria-haspopup="dialog"
+              aria-expanded={historyOpen}
+              disabled={isTurnActive}
+              onClick={() => setHistoryOpen(true)}
+            >
+              <span className="flex min-w-0 items-center gap-2">
+                <MessageSquare className="size-4 shrink-0 text-muted" aria-hidden="true" />
+                <span className="truncate">{currentConversation?.title ?? t.newChat}</span>
+              </span>
+              <ChevronDown className="size-4 shrink-0 text-muted" aria-hidden="true" />
+            </Button>
           )}
 
           <Button
@@ -526,22 +521,6 @@ export function ChatPanel() {
           >
             <Plus className="size-4" aria-hidden="true" />
           </Button>
-          {currentConversation ? (
-            <Button
-              variant="secondary"
-              size="lg"
-              className="min-h-11 shrink-0 px-3 text-muted"
-              aria-label={`${t.deleteConversation}: ${currentConversation.title}`}
-              title={t.deleteConversation}
-              disabled={isTurnActive}
-              onClick={() => {
-                deleteMutation.reset();
-                setDeleteTarget(currentConversation);
-              }}
-            >
-              <Trash2 className="size-4" aria-hidden="true" />
-            </Button>
-          ) : null}
         </div>
       ) : null}
 
@@ -904,6 +883,112 @@ export function ChatPanel() {
             setReviewOpen(false);
           }}
         />
+      ) : null}
+      {historyOpen ? (
+        <Dialog
+          open
+          sheet
+          onClose={() => setHistoryOpen(false)}
+          title={t.conversations}
+          description={t.switchHint}
+        >
+          <div className="space-y-4">
+            <Button
+              size="lg"
+              className="min-h-11 w-full justify-start"
+              disabled={isTurnActive}
+              onClick={startNewConversation}
+            >
+              <Plus className="size-4" aria-hidden="true" />
+              {t.newChat}
+            </Button>
+
+            <div className="relative">
+              <Search
+                className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted"
+                aria-hidden="true"
+              />
+              <Input
+                type="search"
+                value={conversationSearch}
+                onChange={(event) => setConversationSearch(event.target.value)}
+                placeholder={t.searchConversations}
+                aria-label={t.searchConversations}
+                className="h-11 border-transparent bg-surface-muted pl-9"
+              />
+            </div>
+
+            {conversationsQuery.isLoading ? (
+              <ConversationSkeleton />
+            ) : conversationsQuery.isError ? (
+              <div role="alert" className="space-y-2">
+                <p className="text-ui text-content">{errorText(conversationsQuery.error, m)}</p>
+                <Button
+                  variant="secondary"
+                  size="lg"
+                  className="min-h-11"
+                  onClick={() => void conversationsQuery.refetch()}
+                >
+                  {m.common.retry}
+                </Button>
+              </div>
+            ) : conversations.length === 0 ? (
+              <p className="text-ui text-muted">{t.noConversations}</p>
+            ) : filteredConversations.length === 0 ? (
+              <p className="text-ui text-muted">{t.noSearchResults}</p>
+            ) : (
+              <div className="scrollbar-neutral -mx-1 max-h-[45dvh] overflow-y-auto px-1">
+                <ul className="space-y-1">
+                  {conversationGroups.map((group) => (
+                    <Fragment key={group.label}>
+                      <li className="px-3 pt-2 text-micro text-muted">{group.label}</li>
+                      {group.items.map((conversation) => {
+                        const active = conversation.id === effectiveId;
+                        return (
+                          <li key={conversation.id} className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              disabled={isTurnActive}
+                              onClick={() => openConversation(conversation.id)}
+                              aria-current={active ? "true" : undefined}
+                              title={conversation.title}
+                              className={cn(
+                                "flex min-h-12 min-w-0 flex-1 items-center gap-3 rounded-control px-3 text-left text-ui transition-[color,background-color] duration-fast ease-standard",
+                                active
+                                  ? "bg-surface-muted font-medium text-content"
+                                  : "text-muted hover:bg-surface-muted hover:text-content",
+                              )}
+                            >
+                              <MessageSquare className="size-4 shrink-0" aria-hidden="true" />
+                              <span className="min-w-0 flex-1 truncate">{conversation.title}</span>
+                              {active ? (
+                                <Check className="size-4 shrink-0 text-accent" aria-hidden="true" />
+                              ) : null}
+                            </button>
+                            <button
+                              type="button"
+                              disabled={isTurnActive}
+                              aria-label={`${t.deleteConversation}: ${conversation.title}`}
+                              title={t.deleteConversation}
+                              onClick={() => {
+                                setHistoryOpen(false);
+                                deleteMutation.reset();
+                                setDeleteTarget(conversation);
+                              }}
+                              className="flex size-10 shrink-0 items-center justify-center rounded-full text-muted transition-[color,background-color] duration-fast ease-standard hover:bg-surface-muted hover:text-danger"
+                            >
+                              <Trash2 className="size-4" aria-hidden="true" />
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </Fragment>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        </Dialog>
       ) : null}
       {deleteTarget ? (
         <Dialog

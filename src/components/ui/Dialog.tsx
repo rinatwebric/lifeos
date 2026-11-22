@@ -7,6 +7,8 @@ interface DialogProps {
   description?: string;
   children: ReactNode;
   wide?: boolean;
+  /** On phones, dock to the bottom edge as a sheet; desktop keeps the card. */
+  sheet?: boolean;
 }
 
 /**
@@ -16,7 +18,15 @@ interface DialogProps {
  * twice (native `close` event + keydown). Backdrop clicks close via
  * `target === dialog`. Focus returns to the element that opened the dialog.
  */
-export function Dialog({ open, onClose, title, description, children, wide }: DialogProps) {
+export function Dialog({
+  open,
+  onClose,
+  title,
+  description,
+  children,
+  wide,
+  sheet = false,
+}: DialogProps) {
   const dialogRef = useRef<HTMLDialogElement | null>(null);
   const titleId = useId();
   const descriptionId = useId();
@@ -95,6 +105,10 @@ export function Dialog({ open, onClose, title, description, children, wide }: Di
       onClick={handleBackdropClick}
       className={`scrollbar-neutral m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] overflow-y-auto overscroll-contain rounded-card border border-line bg-surface p-0 text-content shadow-overlay backdrop:bg-scrim ${
         wide ? "max-w-2xl" : "max-w-lg"
+      } ${
+        sheet
+          ? "max-lg:mt-auto max-lg:mb-0 max-lg:w-full max-lg:max-w-none max-lg:rounded-b-none max-lg:border-x-0 max-lg:border-b-0"
+          : ""
       }`}
     >
       <div className="space-y-4 p-6">

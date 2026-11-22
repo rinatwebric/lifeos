@@ -69,7 +69,7 @@ export function Sidebar({ onOpenSearch }: { onOpenSearch?: () => void }) {
       </nav>
 
       <nav aria-label={m.nav.secondary} className="mt-6 border-t border-line pt-3">
-        <DisplayControls />
+        <DisplayControls variant="compact" />
         {secondary.map((entry) => (
           <SidebarLink key={entry.to} entry={entry} />
         ))}
