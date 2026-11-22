@@ -3,6 +3,7 @@ import { mapFocusSessionRowToFocusSession, type FocusSessionsRow } from "@/types
 import type { FocusSession } from "@/types/domain";
 
 import { FocusServiceError, FOCUS_ERROR_MESSAGES, toFocusError } from "./errors";
+import { notBefore } from "./timestamps";
 
 const FOCUS_SELECT = "*, task:tasks(id,title)";
 
@@ -87,9 +88,13 @@ export async function pauseFocusSession(id: string): Promise<FocusSession> {
   try {
     const client = getSupabaseClient();
     const userId = await requireUserId();
+    const current = await getFocusSession(id, userId);
+    if (current.endedAt || current.pausedAt) return current;
+
+    const pausedAt = notBefore(new Date().toISOString(), current.startedAt);
     const { data, error } = await client
       .from("focus_sessions")
-      .update({ paused_at: new Date().toISOString() })
+      .update({ paused_at: pausedAt })
       .eq("id", id)
       .eq("user_id", userId)
       .is("ended_at", null)
@@ -149,7 +154,7 @@ export async function completeFocusSession(id: string): Promise<FocusSession> {
     const current = await getFocusSession(id, userId);
     if (current.endedAt) return current;
 
-    const endedAt = new Date().toISOString();
+    const endedAt = notBefore(new Date().toISOString(), current.startedAt);
     const pausedAtMs = current.pausedAt ? Date.parse(current.pausedAt) : null;
     const extraPausedSeconds =
       pausedAtMs !== null && Number.isFinite(pausedAtMs)
