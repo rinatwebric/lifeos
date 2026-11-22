@@ -133,7 +133,7 @@ export function DateTimePicker({
     bottom?: number;
     left: number;
     width: number;
-    mobile?: boolean;
+    maxHeight?: number;
   } | null>(null);
   const [view, setView] = useState(() => {
     const initial = selected ?? today;
@@ -173,22 +173,39 @@ export function DateTimePicker({
           left: 16,
           bottom: 16,
           width: window.innerWidth - 32,
-          mobile: true,
+          maxHeight: window.innerHeight - 32,
         });
         return;
       }
+      // The calendar is a top-layer popover, not a panel inside the form.
+      // Measure against the viewport so a short dialog does not squeeze a
+      // whole month into a 220px scroll box.
       const width = Math.min(304, window.innerWidth - 16);
-      const spaceBelow = window.innerHeight - rect.bottom;
-      const spaceAbove = rect.top;
-      const openUp = spaceAbove > spaceBelow;
+      const boundaryTop = 8;
+      const boundaryBottom = window.innerHeight;
+      const boundaryLeft = 8;
+      const boundaryRight = window.innerWidth - 8;
+      const spaceBelow = boundaryBottom - rect.bottom - 16;
+      const spaceAbove = rect.top - boundaryTop - 16;
+      // Keep the calendar below the field when it fits. Opening upward just
+      // because the field is low used to cover the form and jump between
+      // five- and six-week months.
+      const estimatedHeight = mode === "datetime" ? 470 : 410;
+      const openUp = spaceBelow < estimatedHeight && spaceAbove > spaceBelow;
+      const maxHeight = Math.min(estimatedHeight, Math.max(220, openUp ? spaceAbove : spaceBelow));
       const left = Math.max(
-        8,
-        Math.min(align === "end" ? rect.right - width : rect.left, window.innerWidth - width - 8),
+        boundaryLeft,
+        Math.min(align === "end" ? rect.right - width : rect.left, boundaryRight - width),
       );
       setPosition(
         openUp
-          ? { bottom: window.innerHeight - rect.top + 8, left, width }
-          : { top: Math.min(rect.bottom + 8, window.innerHeight - 8), left, width },
+          ? { bottom: window.innerHeight - rect.top + 8, left, width, maxHeight }
+          : {
+              top: Math.min(rect.bottom + 8, boundaryBottom - 8),
+              left,
+              width,
+              maxHeight,
+            },
       );
     };
 
@@ -199,7 +216,7 @@ export function DateTimePicker({
       window.removeEventListener("resize", update);
       window.removeEventListener("scroll", update, true);
     };
-  }, [open, align]);
+  }, [open, align, mode]);
 
   const weekdayLabels = useMemo(() => {
     return Array.from({ length: 7 }, (_, index) =>
@@ -211,15 +228,20 @@ export function DateTimePicker({
 
   const monthLabel = new Intl.DateTimeFormat(locale, {
     month: "long",
-    year: "numeric",
     timeZone: "UTC",
   }).format(utcDate(view.year, view.month, 1));
+  const yearOptions = Array.from({ length: 201 }, (_, index) => 1900 + index);
 
   const totalDays = daysInMonth(view.year, view.month);
   const offset = firstOffset(view.year, view.month);
-  const cells: (number | null)[] = Array.from({ length: 42 }, (_, index) => {
+  const previousMonth = view.month === 1 ? 12 : view.month - 1;
+  const previousYear = view.month === 1 ? view.year - 1 : view.year;
+  const previousTotal = daysInMonth(previousYear, previousMonth);
+  const cells = Array.from({ length: 42 }, (_, index) => {
     const day = index - offset + 1;
-    return day >= 1 && day <= totalDays ? day : null;
+    if (day >= 1 && day <= totalDays) return { day, current: true };
+    if (day < 1) return { day: previousTotal + day, current: false };
+    return { day: day - totalDays, current: false };
   });
 
   const toggle = (): void => {
@@ -305,11 +327,9 @@ export function DateTimePicker({
             bottom: position.bottom,
             left: position.left,
             width: position.width,
+            maxHeight: position.maxHeight,
           }}
-          className={cn(
-            "fixed z-[60] rounded-card border border-line bg-surface p-3 shadow-overlay",
-            position.mobile && "scrollbar-neutral max-h-[calc(100dvh-2rem)] overflow-y-auto",
-          )}
+          className="scrollbar-neutral fixed z-[60] overflow-y-auto rounded-card border border-line bg-surface p-3 shadow-overlay"
         >
           <div className="flex items-center justify-between gap-2">
             <button
@@ -326,7 +346,24 @@ export function DateTimePicker({
             >
               <ChevronLeft className="size-4" aria-hidden="true" />
             </button>
-            <p className="text-ui font-medium text-content capitalize">{monthLabel}</p>
+            <div className="flex min-w-0 items-center justify-center gap-1.5">
+              <p className="truncate text-ui font-medium text-content capitalize">{monthLabel}</p>
+              <Select
+                aria-label={t.year}
+                value={String(view.year)}
+                onChange={(event) =>
+                  setView((current) => ({ ...current, year: Number(event.target.value) }))
+                }
+                containerClassName="w-[5.4rem] shrink-0"
+                className="h-8 min-h-8 px-2 text-ui tabular-nums"
+              >
+                {yearOptions.map((year) => (
+                  <option key={year} value={year}>
+                    {year}
+                  </option>
+                ))}
+              </Select>
+            </div>
             <button
               type="button"
               onClick={() =>
@@ -343,14 +380,25 @@ export function DateTimePicker({
             </button>
           </div>
 
-          <div className="mt-2 grid grid-cols-7 gap-1 text-center">
+          <div className="mt-2 grid grid-cols-7 grid-rows-6 gap-1 text-center">
             {weekdayLabels.map((label, index) => (
               <span key={`${label}-${index}`} className="py-1 text-micro text-muted">
                 {label}
               </span>
             ))}
-            {cells.map((day, index) => {
-              if (day === null) return <span key={`empty-${index}`} aria-hidden="true" />;
+            {cells.map((cell, index) => {
+              if (!cell.current) {
+                return (
+                  <span
+                    key={`other-${index}`}
+                    className="flex size-9 items-center justify-center text-ui text-muted/35 tabular-nums"
+                    aria-hidden="true"
+                  >
+                    {cell.day}
+                  </span>
+                );
+              }
+              const { day } = cell;
               const selectedDay =
                 selected !== null &&
                 selected.year === view.year &&

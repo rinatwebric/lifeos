@@ -24,6 +24,7 @@ export const en = {
     previousMonth: "Previous month",
     nextMonth: "Next month",
     calendar: "Calendar",
+    year: "Year",
     time: "Time",
     hours: "Hours",
     minutes: "Minutes",

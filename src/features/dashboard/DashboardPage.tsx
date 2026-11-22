@@ -655,13 +655,26 @@ export function DashboardPage() {
                 />
               </div>
             ) : goals.length === 0 ? (
-              <CardEmpty
-                icon={<Target className="size-4" aria-hidden="true" />}
-                title={t.noActiveGoals}
-                description={t.noActiveGoalsHint}
-                href="/goals"
-                action={t.goToGoals}
-              />
+              <div className="motion-rise flex flex-1 flex-col justify-center gap-3 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex min-w-0 items-start gap-3">
+                  <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-surface-muted text-muted">
+                    <Target className="size-4" aria-hidden="true" />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-ui font-medium text-content">{t.noActiveGoals}</p>
+                    <p className="mt-1 max-w-sm text-caption leading-relaxed text-muted text-pretty">
+                      {t.noActiveGoalsHint}
+                    </p>
+                  </div>
+                </div>
+                <Link
+                  to="/goals"
+                  className="inline-flex min-h-11 w-full shrink-0 items-center justify-center gap-1.5 rounded-pill border border-control bg-surface px-4 text-ui font-medium text-content transition-[background-color,scale] duration-fast ease-standard hover:bg-surface-raised motion-safe:active:scale-[0.97] sm:w-auto"
+                >
+                  {t.goToGoals}
+                  <ArrowRight className="size-3.5" aria-hidden="true" />
+                </Link>
+              </div>
             ) : (
               <ul className="mt-4 flex flex-1 flex-col">
                 {goals.map((item) => (

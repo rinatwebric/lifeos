@@ -105,7 +105,6 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
     left: number;
     width: number;
     maxHeight?: number;
-    mobile?: boolean;
   } | null>(null);
 
   const setRefs = useCallback(
@@ -156,36 +155,21 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
       const trigger = triggerRef.current;
       if (!trigger) return;
       const rect = trigger.getBoundingClientRect();
-      if (window.innerWidth < 640) {
-        setPosition({
-          left: 16,
-          bottom: 16,
-          width: window.innerWidth - 32,
-          mobile: true,
-        });
-        return;
-      }
       const width = Math.min(Math.max(rect.width, 240), window.innerWidth - 16);
-      // Native dialogs clip fixed descendants at their own edge. Use the
-      // nearest dialog as the boundary, not just the viewport, and flip the
-      // list up when the room below is smaller than a comfortable menu.
-      const dialog = trigger.closest("dialog");
-      const dialogRect = dialog?.getBoundingClientRect();
-      const boundaryTop = dialogRect ? Math.max(8, dialogRect.top) : 0;
-      const boundaryBottom = dialogRect
-        ? Math.min(window.innerHeight, dialogRect.bottom)
-        : window.innerHeight;
-      const boundaryLeft = dialogRect ? Math.max(8, dialogRect.left + 8) : 8;
-      const boundaryRight = dialogRect
-        ? Math.min(window.innerWidth - 8, dialogRect.right - 8)
-        : window.innerWidth - 8;
+      const boundaryTop = 8;
+      const boundaryBottom = window.innerHeight;
+      const boundaryLeft = 8;
+      const boundaryRight = window.innerWidth - 8;
       const spaceBelow = boundaryBottom - rect.bottom - 16;
       const spaceAbove = rect.top - boundaryTop - 16;
-      const openUp = spaceBelow < 320 && spaceAbove > spaceBelow;
+      const desiredHeight = Math.min(288, options.length * 36 + 8);
+      // Open upward only when the menu truly does not fit below. An arbitrary
+      // 320px threshold sent short menus upward inside dialogs.
+      const openUp = spaceBelow < desiredHeight && spaceAbove > spaceBelow;
       const maxHeight = Math.min(288, Math.max(120, openUp ? spaceAbove : spaceBelow));
       // Select menus open under their trigger, not right-aligned like a compact
-      // action menu. Clamp to the viewport and the enclosing dialog instead of
-      // letting a wider list hang outside the dialog's left edge.
+      // action menu. Clamp to the viewport instead of letting a wider list hang
+      // outside the page.
       const left = Math.max(boundaryLeft, Math.min(rect.left, boundaryRight - width));
       setPosition(
         openUp
@@ -206,7 +190,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
       window.removeEventListener("resize", update);
       window.removeEventListener("scroll", update, true);
     };
-  }, [open]);
+  }, [open, options.length]);
 
   useEffect(() => {
     if (!open) return;
@@ -244,15 +228,11 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
     const trigger = triggerRef.current;
     if (trigger) {
       const rect = trigger.getBoundingClientRect();
-      setPosition(
-        window.innerWidth < 640
-          ? { left: 16, bottom: 16, width: window.innerWidth - 32, mobile: true }
-          : {
-              top: Math.min(rect.bottom + 8, window.innerHeight - 8),
-              left: rect.left,
-              width: rect.width,
-            },
-      );
+      setPosition({
+        top: Math.min(rect.bottom + 8, window.innerHeight - 8),
+        left: rect.left,
+        width: rect.width,
+      });
     }
     setOpen(true);
   };
@@ -367,12 +347,9 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
             bottom: position.bottom,
             left: position.left,
             width: position.width,
-            maxHeight: position.mobile ? undefined : position.maxHeight,
+            maxHeight: position.maxHeight,
           }}
-          className={cn(
-            "scrollbar-neutral fixed z-[60] overflow-y-auto rounded-card border border-line bg-surface p-1 shadow-overlay",
-            position.mobile ? "max-h-[min(60dvh,24rem)]" : "max-h-72",
-          )}
+          className="scrollbar-neutral fixed z-[60] max-h-72 overflow-y-auto rounded-card border border-line bg-surface p-1 shadow-overlay"
         >
           {options.map((option, index) => {
             const active = index === highlighted;

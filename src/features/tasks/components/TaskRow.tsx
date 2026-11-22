@@ -70,7 +70,7 @@ export function TaskRow({
   };
 
   return (
-    <li className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-3 px-5 py-4 transition-colors duration-fast hover:bg-surface-raised/40 sm:px-6 lg:grid-cols-[auto_minmax(0,1fr)_auto_auto] lg:items-center">
+    <li className="grid grid-cols-[auto_minmax(0,1fr)_auto] gap-x-3 gap-y-3 px-5 py-4 transition-colors duration-fast hover:bg-surface-raised/40 sm:px-6 lg:grid-cols-[auto_minmax(0,1fr)_auto_auto] lg:items-center">
       <CheckCircle
         id={`task-${task.id}`}
         checked={completed}
@@ -83,7 +83,7 @@ export function TaskRow({
         className="-m-3.5 size-11 cursor-pointer self-start lg:self-center"
       />
 
-      <div className="min-w-0 space-y-1.5">
+      <div className="col-start-2 row-start-1 min-w-0 space-y-1.5">
         <p
           title={task.title}
           className={cn(
@@ -129,7 +129,7 @@ export function TaskRow({
       </div>
 
       {task.dueDate || scheduledTime ? (
-        <div className="col-start-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-micro text-muted tabular-nums lg:col-start-auto lg:min-w-24 lg:flex-col lg:items-end lg:gap-y-0.5">
+        <div className="col-start-2 row-start-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-micro text-muted tabular-nums lg:col-start-3 lg:row-start-1 lg:min-w-24 lg:flex-col lg:items-end lg:gap-y-0.5">
           {task.dueDate ? (
             <time dateTime={task.dueDate}>{formatTaskDate(task.dueDate, intl)}</time>
           ) : null}
@@ -144,7 +144,7 @@ export function TaskRow({
         </div>
       ) : null}
 
-      <div className="col-start-2 lg:col-start-auto">
+      <div className="col-start-3 row-start-1 self-start lg:col-start-4 lg:row-start-1 lg:self-center">
         <TaskActionsMenu
           task={task}
           onEdit={onEdit}

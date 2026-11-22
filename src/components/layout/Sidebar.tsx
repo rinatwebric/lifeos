@@ -52,7 +52,7 @@ export function Sidebar({ onOpenSearch }: { onOpenSearch?: () => void }) {
           type="button"
           onClick={onOpenSearch}
           aria-keyshortcuts="Control+K Meta+K"
-          className="mt-5 flex min-h-9 w-full items-center gap-2.5 rounded-full px-3 text-left text-ui text-muted transition-[color,background-color] duration-fast ease-standard hover:bg-surface/60 hover:text-content"
+          className="mt-5 flex min-h-9 w-full items-center gap-2.5 rounded-full border border-line bg-surface/40 px-3 text-left text-ui text-muted transition-[color,background-color,border-color] duration-fast ease-standard hover:border-control hover:bg-surface hover:text-content"
         >
           <Search className="size-4 shrink-0" aria-hidden="true" />
           <span className="flex-1 truncate">{m.commandPalette.open}</span>

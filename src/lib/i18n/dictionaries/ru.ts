@@ -26,6 +26,7 @@ export const ru: EnMessages = {
     previousMonth: "Предыдущий месяц",
     nextMonth: "Следующий месяц",
     calendar: "Календарь",
+    year: "Год",
     time: "Время",
     hours: "Часы",
     minutes: "Минуты",

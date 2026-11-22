@@ -17,7 +17,7 @@ export function MobileHeader({ onOpenSearch }: { onOpenSearch?: () => void }) {
             type="button"
             onClick={onOpenSearch}
             aria-label={m.commandPalette.open}
-            className="relative grid size-9 place-items-center rounded-full text-muted transition-[color,background-color] duration-fast ease-standard after:absolute after:-inset-1 after:content-[''] hover:bg-surface hover:text-content"
+            className="relative grid size-9 place-items-center rounded-full border border-line bg-surface/40 text-muted transition-[color,background-color,border-color] duration-fast ease-standard after:absolute after:-inset-1 after:content-[''] hover:border-control hover:bg-surface hover:text-content"
           >
             <Search className="size-4.5" strokeWidth={2} absoluteStrokeWidth aria-hidden="true" />
           </button>
