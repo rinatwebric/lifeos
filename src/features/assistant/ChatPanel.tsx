@@ -25,6 +25,27 @@ import { assistant } from "./queryKeys";
 import { ProposalModal } from "./ProposalModal";
 
 const MAX_MESSAGE_CHARS = 4000;
+const MOBILE_QUERY = "(max-width: 1023px)";
+
+function useIsMobile(): boolean {
+  const [isMobile, setIsMobile] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      typeof window.matchMedia === "function" &&
+      window.matchMedia(MOBILE_QUERY).matches,
+  );
+
+  useEffect(() => {
+    if (typeof window.matchMedia !== "function") return;
+    const media = window.matchMedia(MOBILE_QUERY);
+    const update = (): void => setIsMobile(media.matches);
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
+
+  return isMobile;
+}
 
 function errorCode(error: unknown): AssistantErrorCode {
   if (error instanceof AssistantServiceError) {
@@ -98,6 +119,7 @@ export function ChatPanel() {
   const m = useMessages();
   const t = m.assistant;
   const locale = useLocale();
+  const isMobile = useIsMobile();
   const queryClient = useQueryClient();
   const conversationsQuery = useConversations();
   const [selectedId, setSelectedId] = useState<string | null | undefined>(undefined);
@@ -392,11 +414,18 @@ export function ChatPanel() {
 
   const copyMessage = async (messageId: string, content: string): Promise<void> => {
     try {
-      await navigator.clipboard.writeText(content);
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(content);
+      } else if (!fallbackCopy(content)) {
+        return;
+      }
       setCopiedMessageId(messageId);
       window.setTimeout(() => setCopiedMessageId(null), 1600);
     } catch {
-      // Clipboard permission can be denied; the button simply stays unchanged.
+      if (fallbackCopy(content)) {
+        setCopiedMessageId(messageId);
+        window.setTimeout(() => setCopiedMessageId(null), 1600);
+      }
     }
   };
 
@@ -406,11 +435,118 @@ export function ChatPanel() {
 
   const proposedCount = lastProposal?.proposal.actions.length ?? 0;
   const proposedCat = pluralCategory(locale, proposedCount);
+  const currentConversation =
+    effectiveId === null
+      ? null
+      : (conversations.find((conversation) => conversation.id === effectiveId) ?? null);
+
+  const openConversation = (id: string | null): void => {
+    setSelectedId(id);
+    setPendingTurn(null);
+    setDecision(null);
+    setLastProposal(null);
+    setReviewOpen(false);
+    turnActiveRef.current = false;
+    forceScrollRef.current = true;
+    sendMutation.reset();
+  };
+
+  const startNewConversation = (): void => {
+    setDraft("");
+    openConversation(null);
+  };
+
+  const fallbackCopy = (text: string): boolean => {
+    const area = document.createElement("textarea");
+    area.value = text;
+    area.setAttribute("readonly", "");
+    area.style.position = "fixed";
+    area.style.left = "-9999px";
+    area.style.opacity = "0";
+    document.body.appendChild(area);
+    area.select();
+    const copied = document.execCommand("copy");
+    area.remove();
+    return copied;
+  };
 
   return (
     <>
+      {isMobile ? (
+        <div className="flex items-center gap-2">
+          {conversationsQuery.isLoading ? (
+            <div className="flex h-11 min-w-0 flex-1 items-center rounded-control bg-surface-muted px-3 text-caption text-muted">
+              {t.loadingConversations}
+            </div>
+          ) : conversationsQuery.isError ? (
+            <div className="flex min-w-0 flex-1 items-center justify-between gap-2 rounded-control bg-surface-muted px-3 text-caption text-muted">
+              <span className="truncate">{errorText(conversationsQuery.error, m)}</span>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => void conversationsQuery.refetch()}
+              >
+                {m.common.retry}
+              </Button>
+            </div>
+          ) : (
+            <>
+              <label htmlFor="assistant-conversation" className="sr-only">
+                {t.conversations}
+              </label>
+              <select
+                id="assistant-conversation"
+                value={effectiveId ?? ""}
+                disabled={isTurnActive}
+                onChange={(event) => {
+                  const id = event.target.value;
+                  if (id === "") startNewConversation();
+                  else openConversation(id);
+                }}
+                className="h-11 min-w-0 flex-1 rounded-control border border-line bg-surface px-3 text-ui text-content disabled:opacity-60"
+              >
+                <option value="">{t.newChat}</option>
+                {conversations.map((conversation) => (
+                  <option key={conversation.id} value={conversation.id}>
+                    {conversation.title}
+                  </option>
+                ))}
+              </select>
+            </>
+          )}
+
+          <Button
+            variant="secondary"
+            size="lg"
+            className="min-h-11 shrink-0 px-3"
+            aria-label={t.newChat}
+            title={t.newChat}
+            disabled={isTurnActive}
+            onClick={startNewConversation}
+          >
+            <Plus className="size-4" aria-hidden="true" />
+          </Button>
+          {currentConversation ? (
+            <Button
+              variant="secondary"
+              size="lg"
+              className="min-h-11 shrink-0 px-3 text-muted"
+              aria-label={`${t.deleteConversation}: ${currentConversation.title}`}
+              title={t.deleteConversation}
+              disabled={isTurnActive}
+              onClick={() => {
+                deleteMutation.reset();
+                setDeleteTarget(currentConversation);
+              }}
+            >
+              <Trash2 className="size-4" aria-hidden="true" />
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
+
       <div className="grid min-w-0 gap-4 lg:grid-cols-[18rem_minmax(0,1fr)] lg:items-start">
-        <Card className="min-w-0 space-y-4 p-4 sm:p-5 lg:flex lg:h-[calc(100dvh-13rem)] lg:min-h-[34rem] lg:flex-col lg:overflow-hidden">
+        <Card className="hidden min-w-0 space-y-4 p-4 sm:p-5 lg:flex lg:h-[calc(100dvh-13rem)] lg:min-h-[34rem] lg:flex-col lg:overflow-hidden">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-[15px] font-medium text-content">{t.conversations}</h2>
             <Button
@@ -418,17 +554,7 @@ export function ChatPanel() {
               size="lg"
               className="min-h-11 max-w-full"
               disabled={isTurnActive}
-              onClick={() => {
-                setSelectedId(null);
-                setDraft("");
-                setPendingTurn(null);
-                setDecision(null);
-                setLastProposal(null);
-                setReviewOpen(false);
-                turnActiveRef.current = false;
-                forceScrollRef.current = true;
-                sendMutation.reset();
-              }}
+              onClick={startNewConversation}
             >
               <Plus className="size-4" aria-hidden="true" />
               {t.newChat}
@@ -483,16 +609,7 @@ export function ChatPanel() {
                         <button
                           type="button"
                           disabled={isTurnActive}
-                          onClick={() => {
-                            setSelectedId(conversation.id);
-                            setPendingTurn(null);
-                            setDecision(null);
-                            setLastProposal(null);
-                            setReviewOpen(false);
-                            turnActiveRef.current = false;
-                            forceScrollRef.current = true;
-                            sendMutation.reset();
-                          }}
+                          onClick={() => openConversation(conversation.id)}
                           aria-current={active ? "true" : undefined}
                           title={conversation.title}
                           className={cn(
@@ -528,7 +645,7 @@ export function ChatPanel() {
         </Card>
 
         <Card className="flex min-w-0 flex-col gap-5 p-4 sm:p-6 lg:h-[calc(100dvh-13rem)] lg:min-h-[34rem] lg:overflow-hidden">
-          <div className="space-y-1">
+          <div className="hidden space-y-1 lg:block">
             <h2 className="text-[15px] font-medium text-content">{t.chat}</h2>
             <p className="text-caption text-muted text-pretty">{t.proposalsOnly}</p>
           </div>
@@ -581,14 +698,14 @@ export function ChatPanel() {
                   <li
                     key={message.id}
                     className={cn(
-                      "relative min-w-0 rounded-control p-4",
+                      "group relative min-w-0 rounded-control p-4",
                       message.role === "user" ? "bg-surface-muted" : "bg-canvas",
                     )}
                   >
                     <p className="text-micro font-medium text-muted">
                       {message.role === "user" ? t.you : t.assistantName}
                     </p>
-                    <p className="mt-1 pr-8 text-body break-words text-content text-pretty">
+                    <p className="mt-1 pr-10 text-body break-words text-content text-pretty">
                       {message.content}
                     </p>
                     <button
@@ -596,7 +713,7 @@ export function ChatPanel() {
                       aria-label={copiedMessageId === message.id ? t.copied : t.copyMessage}
                       title={copiedMessageId === message.id ? t.copied : t.copyMessage}
                       onClick={() => void copyMessage(message.id, message.content)}
-                      className="absolute top-2 right-2 flex size-8 items-center justify-center rounded-full text-muted opacity-100 transition-[color,background-color,opacity] duration-fast ease-standard hover:bg-surface-raised hover:text-content focus-visible:opacity-100 lg:opacity-0 lg:group-hover:opacity-100 lg:group-focus-within:opacity-100"
+                      className="absolute top-2 right-2 flex size-9 items-center justify-center rounded-full text-muted opacity-60 transition-[color,background-color,opacity] duration-fast ease-standard hover:bg-surface-raised hover:text-content hover:opacity-100 focus-visible:opacity-100"
                     >
                       {copiedMessageId === message.id ? (
                         <Check className="size-3.5" aria-hidden="true" />

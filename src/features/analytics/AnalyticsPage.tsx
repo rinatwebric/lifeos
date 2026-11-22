@@ -9,10 +9,6 @@ import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { WeeklyReview } from "@/features/analytics/WeeklyReview";
-import { useFocusSessionsBetween } from "@/features/focus/hooks";
-import { focusRangeIso } from "@/features/focus/range";
-import { focusElapsedSeconds } from "@/features/focus/timer";
-import { formatDurationMinutes } from "@/features/planner/usePlannerDay";
 import {
   bucketize,
   buildWeeklyReview,
@@ -69,15 +65,9 @@ export function AnalyticsPage() {
   const todayKey = toDateKey(new Date(), timeZone);
   const range = useMemo(() => getPeriodRange(period, todayKey), [period, todayKey]);
   const previousRange = useMemo(() => getPreviousPeriodRange(period, range), [period, range]);
-  const focusRange = useMemo(
-    () => focusRangeIso(range.from, range.to, timeZone),
-    [range.from, range.to, timeZone],
-  );
-
   const tasksQuery = useTasks();
   const goalsQuery = useGoals();
   const habitsBundle = useHabitsWithStats(range, todayKey);
-  const focusQuery = useFocusSessionsBetween(focusRange.from, focusRange.to);
 
   const loading =
     tasksQuery.isLoading || goalsQuery.isLoading || habitsBundle.habitsQuery.isLoading;
@@ -162,18 +152,6 @@ export function AnalyticsPage() {
     [tasks],
   );
   const now = useMemo(() => new Date(), []);
-  const focusSessions = useMemo(() => focusQuery.data ?? [], [focusQuery.data]);
-  const focusActualMinutes = useMemo(() => {
-    const seconds = focusSessions.reduce(
-      (sum, session) => sum + focusElapsedSeconds(session, now.getTime()),
-      0,
-    );
-    return Math.round(seconds / 60);
-  }, [focusSessions, now]);
-  const focusPlannedMinutes = useMemo(
-    () => focusSessions.reduce((sum, session) => sum + session.plannedMinutes, 0),
-    [focusSessions],
-  );
   const overdue = useMemo(
     () => tasks.filter((task) => isTaskOverdue(task, now, timeZone)).length,
     [tasks, now, timeZone],
@@ -401,62 +379,6 @@ export function AnalyticsPage() {
                   </>
                 )}
               </div>
-            </div>
-          </Card>
-
-          <Card className="p-0">
-            <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
-              <div className="min-w-0">
-                <h2 className="text-[15px] font-medium text-content">{t.focusTitle}</h2>
-                {focusQuery.isLoading ? (
-                  <div className="mt-3 space-y-2" aria-busy="true">
-                    <div className="h-7 w-28 rounded-full bg-surface-muted" />
-                    <div className="h-3 w-48 max-w-full rounded-full bg-surface-muted" />
-                    <span className="sr-only">{t.focusLoading}</span>
-                  </div>
-                ) : focusQuery.isError ? (
-                  <div className="mt-2 flex flex-wrap items-center gap-3 text-caption text-muted">
-                    <span>{t.focusLoadError}</span>
-                    <Button variant="secondary" size="sm" onClick={() => void focusQuery.refetch()}>
-                      {m.common.retry}
-                    </Button>
-                  </div>
-                ) : focusSessions.length === 0 ? (
-                  <div className="mt-2 flex flex-wrap items-center gap-3 text-caption text-muted">
-                    <span>{t.focusEmpty}</span>
-                    <Link
-                      to="/"
-                      className="inline-flex items-center gap-1 text-caption text-content underline-offset-4 hover:underline"
-                    >
-                      {t.focusStart}
-                      <ArrowRight className="size-3.5" aria-hidden="true" />
-                    </Link>
-                  </div>
-                ) : (
-                  <>
-                    <p className="mt-3 text-[26px] leading-tight font-semibold tracking-[-0.02em] text-content tabular-nums">
-                      {focusActualMinutes < 1
-                        ? t.focusUnderMinute
-                        : formatDurationMinutes(focusActualMinutes, locale)}
-                    </p>
-                    <p className="mt-1 text-caption text-muted">{t.focusActualLabel}</p>
-                  </>
-                )}
-              </div>
-              {focusSessions.length > 0 ? (
-                <dl className="flex shrink-0 items-baseline gap-6 text-caption tabular-nums">
-                  <div>
-                    <dt className="text-muted">{t.focusSessions}</dt>
-                    <dd className="mt-1 text-right text-content">{focusSessions.length}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-muted">{t.focusPlannedLabel}</dt>
-                    <dd className="mt-1 text-right text-content">
-                      {formatDurationMinutes(focusPlannedMinutes, locale)}
-                    </dd>
-                  </div>
-                </dl>
-              ) : null}
             </div>
           </Card>
 

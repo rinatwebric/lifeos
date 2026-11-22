@@ -35,6 +35,12 @@ function formatTaskTime(value: string, timeZone: string, locale: string): string
   }).format(date);
 }
 
+function formatTaskDate(value: string, locale: string): string {
+  const date = new Date(`${value}T12:00:00`);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat(locale, { month: "short", day: "numeric" }).format(date);
+}
+
 export function TaskRow({
   task,
   timeZone,
@@ -125,7 +131,9 @@ export function TaskRow({
 
       {task.dueDate || scheduledTime ? (
         <div className="col-start-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-micro text-muted tabular-nums lg:col-start-auto lg:min-w-24 lg:flex-col lg:items-end lg:gap-y-0.5">
-          {task.dueDate ? <time dateTime={task.dueDate}>{task.dueDate}</time> : null}
+          {task.dueDate ? (
+            <time dateTime={task.dueDate}>{formatTaskDate(task.dueDate, intl)}</time>
+          ) : null}
           {task.dueDate && scheduledTime ? (
             <span aria-hidden="true" className="lg:hidden">
               ·
@@ -137,36 +145,39 @@ export function TaskRow({
         </div>
       ) : null}
 
-      <div className="col-start-2 flex items-center gap-0.5 lg:col-start-auto lg:justify-end">
+      <div className="col-start-2 flex items-center gap-0.5 lg:col-start-auto lg:justify-end lg:gap-1">
         <Button
           variant="ghost"
           size="sm"
-          className="relative size-11 shrink-0 p-0 after:absolute after:-inset-1 after:content-[''] lg:size-8"
+          className="relative size-11 shrink-0 gap-1.5 p-0 text-muted after:absolute after:-inset-1 after:content-[''] hover:bg-surface-muted hover:text-content lg:size-10 lg:gap-0 lg:px-0 xl:h-9 xl:w-auto xl:gap-1.5 xl:px-2.5"
           aria-label={t.edit}
           title={t.edit}
           onClick={() => onEdit(task)}
         >
           <Pencil className="size-4" aria-hidden="true" />
+          <span className="hidden xl:inline">{t.edit}</span>
         </Button>
         <Button
           variant="ghost"
           size="sm"
-          className="relative size-11 shrink-0 p-0 after:absolute after:-inset-1 after:content-[''] lg:size-8"
+          className="relative size-11 shrink-0 gap-1.5 p-0 text-muted after:absolute after:-inset-1 after:content-[''] hover:bg-surface-muted hover:text-content lg:size-10 lg:gap-0 lg:px-0 xl:h-9 xl:w-auto xl:gap-1.5 xl:px-2.5"
           aria-label={t.reschedule}
           title={t.reschedule}
           onClick={() => onReschedule(task)}
         >
           <CalendarClock className="size-4" aria-hidden="true" />
+          <span className="hidden xl:inline">{t.reschedule}</span>
         </Button>
         <Button
           variant="ghost"
           size="sm"
-          className="relative size-11 shrink-0 p-0 after:absolute after:-inset-1 after:content-[''] lg:size-8"
+          className="relative size-11 shrink-0 gap-1.5 p-0 text-muted after:absolute after:-inset-1 after:content-[''] hover:bg-surface-muted hover:text-danger lg:size-10 lg:gap-0 lg:px-0 xl:h-9 xl:w-auto xl:gap-1.5 xl:px-2.5"
           onClick={() => onDelete(task)}
           aria-label={tmpl(t.deleteAria, { title: task.title })}
           title={t.delete}
         >
           <Trash2 className="size-4" aria-hidden="true" />
+          <span className="hidden xl:inline">{t.delete}</span>
         </Button>
       </div>
     </li>

@@ -139,21 +139,6 @@ export interface TimeBlock extends BaseEntity {
   blockType: BlockType;
 }
 
-/**
- * Actual focused work (migration 0009), separate from planned `TimeBlock`s.
- * `endedAt === null` means the session is active. A paused active session has
- * `pausedAt` set; `pausedSeconds` is the accumulated time from earlier pauses.
- */
-export interface FocusSession extends BaseEntity {
-  taskId: string | null;
-  taskTitle: string | null;
-  startedAt: string;
-  endedAt: string | null;
-  plannedMinutes: number;
-  pausedAt: string | null;
-  pausedSeconds: number;
-}
-
 export interface Habit extends BaseEntity {
   title: string;
   description: string | null;

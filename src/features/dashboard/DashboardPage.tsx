@@ -8,7 +8,6 @@ import { CheckCircle } from "@/components/ui/CheckCircle";
 import { ProgressBar } from "@/components/ui/ProgressBar";
 import { useDashboardData } from "@/features/dashboard/useDashboardData";
 import { useDashboardSchedule } from "@/features/dashboard/useDashboardSchedule";
-import { FocusCard } from "@/features/focus/FocusCard";
 import { useSetTaskStatus } from "@/features/tasks/hooks";
 import { formatDurationMinutes } from "@/features/planner/usePlannerDay";
 import { cn } from "@/lib/cn";
@@ -155,18 +154,6 @@ export function DashboardPage() {
         )
       : null;
 
-  const focusLeftMinutes = schedule.dayBlocks
-    .filter((block) => block.blockType === "task" && Date.parse(block.end) > nowMs)
-    .reduce(
-      (total, block) => total + Math.max(0, Math.round((Date.parse(block.end) - nowMs) / 60_000)),
-      0,
-    );
-  const focusText = scheduleLoading
-    ? null
-    : focusLeftMinutes > 0
-      ? tmpl(t.focusLeft, { duration: formatDurationMinutes(focusLeftMinutes, locale) })
-      : t.noFocusLeft;
-
   const nextBlock = schedule.dayBlocks.find((block) => Date.parse(block.start) > nowMs);
   const blocksDone = schedule.dayBlocks.filter((block) => Date.parse(block.end) <= nowMs).length;
   const scheduleCaption = nextBlock
@@ -217,12 +204,6 @@ export function DashboardPage() {
                 <span className="font-medium text-danger">{overdueText}</span>
               </>
             ) : null}
-            {profileReady && focusText ? (
-              <>
-                <span aria-hidden="true"> · </span>
-                <span>{focusText}</span>
-              </>
-            ) : null}
             {profileReady && overdueCount > 0 ? (
               <>
                 <span aria-hidden="true"> · </span>
@@ -244,8 +225,6 @@ export function DashboardPage() {
           <ArrowRight className="size-4" aria-hidden="true" />
         </Link>
       </header>
-
-      <FocusCard nextTask={nextActions[0] ?? null} />
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
         <Card className="flex flex-col p-6">

@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 
@@ -18,7 +19,8 @@ describe("shell navigation", () => {
     expect(screen.getByRole("link", { name: "Dashboard" })).not.toHaveAttribute("aria-current");
   });
 
-  it("marks the active mobile entry with aria-current", () => {
+  it("keeps four primary links and puts the rest behind More", async () => {
+    const user = userEvent.setup();
     render(
       <MemoryRouter initialEntries={["/tasks"]}>
         <MobileNav />
@@ -26,6 +28,13 @@ describe("shell navigation", () => {
     );
 
     expect(screen.getByRole("link", { name: "Tasks" })).toHaveAttribute("aria-current", "page");
-    expect(screen.getByRole("link", { name: "Goals" })).not.toHaveAttribute("aria-current");
+    expect(screen.getByRole("link", { name: "Today" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Plan" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "AI" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Goals" })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "More" }));
+    expect(screen.getByRole("link", { name: "Goals" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Analytics" })).toBeInTheDocument();
   });
 });

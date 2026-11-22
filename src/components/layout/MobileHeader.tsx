@@ -2,7 +2,6 @@ import { Search, Settings } from "lucide-react";
 import { NavLink } from "react-router-dom";
 
 import { Brand } from "@/components/layout/Brand";
-import { DisplayControls } from "@/components/layout/DisplayControls";
 import { cn } from "@/lib/cn";
 import { useMessages } from "@/lib/i18n/I18nContext";
 
@@ -18,13 +17,11 @@ export function MobileHeader({ onOpenSearch }: { onOpenSearch?: () => void }) {
             type="button"
             onClick={onOpenSearch}
             aria-label={m.commandPalette.open}
-            aria-keyshortcuts="Control+K Meta+K"
             className="relative grid size-9 place-items-center rounded-full text-muted transition-[color,background-color] duration-fast ease-standard after:absolute after:-inset-1 after:content-[''] hover:bg-surface hover:text-content"
           >
             <Search className="size-4.5" strokeWidth={2} absoluteStrokeWidth aria-hidden="true" />
           </button>
         ) : null}
-        <DisplayControls variant="mobile" />
         <NavLink
           to="/settings"
           aria-label={m.layout.mobileHeaderSettingsLabel}

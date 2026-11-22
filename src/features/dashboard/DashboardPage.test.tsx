@@ -39,12 +39,6 @@ vi.mock("./useDashboardSchedule", () => ({
   useDashboardSchedule: vi.fn(),
 }));
 
-// FocusCard owns its focus-session network state; this file covers the
-// dashboard composition, and FocusCard has its own test suite.
-vi.mock("@/features/focus/FocusCard", () => ({
-  FocusCard: () => null,
-}));
-
 const TIME_ZONE = "Asia/Bishkek";
 
 function todayKey(): string {

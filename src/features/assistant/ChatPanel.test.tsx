@@ -86,6 +86,31 @@ function renderPanel() {
 }
 
 describe("ChatPanel", () => {
+  it("copies a message from the message action", async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText },
+      configurable: true,
+    });
+    stubQueries({
+      conversations: [{ id: "c1", title: "Plan my week" }],
+      messages: [{ id: "m1", role: "assistant", content: "Plan my week" }],
+    });
+    mockedSend.mockReturnValue({
+      mutateAsync: vi.fn(),
+      isPending: false,
+      error: null,
+      reset: vi.fn(),
+    } as unknown as ReturnType<typeof useSendMessage>);
+
+    renderPanel();
+    await user.click(screen.getByRole("button", { name: "Copy message" }));
+
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith("Plan my week"));
+    expect(screen.getByRole("button", { name: "Copied" })).toBeInTheDocument();
+  });
+
   it("shows the honest empty state with examples", () => {
     stubQueries();
     mockedSend.mockReturnValue({

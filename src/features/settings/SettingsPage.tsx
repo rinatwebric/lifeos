@@ -23,6 +23,7 @@ import { Field } from "@/components/ui/Field";
 import { Input } from "@/components/ui/Input";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/Button";
+import { DisplayControls } from "@/components/layout/DisplayControls";
 import { isSupabaseConfigured } from "@/lib/env";
 import { cn } from "@/lib/cn";
 import { toWallTime } from "@/lib/dates";
@@ -60,12 +61,16 @@ const SECTION_COPY = {
   en: {
     profile: "Profile",
     profileHint: "Your name and sign-in email.",
+    display: "Appearance",
+    displayHint: "Theme and interface language.",
     daySetup: "Day setup",
     daySetupHint: "Time zone, wake-up and sleep.",
   },
   ru: {
     profile: "Профиль",
     profileHint: "Имя и email для входа.",
+    display: "Оформление",
+    displayHint: "Тема и язык интерфейса.",
     daySetup: "Распорядок дня",
     daySetupHint: "Часовой пояс, подъём и сон.",
   },
@@ -206,6 +211,11 @@ export function SettingsPage() {
             invalidate={() => queryClient.invalidateQueries({ queryKey: profileQueryKey })}
           />
         </div>
+      </Card>
+
+      <Card className="space-y-4 p-6">
+        <SectionHeading title={sections.display} hint={sections.displayHint} />
+        <DisplayControls />
       </Card>
 
       <Card className="space-y-5 p-6">

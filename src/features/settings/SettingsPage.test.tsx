@@ -8,7 +8,6 @@ import { signOut } from "@/features/auth/api";
 import type { Profile, UserPreferences } from "@/types/domain";
 import { SETTINGS_COPY, SettingsPage } from "./SettingsPage";
 import { ThemeProvider } from "@/app/theme";
-import { DisplayControls } from "@/components/layout/DisplayControls";
 import { LocaleProvider } from "@/lib/i18n/I18nContext";
 import { en } from "@/lib/i18n/dictionaries/en";
 import { ru } from "@/lib/i18n/dictionaries/ru";
@@ -78,7 +77,6 @@ function renderSettings() {
       <LocaleProvider>
         <ThemeProvider>
           <SettingsPage />
-          <DisplayControls variant="sidebar" />
         </ThemeProvider>
       </LocaleProvider>
     </QueryClientProvider>,
