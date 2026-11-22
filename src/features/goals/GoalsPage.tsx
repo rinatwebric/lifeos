@@ -16,7 +16,7 @@ import { calculateGoalProgress } from "@/lib/progress";
 import { useMessages } from "@/lib/i18n/I18nContext";
 import type { Goal, MilestoneStatus } from "@/types/domain";
 
-const GOAL_GRID_CLASS = "grid gap-4 sm:grid-cols-2 xl:grid-cols-3";
+const GOAL_GRID_CLASS = "grid gap-4 lg:grid-cols-2 xl:grid-cols-3";
 
 function hasActiveFilters(filters: GoalFilterQuery): boolean {
   return Boolean(filters.status ?? filters.category ?? filters.priority ?? filters.search);

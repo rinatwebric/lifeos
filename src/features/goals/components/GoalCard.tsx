@@ -99,7 +99,7 @@ export function GoalCard({ goal, progress, onEdit, onDelete }: GoalCardProps) {
         </p>
       </div>
 
-      <div className="flex flex-nowrap items-center gap-1.5 border-t border-line px-4 py-3">
+      <div className="flex flex-wrap items-center gap-1.5 border-t border-line px-4 py-3">
         <Button
           variant="secondary"
           size="sm"
